@@ -53,7 +53,22 @@ test("knowledge.md is a table with a status column and at least 12 rows", () => 
   const rows = lines.filter((l) => /^\| /.test(l) && !l.startsWith("| Hecho") && !/^\|[\s|:-]+\|$/.test(l));
   assert.ok(rows.length >= 12, `${rows.length} rows`);
   for (const row of rows) assert.match(row, /\| (verificado|por verificar)[^|]*\|/, row);
-  assert.ok(rows.some((r) => r.includes("verificado (Tarea 1, 2026-11)")));
+  assert.ok(rows.some((r) => r.includes("verificado (prueba en la nube, 2026-11-02)")));
+  assert.ok(rows.some((r) => r.includes("/ccr/ready_for_review") && r.includes("| por verificar |")));
+});
+
+test("the skill cites only sources a reader of the target repo can place", () => {
+  for (const path of ["SKILL.md", "reference/knowledge.md", "reference/compat.md"]) {
+    const text = read(path);
+    assert.equal(/Tarea \d|cloud-cli\.md/.test(text), false, path);
+  }
+});
+
+test("verify stages the preparation files and rebases the push retry on FETCH_HEAD", () => {
+  const skill = read("SKILL.md");
+  assert.ok(skill.includes("git add --"), "no explicit git add");
+  assert.ok(skill.includes("git rebase FETCH_HEAD"));
+  assert.equal(skill.includes("git rebase origin/"), false);
 });
 
 test("compat.md has the example repos, from least to most invasive", () => {

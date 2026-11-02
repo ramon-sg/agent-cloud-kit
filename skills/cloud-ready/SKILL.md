@@ -122,9 +122,13 @@ Solo con `CLAUDE_CODE_REMOTE=true`; si no, detente y dilo. El prompt trae la ram
    que no sea un archivo de la preparación se revierte con `git checkout -- <archivo>` (si está
    versionado) o se borra (si es nuevo y lo creaste tú). Un cambio necesario al código, tests o
    scripts queda como propuesta en el comentario del PR.
-9. **Commit y push:** `git commit -m "chore(cloud): verify cloud-ready"` (solo si hay cambios) y
+9. **Commit y push:** agrega solo los archivos de la preparación que cambiaron, por nombre
+   (`git add -- .claude/cloud.json <archivo de notes> docs/agent-cloud.md`, más
+   `.agents/skills/test-audit/project.md` si lo tocaste); si hay algo en stage,
+   `git commit -m "chore(cloud): verify cloud-ready"`. Luego
    `git push origin HEAD:<rama de prepare>`. Si el push se rechaza, `git fetch origin <rama de
-   prepare>`, `git rebase origin/<rama de prepare>` y reintenta una vez.
+   prepare>`, `git rebase FETCH_HEAD` (el clon es parcial: `origin/<rama>` puede no existir) y
+   reintenta una vez.
 10. **Comentario en el PR,** por REST con `gh api` (`gh pr …` usa GraphQL y está bloqueado;
     `gh auth status` dice que el token es inválido, pero `gh api` funciona):
     - `owner` y `repo`: de `git remote get-url origin` (las dos últimas partes de la ruta, sin `.git`).

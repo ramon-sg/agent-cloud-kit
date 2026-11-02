@@ -2,7 +2,7 @@
  * @file Tests for reading and installing the version of the cloud-ready skill.
  */
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
@@ -49,4 +49,21 @@ test("installSkill writes metadata.version when the packaged skill lacks it", ()
 test("installSkill fails without touching the repo when the package has no skill", () => {
   assert.throws(() => installSkill(repo, join(repo, "nowhere"), "1.0.0"), /SKILL\.md not found/);
   assert.equal(skillVersion(repo), undefined);
+});
+
+test("a failed skill update keeps the installed skill", () => {
+  const pkg = mkdtempSync(join(tmpdir(), "cc-skill-pkg-"));
+  mkdirSync(join(pkg, "skills/cloud-ready"), { recursive: true });
+  writeFileSync(join(pkg, "skills/cloud-ready/SKILL.md"), '---\nname: cloud-ready\nmetadata:\n  version: "0.0.0"\n---\n');
+  installSkill(repo, pkg, "1.0.0");
+  // A SKILL.md that is a folder copies fine but cannot be read to set the version.
+  rmSync(join(pkg, "skills/cloud-ready/SKILL.md"));
+  mkdirSync(join(pkg, "skills/cloud-ready/SKILL.md"));
+  try {
+    assert.throws(() => installSkill(repo, pkg, "2.0.0"));
+  } finally {
+    rmSync(pkg, { recursive: true, force: true });
+  }
+  assert.equal(skillVersion(repo), "1.0.0");
+  assert.deepEqual(readdirSync(join(repo, ".agents/skills")), ["cloud-ready"]);
 });

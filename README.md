@@ -150,9 +150,10 @@ RUN --mount=type=secret,id=proxy_ca \
 
 ## What it does not do
 
-- It does not make the platform's limits go away: no open ports or previews, `gh pr` and
-  `gh issue` fail (GitHub's GraphQL is blocked; use `gh api`), and a PR cannot be taken out of
-  draft from the cloud.
+- It does not make the platform's limits go away: no open ports or previews, and `gh pr` and
+  `gh issue` fail (GitHub's GraphQL is blocked; use `gh api`). `gh pr ready` fails too; the 403
+  names a REST route for it (`POST /repos/{owner}/{repo}/pulls/{n}/ccr/ready_for_review`), not
+  yet verified.
 - It does not install plugins, or run the hooks of plugins, from your machine.
 - It does not install tools from GitHub releases; the proxy blocks them.
 - It does not run Docker inside Docker, and it does not start a Docker daemon in local sessions
