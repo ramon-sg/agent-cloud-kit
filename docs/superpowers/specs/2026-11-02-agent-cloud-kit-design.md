@@ -4,12 +4,15 @@ Fecha: 2026-11-02. Parte de `@ramon-sg/claude-cloud` 1.0.0 (este repo es su copi
 
 ## Para qué
 
-Dejar un repo Node/TypeScript listo para programar en las sesiones en la nube de Claude Code
-(claude.ai/code) y **probarlo ahí de verdad**: que en la nube corran todos los tests que se
-puedan, y que quede escrito qué corre, qué no y por qué.
+Dejar un repo Node/TypeScript listo para trabajar en las sesiones en la nube de Claude Code
+(claude.ai/code) y **comprobarlo ahí de verdad**. El paquete no impone una forma de testear:
+se mantiene lo que el repo ya hace. Un repo puede no tener tests; entonces solo se prepara la
+máquina. Si los tiene, la skill los busca y propone cómo hacerlos compatibles con la nube
+(adaptar la preparación o, si no hay otra, bifurcar una variante para la nube), y el usuario
+decide. Queda escrito qué corre en la nube, qué no y por qué.
 
 Hoy `claude-cloud` resuelve la parte mecánica (herramientas fijadas, Docker, clone completo,
-avisos). Falta la parte que requiere criterio: mirar cómo se prueba el repo, decidir qué puede
+avisos). Falta la parte que requiere criterio: mirar qué usa el repo (y sus tests, si tiene), decidir qué puede
 correr en la nube, configurarlo, explicar cómo configurar el entorno en claude.ai y comprobarlo
 en la nube real. Además, mucho de lo que se sabe de la nube no está escrito en ninguna parte; el
 paquete debe juntarlo y hacerlo crecer.
@@ -34,11 +37,20 @@ paquete debe juntarlo y hacerlo crecer.
 
 ## Decisiones del autor del diseño (revisables)
 
-- **Si falla en la nube, se arregla en la nube**, con límites: el agente de la nube solo toca
-  `.claude/cloud.json`, `docs/agent-cloud.md`, la sección "Nube" de
-  `.agents/skills/test-audit/project.md` y entradas de `"scripts"` en `package.json`. Nunca
-  código ni tests. Máximo 3 intentos. Lo que solo se cambia en claude.ai (dominios, variables,
-  rehacer la máquina) lo reporta con la instrucción exacta y se detiene.
+- **No se imponen tests.** Sin campo de tests en la config, sin niveles, sin comando `test`.
+  Qué correr en la nube lo decide el usuario con la skill en `configure` y queda escrito en el
+  archivo de `notes` (texto libre, como `.claude/cloud-notes.md` en Abastio).
+- **Adaptar antes que bifurcar.** Para que un test del repo corra en la nube, primero se
+  adapta la preparación (`setup`, `session`, `domains`, `requiredEnv`); solo si eso no basta se
+  propone una variante para la nube (un script aparte, p. ej. `cloud:services`, o una rama por
+  `CLAUDE_CODE_REMOTE`). Cada cambio fuera de la config se propone y el usuario lo aprueba en
+  `configure` (local, interactivo).
+- **Si falla en la nube, se arregla en la nube** solo dentro de la preparación: el agente de la
+  nube toca `.claude/cloud.json`, el archivo de `notes`, `docs/agent-cloud.md` y la sección
+  "Nube" de `.agents/skills/test-audit/project.md`. Nunca código, tests ni scripts: eso lo deja
+  propuesto en el comentario del PR. Máximo 3 intentos. Lo que solo se cambia en claude.ai
+  (dominios, variables, entorno por defecto, rehacer la máquina) lo reporta con la instrucción
+  exacta y se detiene.
 - **Versión inicial 1.0.0** del paquete nuevo. **Sin migración ni compatibilidad** con `@ramon-sg/claude-cloud`: solo kaname lo usa (junto con agent-kitchen) y el usuario lo actualiza a mano al final.
 - **Se mantiene `.claude/cloud.json`** como archivo de config (agent-kitchen lo lee y "cloud" es
   genérico).
@@ -76,8 +88,6 @@ paquete debe juntarlo y hacerlo crecer.
 - **Config nueva** (en `.claude/cloud.json` y `schema.json`):
   - `domains: string[]`: hosts extra que el entorno debe permitir. `doctor` los prueba; el
     manual los lista. No entran en el fingerprint.
-  - `tests: { minimum?: string; full?: string }`: comandos de shell para cada nivel. No entran
-    en el fingerprint.
 - **`doctor`** suma: prueba de `domains`; aviso (no falla) por cada plugin con `true` en
   `enabledPlugins` de `.claude/settings.json` ("no llegará a la nube; cópialo con
   skills-manager"); aviso si la skill `cloud-ready` del repo es de otra versión que el paquete.
@@ -85,14 +95,8 @@ paquete debe juntarlo y hacerlo crecer.
 
 ### 2. Comandos nuevos
 
-- **`agent-cloud-kit test [--level minimum|full] [--record]`**: corre `tests.minimum` y, con
-  `full`, también `tests.full`, en el repo, con las herramientas fijadas primero en `PATH` y el
-  CA del proxy (mismo entorno que los pasos de `session`). Sin timeout propio. Imprime una
-  línea por nivel con ✓/✗ y la duración; sale 1 si alguno falla. Con `--record` escribe
-  `.claude/cloud-tests.json` con `{ level, results: [{ level, command, ok, ms }], finishedAt,
-  commit, remote }` donde `remote` es `CLAUDE_CODE_REMOTE === "true"`.
-- **`agent-cloud-kit manual`**: (re)escribe `docs/agent-cloud.md` desde `.claude/cloud.json`,
-  `.claude/cloud-tests.json` y la versión del paquete. Todo lo generado va entre
+- **`agent-cloud-kit manual`**: (re)escribe `docs/agent-cloud.md` desde `.claude/cloud.json`
+  (y el archivo de `notes`) y la versión del paquete. Todo lo generado va entre
   `<!-- agent-cloud-kit:begin -->` y `<!-- agent-cloud-kit:end -->`; lo de fuera (la sección
   "Hallazgos" que escribe el agente) se conserva.
 - **`agent-cloud-kit prepare`** (local, solo en una terminal): ver "Flujo".
@@ -104,18 +108,24 @@ Viaja en el paquete (`skills/cloud-ready/`) y `init` la copia a `.agents/skills/
 `metadata.version`). Contenido:
 
 - `SKILL.md`: dos modos por argumento.
-  - `configure`: lee el repo (scripts de `package.json`, runner de tests, Playwright, compose,
-    Testcontainers, `.env.example`), clasifica cada tipo de test (ver `reference/tests.md`),
-    escribe `.claude/cloud.json` (`setup` con la instalación de dependencias, `session`,
-    `domains`, `requiredEnv`, `tests.minimum`, `tests.full`, `notes`), la sección "Nube" de
-    `test-audit/project.md` si existe, y corre `agent-cloud-kit manual`. Usa las respuestas de
-    `prepare` que le llegan en el prompt.
-  - `verify`: solo con `CLAUDE_CODE_REMOTE=true`. Corre `agent-cloud-kit doctor`, luego
-    `agent-cloud-kit test --level full --record` (si `full` falla, también `minimum` para saber
-    hasta dónde llega). Si algo falla, diagnostica con `reference/knowledge.md` y arregla dentro
-    de los límites (ver arriba), hasta 3 intentos. Termina con `agent-cloud-kit manual`, commit,
-    push y un comentario en el PR (vía `gh api`, REST) con el nivel alcanzado, qué no corre y
-    por qué, y lo que hay que cambiar en claude.ai.
+  - `configure` (local, con el usuario): lee qué usa el repo (`package.json`, `.tool-versions`,
+    compose, `.env.example`, CI) y escribe la preparación en `.claude/cloud.json` (`setup` con
+    la instalación de dependencias, `session`, `domains`, `requiredEnv`, `notes`). Busca si el
+    repo tiene tests (scripts, runner, CI, Playwright, Testcontainers, compose de tests). Si no
+    tiene, lo dice y no hace más con tests. Si tiene, para cada grupo dice si correría en la nube
+    tal cual y, si no, propone primero adaptar la preparación y solo si no basta una variante
+    para la nube (ver `reference/compat.md`); aplica solo lo que el usuario apruebe. Escribe en
+    el archivo de `notes` (por defecto `.claude/cloud-notes.md`) qué correr en la nube, qué no y
+    por qué, la sección "Nube" de `test-audit/project.md` si existe, y corre
+    `agent-cloud-kit manual`.
+  - `verify`: solo con `CLAUDE_CODE_REMOTE=true`. Corre `agent-cloud-kit doctor` y comprueba
+    que la preparación quedó (dependencias instaladas, versiones fijadas). Si las `notes` dicen
+    qué correr en la nube, lo corre tal como el repo lo corre (corridas largas, en segundo
+    plano); si no, no corre tests. Si algo falla, diagnostica con `reference/knowledge.md` y
+    arregla dentro de los límites (ver arriba), hasta 3 intentos. Termina con
+    `agent-cloud-kit manual`, commit, push y un comentario en el PR (vía `gh api`, REST) con
+    qué se comprobó, qué corrió, qué no y por qué, lo que hay que cambiar en claude.ai y los
+    cambios propuestos al código o los tests, si hay.
   - En ambos modos: todo hallazgo nuevo sobre la nube va a la sección "Hallazgos" de
     `docs/agent-cloud.md`, marcado "proponer al paquete".
 - `reference/knowledge.md`: lo que se sabe de la nube, cada punto con estado `verificado` o
@@ -127,31 +137,33 @@ Viaja en el paquete (`skills/cloud-ready/`) y `init` la copia a `.agents/skills/
   (`CLOUD_PROXY_CA`, secret en `docker build`); sin puertos ni previews; `gh pr`/`gh issue`
   fallan (GraphQL bloqueado), usar `gh api`; no se saca un PR de draft desde la nube; plugins
   de la máquina no llegan, las skills deben estar en el repo; la imagen trae Node 22.
-- `reference/tests.md`: clasificación Node/TS. Mínimo: typecheck, lint, unitarios (vitest,
-  jest, `node --test`). Completo: integración con servicios en Docker (compose levantado en el
-  propio comando de test o en `session`), Testcontainers (necesita Docker y el CA), e2e con
-  Playwright (navegadores: dominio y tiempo de instalación en `setup`). Fuera: tests que llaman
-  APIs externas no permitidas o necesitan secretos que el entorno no tiene.
+- `reference/compat.md`: cómo hacer compatible con la nube lo que el repo ya tiene, de menos a
+  más invasivo. Adaptar la preparación: dependencias en `setup`; servicios de Docker compose en
+  `session` o en el propio comando; Testcontainers (Docker y el CA del proxy); navegadores de
+  Playwright en `setup` (dominios y tiempo); `127.0.0.1` en vez de `localhost`; corridas largas
+  y `BASH_MAX_TIMEOUT_MS`. Bifurcar solo si no basta: script aparte para la nube o rama por
+  `CLAUDE_CODE_REMOTE`. Lo que no corre: APIs externas no permitidas, secretos que el entorno
+  no tiene, puertos o vista previa.
 
 ### 4. Manual `docs/agent-cloud.md` (generado, en español)
 
-Secciones: qué es y el flujo en 5 líneas; cómo configurar el entorno en claude.ai (Network
-access: *Custom* + "Also include default list…" + la lista de dominios = `domains` más los hosts
-de `aptRepos`; el setup script exacto `#!/bin/bash\nnpx -y agent-cloud-kit@1 setup`; las
-variables de `requiredEnv`, solo nombres, con la advertencia de que el entorno es legible por
-quien lo use y que no llegan al setup script); cómo correr los tests (`agent-cloud-kit test
---level full`); último resultado (de `.claude/cloud-tests.json`: nivel, ✓/✗ por comando, fecha,
-si fue en la nube); qué no corre en la nube (de `notes`, si existe).
+Secciones: qué es y el flujo en 5 líneas; cómo configurar el entorno en claude.ai (el entorno
+que usa `claude --cloud` es el elegido con `/remote-env`; el Claude GitHub App instalado en el
+repo; Network access: *Custom* + "Also include default list…" + la lista de dominios =
+`domains` más los hosts de `aptRepos`; el setup script exacto
+`#!/bin/bash\nnpx -y agent-cloud-kit@1 setup`; las variables de `requiredEnv`, solo nombres,
+con la advertencia de que el entorno es legible por quien lo use y que no llegan al setup
+script); cómo verificar el entorno en una sesión nueva (`agent-cloud-kit doctor`,
+`node_modules` presente, versiones fijadas); qué corre en la nube y qué no (el archivo de
+`notes`, si existe).
 
 ## Flujo de `prepare`
 
 1. Comprueba: terminal interactiva, repo git con `origin`, árbol limpio, `claude` en `PATH` y
    que `claude --help` mencione `--cloud`. Si falta algo, dice qué y sale 1.
 2. Preguntas (con `node:readline/promises`, sin dependencias), con valores sugeridos detectados:
-   qué scripts de `package.json` cuentan como tests (sugerencia: los que empiezan por `test`,
-   `typecheck`, `lint`); qué servicios usan los tests (sugerencia: servicios de compose);
-   nombres de variables secretas que necesitan; dominios extra; nivel objetivo (`full` o
-   `minimum`).
+   nombres de variables secretas que necesita el repo (sugerencia: claves de `.env.example`);
+   dominios extra. Nada sobre tests: eso lo ve la skill con el usuario.
 3. Worktree `../<repo>-cloud-ready` en `chore/cloud-ready-<AAAAMMDD>` desde
    `origin/<rama por defecto>`.
 4. `agent-cloud-kit init` en el worktree (config, hook, skill).
@@ -171,7 +183,7 @@ si fue en la nube); qué no corre en la nube (de `notes`, si existe).
 - Cero dependencias en tiempo de ejecución; Node `>=20`; TypeScript compilado; tests con
   `node --test` como hoy.
 - Todo valor del repo es no confiable: argv, nunca interpolado en shell (salvo los comandos de
-  `setup`, `session` y `tests`, que son del repo por diseño).
+  `setup` y `session`, que son del repo por diseño).
 - `setup` y `session` nunca fallan la sesión (sale 0, registra fallos).
 - Nada de acciones externas sin el usuario: crear el repo en GitHub, el primer `npm publish`,
   `npm deprecate` del paquete viejo, actualizar kaname y configurar claude.ai son pasos del usuario.

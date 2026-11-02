@@ -21,8 +21,11 @@ Fecha: 2026-11-02. Claude Code local 2.1.316; en la nube 2.1.42x. Repo de prueba
 2. **¿Qué repo y rama?** El `origin` del directorio actual. La sesión parte del commit de la rama
    local actual (`CLAUDE_CODE_BASE_REF=<rama>`), que debe estar pusheada, y trabaja en una rama
    propia `claude/<slug>`. No hay flag para elegir rama: se elige haciendo checkout antes.
-3. **¿Qué entorno?** El entorno cloud por defecto de la cuenta. `--environment` solo acepta
-   entornos self-hosted (`ccpool_...`). El entorno usado en la prueba no tenía setup script.
+3. **¿Qué entorno?** El entorno por defecto de la terminal, que se elige con `/remote-env` en
+   `claude` y queda en la configuración del usuario (fuente: `docs/guides/claude-cloud.md` de
+   Abastio). `--environment` solo acepta entornos self-hosted (`ccpool_...`). El entorno usado en
+   la prueba no tenía setup script. Sin el Claude GitHub App en el repo, `claude --cloud` sube una
+   copia local y la sesión no puede pushear (misma fuente).
 4. **¿Bloquea?** No. Exige una terminal interactiva (`--cloud requires an interactive terminal`;
    sin TTY sale 1), puede mostrar el diálogo de confianza de carpeta, crea la sesión, imprime
    `View: https://claude.ai/code/session_…` y `Resume with: claude --teleport session_…`, y vuelve.
@@ -58,4 +61,4 @@ Otros datos vistos: repo en `/home/user/<repo>`; Node 22 por defecto (`/opt/node
   teleport, `prepare` no los parsea. Sin TTY, `prepare` ya falla en `preflight`.
 - **Skill `verify`:** trabaja en su rama `claude/...` y al final hace
   `git push origin HEAD:<rama de prepare>` (la rama va en el prompt).
-- **Manual:** el entorno a configurar es el entorno cloud por defecto de la cuenta.
+- **Manual:** el entorno a configurar es el que se elige con `/remote-env`; el Claude GitHub App debe estar instalado en el repo.

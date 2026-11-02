@@ -30,8 +30,9 @@
 - Timeouts: instalación de herramienta 120 000 ms; paso apt 180 000 ms; `docker pull` 180 000 ms; paso `setup` del repo 180 000 ms; `git fetch` en `session` 60 000 ms.
 - Cero dependencias runtime; `setup` y `session` siempre salen 0; valores del repo siempre como argv.
 - README con aviso: "Not affiliated with or endorsed by Anthropic. Works with Claude Code on the web."
-- Skill en `.agents/skills/cloud-ready/`; manual en `docs/agent-cloud.md`; resultados en `.claude/cloud-tests.json`.
-- Límites del agente de la nube (`verify`): solo `.claude/cloud.json`, `docs/agent-cloud.md`, la sección `## Nube` de `.agents/skills/test-audit/project.md`, y claves dentro de `"scripts"` de `package.json`; máximo 3 intentos.
+- Skill en `.agents/skills/cloud-ready/`; manual en `docs/agent-cloud.md`; qué corre en la nube en el archivo de `notes` (por defecto `.claude/cloud-notes.md`).
+- **No se imponen tests** (spec, 2026-11-02): sin campo `tests`, sin niveles, sin comando `test`. Un repo puede no tener tests. La skill busca los que haya y propone adaptar la preparación o, si no basta, bifurcar una variante para la nube; el usuario aprueba.
+- Límites del agente de la nube (`verify`): solo `.claude/cloud.json`, el archivo de `notes`, `docs/agent-cloud.md` y la sección `## Nube` de `.agents/skills/test-audit/project.md`; nunca código, tests ni scripts (eso queda propuesto en el comentario del PR); máximo 3 intentos.
 - Acciones externas (crear repo GitHub, `npm publish` inicial, `npm deprecate`, configurar claude.ai, lanzar sesiones `--cloud`) solo con confirmación explícita del usuario.
 
 ## Review Focus
@@ -210,12 +211,30 @@ Throwaway: no produce código del paquete, produce `docs/cloud-cli.md` con respu
 
 ---
 
+### Task 8b: Quitar los tests impuestos (rediseño del 2026-11-02)
+
+Las Tareas 5 (campo `tests`), 7 (comando `test`) y 8 (secciones de tests del manual) se hicieron con niveles `minimum`/`full`; el spec ya no los quiere.
+
+**Files:**
+- Delete: `src/tests.ts`, `test/tests.test.ts`
+- Modify: `src/config.ts`, `schema.json`, `src/init.ts` (`scaffoldConfig` sin `tests`), `src/cli.ts` (sin subcomando `test` ni su ayuda), `src/manual.ts`, tests de config/state/session/manual/init
+- Keep: `domains` (Tarea 5) tal cual.
+
+**Interfaces:**
+- `CloudConfig` sin `tests`; `CONFIG_KEYS` sin `"tests"` (un `tests` en un config viejo pasa a ser `unknown field "tests"`).
+- `renderManual(input: { config: CloudConfig; packageVersion: string; notes?: string }): string` — sin `record`. `writeManual` lee `notes`: si `config.notes` es una ruta relativa a un archivo existente del repo (como `.claude/cloud-notes.md` en Abastio), usa su contenido; si no, el texto tal cual.
+- Bloque del manual (español, este orden): `# Nube de Claude Code`; `## Cómo funciona` (5 líneas: agent-kitchen instala, `prepare` configura con la skill, tú configuras claude.ai, una sesión en la nube verifica, el PR guarda el resultado); `## Configurar el entorno en claude.ai` (`renderEnvironmentSection`, que ahora además dice: el entorno que usa `claude --cloud` se elige con `/remote-env` en una terminal; el Claude GitHub App debe estar instalado en el repo para que la sesión pueda pushear); `## Verificar el entorno` (en una sesión nueva: `agent-cloud-kit doctor` todo `ok` y salida 0; `node_modules` presente; versiones de `.tool-versions`; sin líneas `agent-cloud-kit:` de falla al empezar); `## Qué corre en la nube` (contenido de `notes`, o "Nada anotado.").
+
+- [ ] **Step 1: Tests que fallan:** `"tests is an unknown field"`, `"the manual has no test sections"` (no contiene `--level`, `Último resultado` ni `cloud-tests.json`), `"the manual tells how to verify the environment"`, `"environment section mentions /remote-env and the GitHub App"`, `"notes from a file path are inlined"`, `"agent-cloud-kit test is an unknown command"`.
+- [ ] **Step 2:** FAIL. **Step 3:** implementar. **Step 4:** `npm test && npm run typecheck && npm run build` PASS; `grep -rn "minimum\|cloud-tests\|TestLevel" src test` vacío.
+- [ ] **Step 5:** Commit `refactor!: no imposed test levels; the manual explains how to verify`.
+
 ## Fase 4: la skill
 
 ### Task 9: Skill `cloud-ready` y su copia en `init`
 
 **Files:**
-- Create: `skills/cloud-ready/SKILL.md`, `skills/cloud-ready/reference/knowledge.md`, `skills/cloud-ready/reference/tests.md`
+- Create: `skills/cloud-ready/SKILL.md`, `skills/cloud-ready/reference/knowledge.md`, `skills/cloud-ready/reference/compat.md`
 - Modify: `src/skill.ts` (de la Tarea 6)
 - Modify: `src/init.ts` (firma `init(repo, packageVersion, packageRoot)`; llama a `installSkill`), `src/cli.ts` (`initCommand` pasa `packageRoot`), `test/fake-package.ts` (incluye `skills/cloud-ready/SKILL.md`)
 - Test: `test/skill.test.ts`, `test/init.test.ts`
@@ -225,11 +244,11 @@ Throwaway: no produce código del paquete, produce `docs/cloud-cli.md` con respu
   - `export function installSkill(repo: string, packageRoot: string, packageVersion: string): string` — copia `skills/cloud-ready/**` a `SKILL_DIR`, reescribe `metadata.version` del frontmatter a `packageVersion`; si ya está en esa versión, no toca nada. Devuelve la línea para el usuario. Atómico (temp + rename).
 - `export function linkSkill(repo: string): string | undefined` — Claude Code no descubre `.agents/skills/` (verificado, `docs/cloud-cli.md`): crea el symlink relativo `.claude/skills/cloud-ready -> ../../.agents/skills/cloud-ready`, salvo que `.claude/skills` ya resuelva a `.agents/skills` (caso kaname) o que `.claude/skills/cloud-ready` ya exista. Devuelve la línea para el usuario o `undefined` si no hizo nada. `init` lo llama tras `installSkill`.
 - `InitResult` incluye la línea de la skill. `init` es lo único que copia la skill: ni `prepare` ni agent-kitchen llaman a `installSkill` aparte.
-- `SKILL.md` (español): frontmatter `name: cloud-ready`, `description` (cuándo usarla: preparar o verificar el repo para la nube de Claude Code; modos `configure` y `verify`), `argument-hint: "configure [respuestas] | verify"`, `metadata.version`. Cuerpo, siguiendo el spec sección 3 al pie de la letra: pasos de `configure`, pasos de `verify` con los límites de archivos y los 3 intentos, una comprobación antes de cada commit (`git diff --name-only HEAD` y `git status --porcelain`: lo que no sea uno de los cuatro archivos permitidos se revierte con `git checkout --` o se borra, y en `package.json` solo pueden cambiar claves de `"scripts"`), que `verify` trabaja en su rama `claude/...` y al terminar hace `git push origin HEAD:<rama de prepare>` (la rama llega en el prompt), cómo encontrar el PR si el prompt no trae número (`gh api "repos/{owner}/{repo}/pulls?head={owner}:{rama}&state=open"`; si no hay, el resultado queda solo en `docs/agent-cloud.md` y en el resumen final), cómo comentar el PR con `gh api repos/{owner}/{repo}/issues/{n}/comments -f body=...`, qué hacer con lo que solo se cambia en claude.ai, y la regla de "Hallazgos". Ajustar con lo que dejó `docs/cloud-cli.md` (Tarea 1).
+- `SKILL.md` (español): frontmatter `name: cloud-ready`, `description` (cuándo usarla: preparar o verificar el repo para la nube de Claude Code; modos `configure` y `verify`), `argument-hint: "configure [respuestas] | verify"`, `metadata.version`. Cuerpo, siguiendo el spec sección 3 al pie de la letra: pasos de `configure` (sin tests → solo preparación; con tests → buscar, proponer adaptar y, solo si no basta, bifurcar; preguntar y aplicar solo lo aprobado; escribir en `notes` qué correr en la nube), pasos de `verify` con los límites de archivos y los 3 intentos, una comprobación antes de cada commit (`git diff --name-only HEAD` y `git status --porcelain`: lo que no sea uno de los archivos permitidos —`.claude/cloud.json`, el archivo de `notes`, `docs/agent-cloud.md`, `.agents/skills/test-audit/project.md`— se revierte con `git checkout --` o se borra; un cambio necesario al código, tests o scripts queda como propuesta en el comentario del PR), que `verify` trabaja en su rama `claude/...` y al terminar hace `git push origin HEAD:<rama de prepare>` (la rama llega en el prompt), cómo encontrar el PR si el prompt no trae número (`gh api "repos/{owner}/{repo}/pulls?head={owner}:{rama}&state=open"`; si no hay, el resultado queda solo en `docs/agent-cloud.md` y en el resumen final), cómo comentar el PR con `gh api repos/{owner}/{repo}/issues/{n}/comments -f body=...`, qué hacer con lo que solo se cambia en claude.ai, y la regla de "Hallazgos". Ajustar con lo que dejó `docs/cloud-cli.md` (Tarea 1).
 - `reference/knowledge.md`: tabla `| Hecho | Estado | Fuente |` con la semilla del spec, corregida con `docs/cloud-cli.md` (p. ej. GraphQL bloqueado pero `gh api` REST funciona aunque `gh auth status` diga token inválido; draft → ready con `POST /repos/{o}/{r}/pulls/{n}/ccr/ready_for_review`; `.agents/skills` no se descubre sin el symlink); los puntos que la Tarea 1 verificó van como `verificado (Tarea 1, 2026-11)`.
-- `reference/tests.md`: la clasificación del spec, con un ejemplo de `.claude/cloud.json` para un repo vitest + Postgres en compose + Playwright.
+- `reference/compat.md`: los patrones del spec de menos a más invasivo, con un ejemplo de `.claude/cloud.json` + `.claude/cloud-notes.md` para un repo vitest + Postgres en compose + Playwright, y otro para un repo sin tests.
 
-- [ ] **Step 1: Tests que fallan:** `"init copies the skill with the package version"`, `"a second init at the same version leaves the skill untouched"` (mtime igual), `"init at a new version replaces the skill"`, `"init links .claude/skills/cloud-ready"`, `"init leaves a .claude/skills symlink to .agents/skills alone"`, `"init leaves an existing .claude/skills/cloud-ready alone"`, y en `test/skill-content.test.ts`: `SKILL.md` tiene `name: cloud-ready`, menciona `configure`, `verify`, `git diff --name-only`, `pulls?head=`, `agent-cloud-kit test --level full --record`, `agent-cloud-kit manual`, los cuatro archivos permitidos y `3` intentos; `knowledge.md` tiene la columna `Estado` y al menos 12 filas.
+- [ ] **Step 1: Tests que fallan:** `"init copies the skill with the package version"`, `"a second init at the same version leaves the skill untouched"` (mtime igual), `"init at a new version replaces the skill"`, `"init links .claude/skills/cloud-ready"`, `"init leaves a .claude/skills symlink to .agents/skills alone"`, `"init leaves an existing .claude/skills/cloud-ready alone"`, y en `test/skill-content.test.ts`: `SKILL.md` tiene `name: cloud-ready`, menciona `configure`, `verify`, `git diff --name-only`, `pulls?head=`, `agent-cloud-kit doctor`, `agent-cloud-kit manual`, `CLAUDE_CODE_REMOTE`, los cuatro archivos permitidos, `3` intentos, y no menciona `--level`; `knowledge.md` tiene la columna `Estado` y al menos 12 filas.
 - [ ] **Step 2:** FAIL. **Step 3:** escribir la skill e implementar. **Step 4:** PASS; `npm pack --dry-run` lista `skills/cloud-ready/SKILL.md`.
 - [ ] **Step 5:** Commit `feat: cloud-ready skill, copied by init`.
 
@@ -245,15 +264,14 @@ Throwaway: no produce código del paquete, produce `docs/cloud-cli.md` con respu
 
 **Interfaces:**
 - Produces:
-  - `export interface Answers { testScripts: string[]; services: string[]; secrets: string[]; domains: string[]; level: TestLevel }`
-  - `export function suggestTestScripts(pkg: Record<string, unknown>): string[]` — claves de `scripts` que empiezan por `test`, `typecheck` o `lint`, en orden de aparición.
-  - `export function suggestServices(repo: string): string[]` — nombres de servicios de `compose.yml|compose.yaml|docker-compose.yml|docker-compose.yaml` en la raíz (parseo línea a línea de la sección `services:` con indentación de 2 espacios; sin dependencia YAML).
+  - `export interface Answers { secrets: string[]; domains: string[] }` (nada sobre tests: eso lo ve la skill con el usuario).
+  - `export function suggestSecrets(repo: string): string[]` — claves de `.env.example` en la raíz (líneas `KEY=...`, sin comentarios ni vacías), en orden; sin archivo → `[]`.
   - `export interface Ask { (question: string, suggestion: string): Promise<string> }`
-  - `export async function askAll(ask: Ask, suggestions: { testScripts: string[]; services: string[] }): Promise<Answers>` — listas separadas por comas; vacío acepta la sugerencia; `level` acepta `full|minimum` (otro valor → se repregunta una vez y luego `full`).
+  - `export async function askAll(ask: Ask, suggestions: { secrets: string[] }): Promise<Answers>` — listas separadas por comas; vacío acepta la sugerencia; `-` deja la lista vacía.
   - `export function configurePrompt(answers: Answers): string` y `export function verifyPrompt(input: { branch: string; pr?: string }): string` — texto en español que empieza por `/cloud-ready configure` o `/cloud-ready verify` y lleva las respuestas como lista.
   - `export function preflight(probe: { isTty: boolean; gitRoot?: string; hasOrigin: boolean; clean: boolean; claudeHelp?: string }): string[]` — problemas en inglés; vacío si todo bien. `claudeHelp` sin `--cloud` → `claude does not support --cloud; update Claude Code`.
 
-- [ ] **Step 1: Tests que fallan:** cada función con casos concretos (ej. `suggestTestScripts({scripts:{build:"",test:"",“test:e2e”:"",lint:""}})` → `["test","test:e2e","lint"]`; compose con `services:\n  db:\n    image: postgres\n  redis:\n` → `["db","redis"]`; `askAll` con respuestas `["", "db", "API_TOKEN, OTHER", "", "x", "minimum"]` → `{testScripts: sugeridos, services:["db"], secrets:["API_TOKEN","OTHER"], domains:[], level:"minimum"}`; `preflight` con cada problema).
+- [ ] **Step 1: Tests que fallan:** cada función con casos concretos (ej. `.env.example` con `# c\nAPI_TOKEN=\n\nDB_URL=x` → `["API_TOKEN","DB_URL"]`; `askAll` con respuestas `["", "api.example.com"]` → `{secrets: sugeridos, domains:["api.example.com"]}`; con `["-", ""]` → `{secrets:[], domains:[]}`; `preflight` con cada problema).
 - [ ] **Step 2:** FAIL. **Step 3:** implementar. **Step 4:** PASS.
 - [ ] **Step 5:** Commit `feat: prepare questions, detection and prompts`.
 
@@ -272,8 +290,8 @@ Throwaway: no produce código del paquete, produce `docs/cloud-cli.md` con respu
   2. `askAll`.
   3. `git fetch -q origin`; `git worktree add -b chore/cloud-ready-<today> <dirname(repo)>/<basename(repo)>-cloud-ready origin/<defaultBranch>`. Si la carpeta o la rama ya existen → mensaje con qué borrar y devolver 1.
   4. `init(worktree, packageVersion, packageRoot)` (copia también la skill).
-  5. `claude <configurePrompt(answers)>` con `cwd: worktree`, stdio heredado. Al volver (el usuario sale con `/exit` o Ctrl+C, así que el código de salida no dice si terminó), comprobar que `.claude/cloud.json` del worktree se lee sin errores y tiene `tests.minimum`. Si sale ≠ 0 o falta eso: imprimir `the local agent stopped; the worktree is at <path>; run agent-cloud-kit prepare --resume there` y devolver 1. (`--resume`: salta pasos 2–5 si el worktree ya existe y está en la rama `chore/cloud-ready-*`.)
-  6. `writeManual(worktree, packageVersion)`; `git add -- .claude/cloud.json .claude/settings.json .agents/skills/cloud-ready .claude/skills/cloud-ready docs/agent-cloud.md package.json` (solo las rutas que existan) más `.agents/skills/test-audit/project.md` si existe (nunca `git add -A`); si `git status --porcelain` muestra otros cambios, listarlos y decir que quedan sin commitear en el worktree; `git commit -m "chore: prepare the repo for the Claude Code cloud"`; `git push -u origin <rama>`; `gh pr create --draft --fill` (si `gh` falla: imprimir el link de comparación `https://github.com/<owner>/<repo>/compare/<rama>?expand=1` y seguir).
+  5. `claude <configurePrompt(answers)>` con `cwd: worktree`, stdio heredado. Al volver (el usuario sale con `/exit` o Ctrl+C, así que el código de salida no dice si terminó), comprobar que `.claude/cloud.json` del worktree se lee sin errores y que existe el archivo de `notes` que nombra (la skill siempre lo escribe al terminar `configure`, aunque el repo no tenga tests). Si sale ≠ 0 o falta eso: imprimir `the local agent stopped; the worktree is at <path>; run agent-cloud-kit prepare --resume there` y devolver 1. (`--resume`: salta pasos 2–5 si el worktree ya existe y está en la rama `chore/cloud-ready-*`.)
+  6. `writeManual(worktree, packageVersion)`; `git add -- .claude/cloud.json .claude/settings.json .agents/skills/cloud-ready .claude/skills/cloud-ready docs/agent-cloud.md` + el archivo de `notes` (solo las rutas que existan) más `.agents/skills/test-audit/project.md` si existe (nunca `git add -A`); si `git status --porcelain` muestra otros cambios (los que el usuario aprobó en `configure`: scripts, config de tests, una variante para la nube), listarlos y preguntar `Include these changes in the commit? [y/N]`; sí → `git add -- <cada ruta>`; no → quedan sin commitear en el worktree; `git commit -m "chore: prepare the repo for the Claude Code cloud"`; `git push -u origin <rama>`; `gh pr create --draft --fill` (si `gh` falla: imprimir el link de comparación `https://github.com/<owner>/<repo>/compare/<rama>?expand=1` y seguir).
   7. Imprimir el bloque "Configurar el entorno en claude.ai" del manual y `waitEnter("Configure the environment in claude.ai, then press Enter")`.
   8. `claude --cloud <verifyPrompt({branch, pr})>` con `cwd: worktree` (rama de `prepare` en checkout y pusheada: la sesión parte de ella) y stdio heredado (`--cloud` exige TTY; Claude imprime la URL y `claude --teleport <id>`; `prepare` no los parsea). Luego imprimir que el resultado llegará como push a la rama y comentario en el PR.
   9. Devolver 0.
@@ -282,8 +300,8 @@ Throwaway: no produce código del paquete, produce `docs/cloud-cli.md` con respu
 - [ ] **Step 1: Tests que fallan** (con `Run`/`Capture` falsos que registran argv y un repo git temporal con un `origin` local bare):
   - `"runs the steps in order with the expected argv"` — compara la lista de argv contra la secuencia de arriba.
   - `"a failing local agent keeps the worktree and says how to resume"` (Review Focus).
-  - `"an agent that exits 0 without tests.minimum is treated as stopped"`.
-  - `"only the known files are committed"`: un archivo `scratch.txt` creado por el agente falso no entra en el commit y se lista.
+  - `"an agent that exits 0 without the notes file is treated as stopped"`.
+  - `"other changes are listed and committed only on yes"`: un `scratch.txt` creado por el agente falso se lista; con `n` no entra en el commit, con `y` sí.
   - `"an existing worktree dir stops before touching git"`.
   - `"gh missing prints the compare link and continues to --cloud"`.
   - `"--resume skips questions, worktree and the local agent"`.
@@ -298,11 +316,11 @@ Throwaway: no produce código del paquete, produce `docs/cloud-cli.md` con respu
 ### Task 12: e2e, CI, README y CHANGELOG
 
 **Files:**
-- Modify: `test/e2e/run.sh`, `test/e2e/Dockerfile`, `test/e2e/compose.yml`, `test/e2e/fixture/.claude/cloud.json` (version `1.0.0`, `tests.minimum: "node --version"`), `.github/workflows/*.yml`, `README.md`, `CHANGELOG.md`
-- [ ] **Step 1:** e2e (las rutas ya cambiaron en la Tarea 2): al final `agent-cloud-kit test --level minimum --record` en la caja → sale 0 y `.claude/cloud-tests.json` tiene `ok: true`.
+- Modify: `test/e2e/run.sh`, `test/e2e/Dockerfile`, `test/e2e/compose.yml`, `test/e2e/fixture/.claude/cloud.json` (version `1.0.0`), `.github/workflows/*.yml`, `README.md`, `CHANGELOG.md`
+- [ ] **Step 1:** e2e (las rutas ya cambiaron en la Tarea 2): al final `agent-cloud-kit manual` en la caja → sale 0 y `docs/agent-cloud.md` tiene el setup script exacto.
 - [ ] **Step 2:** `bash test/e2e/run.sh` → PASS.
 - [ ] **Step 3:** CI: fijar `actions/checkout` y `actions/setup-node` por SHA de commit (con el tag en comentario) en los tres workflows.
-- [ ] **Step 4:** README reescrito: qué es; aviso de no afiliación; el flujo (agent-kitchen → `prepare` → claude.ai → verificación en la nube); comandos (`setup`, `session`, `docker`, `doctor`, `init`, `test`, `manual`, `prepare`); `.claude/cloud.json` con `domains` y `tests`; la skill; una nota corta: "continúa `@ramon-sg/claude-cloud`, sin migración automática"; lo que no hace; releasing (igual que hoy con el nombre nuevo). CHANGELOG `## 1.0.0` con Added/Changed y una línea "Continues @ramon-sg/claude-cloud 1.0.0".
+- [ ] **Step 4:** README reescrito: qué es; aviso de no afiliación; el flujo (agent-kitchen → `prepare` → claude.ai → verificación en la nube); comandos (`setup`, `session`, `docker`, `doctor`, `init`, `manual`, `prepare`); `.claude/cloud.json` con `domains`; que el paquete no impone tests (la skill propone adaptar o bifurcar lo que el repo tenga); la skill; una nota corta: "continúa `@ramon-sg/claude-cloud`, sin migración automática"; lo que no hace; releasing (igual que hoy con el nombre nuevo). CHANGELOG `## 1.0.0` con Added/Changed y una línea "Continues @ramon-sg/claude-cloud 1.0.0".
 - [ ] **Step 5:** `npm test && npm run typecheck && npm run build && npm pack --dry-run` → PASS; commit `docs: README and changelog for 1.0.0; ci: pin actions; test: e2e for the new paths`.
 
 ---
@@ -311,7 +329,7 @@ Throwaway: no produce código del paquete, produce `docs/cloud-cli.md` con respu
 
 ### Task 13: Dogfooding en un repo Node/TS real
 
-- [ ] **Step 1:** Pedir al usuario qué repo usar (uno con tests reales; idealmente con Docker o Playwright) y confirmación para crear el worktree, el PR en draft y la sesión en la nube.
+- [ ] **Step 1:** Pedir al usuario qué repo usar (idealmente uno con tests que necesiten Docker o Playwright, y otro sin tests si hay tiempo) y confirmación para crear el worktree, el PR en draft y la sesión en la nube.
 - [ ] **Step 2:** Desde ese repo: `node /Users/ramon/Projects/ramon-sg/agent-cloud-kit/dist/cli.js prepare` (el paquete aún no está en npm). Antes, con el usuario, publicar `1.0.0-rc.0` con `npm publish --tag next` (`npx github:...` no sirve: `dist/` no está en git y no hay script `prepare` que compile). Un rango como `@1` no elige prereleases: el setup script de prueba en claude.ai es `npx -y agent-cloud-kit@1.0.0-rc.0 setup` y `.claude/cloud.json` del repo fija `"version": "1.0.0-rc.0"` (la config acepta prereleases).
 - [ ] **Step 3:** Seguir el flujo completo hasta el comentario del PR. Anotar cada fricción.
 - [ ] **Step 4:** Pasar los hallazgos del repo de prueba a `skills/cloud-ready/reference/knowledge.md` (estado `verificado`) y corregir lo que haya fallado en el paquete con su test.
@@ -346,7 +364,7 @@ Throwaway: no produce código del paquete, produce `docs/cloud-cli.md` con respu
   - `"updating runs init of the new version"`: el npx falso recibe `["agent-cloud-kit@1.1.0", "init"]` después de mover la versión.
   - `"after apply with the piece installed, the next step is printed"`: la salida termina con `Siguiente paso para la nube: npx agent-cloud-kit prepare`.
   - Renombrar `claude-cloud` → `agent-cloud-kit` en todos los `--skip`, decisiones y expectativas de los tests existentes.
-- [ ] **Step 2:** `npm test` → FAIL. **Step 3:** implementar y actualizar docs (tabla de piezas, agent-guide: archivos `.agents/skills/cloud-ready/`, `docs/agent-cloud.md`, `.claude/cloud-tests.json`; sección "En la nube de Claude": `agent-cloud-kit session`, `prepare`). **Step 4:** PASS.
+- [ ] **Step 2:** `npm test` → FAIL. **Step 3:** implementar y actualizar docs (tabla de piezas, agent-guide: archivos `.agents/skills/cloud-ready/`, `docs/agent-cloud.md`, `.claude/cloud-notes.md`; sección "En la nube de Claude": `agent-cloud-kit session`, `prepare`). **Step 4:** PASS.
 - [ ] **Step 5:** Commit en una rama `feat/agent-cloud-kit` de agent-kitchen; no publicar sin el usuario.
 
 ### Task 16: Publicación (lo hace el usuario; el agente prepara y guía)
@@ -360,5 +378,5 @@ Throwaway: no produce código del paquete, produce `docs/cloud-cli.md` con respu
 
 ## Orden y dependencias
 
-1 → 2 → (3, 4 en cualquier orden) → 5 → 6 (crea `src/skill.ts`) → 7 → 8 → 9 → 10 → 11 → 12 → 13 → 14 → 15 → 16.
+1 → 2 → (3, 4 en cualquier orden) → 5 → 6 (crea `src/skill.ts`) → 7 → 8 → 8b → 9 → 10 → 11 → 12 → 13 → 14 → 15 → 16.
 La Tarea 1 puede cambiar detalles de 9–11. Si `claude --cloud` no acepta prompt o rama, aplicar el respaldo del spec en la Tarea 11 (paso 8): imprimir los pasos para abrir la sesión en claude.ai y el prompt de `verify` listo para pegar, y añadir el test `"without --cloud support prints the verify prompt to paste"`. Si contradice el spec en algo más de fondo, parar y preguntar al usuario.
