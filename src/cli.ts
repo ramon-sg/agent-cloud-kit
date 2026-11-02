@@ -18,7 +18,7 @@ import { init } from "./init.ts";
 import { findRepos, packageBin, planSetup, relaunch } from "./launcher.ts";
 import type { SetupPlanItem } from "./launcher.ts";
 import { MANUAL_FILE, writeManual } from "./manual.ts";
-import { prepare } from "./prepare/index.ts";
+import { EXIT_INTERRUPTED, InterruptedError, branchDay, prepare } from "./prepare/index.ts";
 import type { Ask } from "./prepare/questions.ts";
 import { captureProcess, runProcess } from "./run.ts";
 import type { Capture, Run } from "./run.ts";
@@ -62,9 +62,6 @@ const GIT_TIMEOUT_MS = 10_000;
 /** Option of `prepare` that continues in an existing prepare worktree. */
 const RESUME_OPTION = "--resume";
 
-/** Length of the `YYYY-MM-DD` prefix of an ISO date. */
-const ISO_DAY_LENGTH = 10;
-
 /** Exit code for success. */
 const EXIT_OK = 0;
 
@@ -97,8 +94,10 @@ export interface CliDeps {
   waitEnter?: (text: string) => Promise<void>;
   /** Whether stdin and stdout are terminals; taken from the process when omitted. */
   isTty?: boolean;
-  /** Today as `YYYY-MM-DD`; the current UTC day when omitted. */
+  /** Today as `YYYYMMDD`; the current local day when omitted. */
   today?: string;
+  /** Registers a Ctrl+C handler for `prepare`; the process one (exiting 130) when omitted. */
+  onInterrupt?: (handler: () => void) => () => void;
 }
 
 /**
@@ -316,22 +315,44 @@ function manualCommand(deps: CliDeps): number {
 
 /**
  * Asks one question on the terminal, showing the suggestion in brackets. The interface is closed
- * after each answer so child processes (claude) get stdin back.
+ * after each answer so child processes (claude) get stdin back. Ctrl+C (which readline catches,
+ * so no process SIGINT arrives) rejects with `InterruptedError`.
  *
  * @param question - Question text.
  * @param suggestion - Suggested answer, shown when not empty.
  * @returns The raw answer.
+ * @throws InterruptedError on Ctrl+C.
  * @example
  * await askTerminal("Extra domains", ""); // "api.example.com"
  */
 const askTerminal: Ask = async (question, suggestion) => {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   try {
-    return await rl.question(`${question}${suggestion ? ` [${suggestion}]` : ""}: `);
+    return await new Promise<string>((resolveAnswer, reject) => {
+      rl.on("SIGINT", () => reject(new InterruptedError()));
+      rl.question(`${question}${suggestion ? ` [${suggestion}]` : ""}: `).then(resolveAnswer, reject);
+    });
   } finally {
     rl.close();
   }
 };
+
+/**
+ * Registers a process SIGINT handler (Ctrl+C while a child runs) that exits 130 after it.
+ *
+ * @param handler - Prints where the worktree is.
+ * @returns Removes the handler.
+ * @example
+ * const stop = onProcessInterrupt(() => console.log("bye")); stop();
+ */
+function onProcessInterrupt(handler: () => void): () => void {
+  const listener = (): void => {
+    handler();
+    process.exit(EXIT_INTERRUPTED);
+  };
+  process.once("SIGINT", listener);
+  return () => process.off("SIGINT", listener);
+}
 
 /**
  * Shows a text on the terminal and waits for Enter.
@@ -349,7 +370,7 @@ async function waitTerminal(text: string): Promise<void> {
  *
  * @param args - Arguments after `prepare`.
  * @param deps - CLI dependencies.
- * @returns 0 when the cloud session was started, 1 otherwise.
+ * @returns 0 when the cloud session was started, 130 after Ctrl+C, 1 otherwise.
  */
 async function prepareCommand(args: string[], deps: CliDeps): Promise<number> {
   const unknown = args.filter((arg) => arg !== RESUME_OPTION);
@@ -367,8 +388,9 @@ async function prepareCommand(args: string[], deps: CliDeps): Promise<number> {
       print: deps.print,
       packageVersion: deps.packageVersion,
       packageRoot: deps.packageRoot ?? RUNNING_PACKAGE_ROOT,
-      today: deps.today ?? new Date().toISOString().slice(0, ISO_DAY_LENGTH),
+      today: deps.today ?? branchDay(new Date()),
       isTty: deps.isTty ?? (process.stdin.isTTY === true && process.stdout.isTTY === true),
+      onInterrupt: deps.onInterrupt ?? onProcessInterrupt,
     },
     { resume: args.includes(RESUME_OPTION) },
   );

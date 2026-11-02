@@ -61,6 +61,27 @@ const EXIT_OK = 0;
 /** Exit code for failure. */
 const EXIT_FAIL = 1;
 
+/** Exit code after Ctrl+C (128 + SIGINT). */
+export const EXIT_INTERRUPTED = 130;
+
+/** Matches a PR number printed by `gh pr view --jq .number`. */
+const PR_NUMBER = /^\d+$/;
+
+/** Thrown by `ask` or `waitEnter` when the user presses Ctrl+C. */
+export class InterruptedError extends Error {
+  /** Builds the error. */
+  constructor() {
+    super("interrupted");
+    this.name = "InterruptedError";
+  }
+}
+
+/** What `prepare` has created so far; read by the interrupt handler. */
+interface Progress {
+  /** Worktree folder, once it exists. */
+  worktree?: string;
+}
+
 /** Everything `prepare` needs from the outside, so tests can inject fakes. */
 export interface PrepareDeps {
   /** Runs a command with inherited stdio. */
@@ -77,16 +98,47 @@ export interface PrepareDeps {
   packageVersion: string;
   /** Root of this package, which holds the skill. */
   packageRoot: string;
-  /** Today, as `YYYY-MM-DD`; names the branch. */
+  /** Today, as `YYYYMMDD` (see `branchDay`); names the branch. */
   today: string;
   /** Whether stdin and stdout are interactive terminals. */
   isTty: boolean;
+  /**
+   * Registers a handler for Ctrl+C while a child runs; returns a function that removes it. The
+   * caller exits with `EXIT_INTERRUPTED` after the handler. Nothing is registered when omitted.
+   */
+  onInterrupt?: (handler: () => void) => () => void;
 }
 
 /** Options of `prepare`. */
 export interface PrepareOptions {
   /** Continue in an existing prepare worktree: skip the questions, the worktree and the local agent. */
   resume?: boolean;
+}
+
+/**
+ * Formats a local date as the day of the branch name.
+ *
+ * @param date - Date, read in the local time zone.
+ * @returns `YYYYMMDD`.
+ * @example
+ * branchDay(new Date(2026, 10, 2)); // "20261102"
+ */
+export function branchDay(date: Date): string {
+  const pad = (n: number): string => String(n).padStart(2, "0");
+  return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}`;
+}
+
+/**
+ * Says where the worktree is and how to continue there.
+ *
+ * @param reason - What happened, e.g. "the local agent stopped".
+ * @param worktree - Worktree folder.
+ * @returns The line to print.
+ * @example
+ * resumeLine("interrupted", "/home/u/app-cloud-ready"); // "interrupted; the worktree is at ...; run ... --resume there"
+ */
+function resumeLine(reason: string, worktree: string): string {
+  return `${reason}; the worktree is at ${worktree}; run ${PACKAGE} prepare --resume there`;
 }
 
 /**
@@ -228,7 +280,7 @@ function compareLink(originUrl: string | undefined, branch: string): string | un
  * @param deps - Dependencies.
  * @returns The worktree and its branch, or undefined when there is none.
  * @example
- * await findResume("/home/u/app-cloud-ready", deps); // { worktree: "...", branch: "chore/cloud-ready-2026-11-02" }
+ * await findResume("/home/u/app-cloud-ready", deps); // { worktree: "...", branch: "chore/cloud-ready-20261102" }
  */
 async function findResume(repo: string, deps: PrepareDeps): Promise<{ worktree: string; branch: string } | undefined> {
   for (const worktree of [repo, worktreePath(repo)]) {
@@ -246,11 +298,13 @@ async function findResume(repo: string, deps: PrepareDeps): Promise<{ worktree: 
  * @param branch - Branch to create.
  * @param worktree - Worktree folder to create.
  * @param deps - Dependencies.
+ * @param progress - Gets the worktree once it exists.
  * @returns True when the worktree is ready to commit.
+ * @throws InterruptedError when the user presses Ctrl+C during the questions.
  * @example
- * await configure("/home/u/app", "chore/cloud-ready-2026-11-02", "/home/u/app-cloud-ready", deps);
+ * await createAndConfigure("/home/u/app", "chore/cloud-ready-20261102", "/home/u/app-cloud-ready", deps, {});
  */
-async function configure(repo: string, branch: string, worktree: string, deps: PrepareDeps): Promise<boolean> {
+async function createAndConfigure(repo: string, branch: string, worktree: string, deps: PrepareDeps, progress: Progress): Promise<boolean> {
   if (existsSync(worktree)) {
     deps.print(`${OUTPUT_PREFIX}${worktree} already exists; remove it (git worktree remove ${worktree}) or continue there with ${PACKAGE} prepare --resume`);
     return false;
@@ -264,11 +318,12 @@ async function configure(repo: string, branch: string, worktree: string, deps: P
   try {
     await deps.run("git", ["fetch", "-q", "origin"], { cwd: repo });
     await deps.run("git", ["worktree", "add", "-b", branch, worktree, base], { cwd: repo });
+    progress.worktree = worktree;
   } catch (err) {
     deps.print(`${OUTPUT_PREFIX}could not create the worktree: ${message(err)}`);
     return false;
   }
-  const stopped = `the local agent stopped; the worktree is at ${worktree}; run ${PACKAGE} prepare --resume there`;
+  const stopped = resumeLine("the local agent stopped", worktree);
   try {
     const result = init(worktree, deps.packageVersion, deps.packageRoot);
     for (const line of result.lines) deps.print(line);
@@ -301,9 +356,11 @@ async function configure(repo: string, branch: string, worktree: string, deps: P
  * @param worktree - Worktree root.
  * @param branch - Its branch.
  * @param deps - Dependencies.
- * @returns The PR number when known, or false when the branch could not be committed or pushed.
+ * @returns The PR number when known (an open PR for the branch is reused), or false when the
+ *   branch could not be committed or pushed.
+ * @throws InterruptedError when the user presses Ctrl+C at the question.
  * @example
- * await commitAndPush("/home/u/app-cloud-ready", "chore/cloud-ready-2026-11-02", deps); // { pr: "7" }
+ * await commitAndPush("/home/u/app-cloud-ready", "chore/cloud-ready-20261102", deps); // { pr: "7" }
  */
 async function commitAndPush(worktree: string, branch: string, deps: PrepareDeps): Promise<{ pr?: string } | false> {
   try {
@@ -328,8 +385,14 @@ async function commitAndPush(worktree: string, branch: string, deps: PrepareDeps
     else deps.print(`${OUTPUT_PREFIX}nothing new to commit`);
     await deps.run("git", ["push", "-u", "origin", branch], { cwd: worktree });
   } catch (err) {
+    if (err instanceof InterruptedError) throw err;
     deps.print(`${OUTPUT_PREFIX}could not commit and push: ${message(err)}; fix it in ${worktree} and run ${PACKAGE} prepare --resume there`);
     return false;
+  }
+  const existing = await tryCapture(deps, "gh", ["pr", "view", branch, "--json", "number", "--jq", ".number"], worktree);
+  if (existing !== undefined && PR_NUMBER.test(existing)) {
+    deps.print(`${OUTPUT_PREFIX}reusing the open PR #${existing}`);
+    return { pr: existing };
   }
   try {
     const url = await deps.capture("gh", ["pr", "create", "--draft", "--fill"], { cwd: worktree });
@@ -351,7 +414,7 @@ async function commitAndPush(worktree: string, branch: string, deps: PrepareDeps
  * @param repo - Folder where the user runs `prepare` (inside the repo, or the worktree with resume).
  * @param deps - Dependencies.
  * @param options - `resume` continues in an existing prepare worktree.
- * @returns 0 when the cloud session was started, 1 otherwise.
+ * @returns 0 when the cloud session was started, 130 after Ctrl+C at a question, 1 otherwise.
  * @example
  * process.exitCode = await prepare(process.cwd(), deps);
  */
@@ -366,6 +429,44 @@ export async function prepare(repo: string, deps: PrepareDeps, options: PrepareO
     for (const problem of problems) deps.print(`${OUTPUT_PREFIX}${problem}`);
     return EXIT_FAIL;
   }
+  const progress: Progress = {};
+  const stop = deps.onInterrupt?.(() => deps.print(interruptedLine(progress)));
+  try {
+    return await prepareSteps(gitRoot, deps, options, progress);
+  } catch (err) {
+    if (!(err instanceof InterruptedError)) throw err;
+    deps.print(interruptedLine(progress));
+    return EXIT_INTERRUPTED;
+  } finally {
+    stop?.();
+  }
+}
+
+/**
+ * The line printed on Ctrl+C: where the worktree is, when it exists.
+ *
+ * @param progress - What exists so far.
+ * @returns The line.
+ * @example
+ * interruptedLine({}); // "agent-cloud-kit: interrupted; nothing was created"
+ */
+function interruptedLine(progress: Progress): string {
+  return progress.worktree === undefined ? `${OUTPUT_PREFIX}interrupted; nothing was created` : resumeLine("interrupted", progress.worktree);
+}
+
+/**
+ * Everything after the preflight: resume or create the worktree, commit, wait, launch.
+ *
+ * @param gitRoot - Git root where `prepare` runs.
+ * @param deps - Dependencies.
+ * @param options - Options of `prepare`.
+ * @param progress - Gets the worktree once it exists.
+ * @returns The exit code.
+ * @throws InterruptedError when the user presses Ctrl+C at a question.
+ * @example
+ * await prepareSteps("/home/u/app", deps, {}, {}); // 0
+ */
+async function prepareSteps(gitRoot: string, deps: PrepareDeps, options: PrepareOptions, progress: Progress): Promise<number> {
   let worktree: string;
   let branch: string;
   if (options.resume) {
@@ -375,6 +476,7 @@ export async function prepare(repo: string, deps: PrepareDeps, options: PrepareO
       return EXIT_FAIL;
     }
     ({ worktree, branch } = found);
+    progress.worktree = worktree;
     const problem = configureProblem(worktree);
     if (problem) {
       deps.print(`${OUTPUT_PREFIX}configure is not finished in ${worktree}: ${problem}; run claude "/cloud-ready configure" there first`);
@@ -383,7 +485,7 @@ export async function prepare(repo: string, deps: PrepareDeps, options: PrepareO
   } else {
     branch = `${BRANCH_PREFIX}${deps.today}`;
     worktree = worktreePath(gitRoot);
-    if (!(await configure(gitRoot, branch, worktree, deps))) return EXIT_FAIL;
+    if (!(await createAndConfigure(gitRoot, branch, worktree, deps, progress))) return EXIT_FAIL;
   }
   const pushed = await commitAndPush(worktree, branch, deps);
   if (!pushed) return EXIT_FAIL;

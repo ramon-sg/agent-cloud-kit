@@ -8,14 +8,14 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync,
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
-import { prepare } from "../src/prepare/index.ts";
+import { InterruptedError, branchDay, prepare } from "../src/prepare/index.ts";
 import type { PrepareDeps } from "../src/prepare/index.ts";
 import { captureProcess } from "../src/run.ts";
 import type { Capture, Run } from "../src/run.ts";
 import { fakePackage } from "./fake-package.ts";
 
 /** Day used for the branch name. */
-const TODAY = "2026-11-02";
+const TODAY = "20261102";
 
 /** Branch `prepare` creates. */
 const BRANCH = `chore/cloud-ready-${TODAY}`;
@@ -39,6 +39,7 @@ let waited: string[];
 let agent: (cwd: string) => void;
 let agentFails: boolean;
 let ghFails: boolean;
+let existingPr: string | undefined;
 let includeAnswer: string;
 
 /**
@@ -87,6 +88,7 @@ beforeEach(() => {
   agent = finishConfigure;
   agentFails = false;
   ghFails = false;
+  existingPr = undefined;
   includeAnswer = "";
 });
 afterEach(() => rmSync(root, { recursive: true, force: true }));
@@ -109,6 +111,10 @@ const capture: Capture = async (cmd, args, opts) => {
   if (cmd === "claude" && args[0] === "--help") return "Usage: claude [options]\n  --cloud  start a cloud session\n";
   if (cmd === "gh") {
     if (ghFails) throw new Error("gh: command not found");
+    if (args[1] === "view") {
+      if (existingPr === undefined) throw new Error("no pull requests found");
+      return `${existingPr}\n`;
+    }
     return `${PR_URL}\n`;
   }
   if (cmd === "git" && args.join(" ") === "remote get-url origin") return `${ORIGIN_URL}\n`;
@@ -159,6 +165,7 @@ test("runs the steps in order with the expected argv", async () => {
     "git diff --cached --name-only",
     "git commit -m chore: prepare the repo for the Claude Code cloud",
     `git push -u origin ${BRANCH}`,
+    `gh pr view ${BRANCH} --json number --jq .number`,
     "gh pr create --draft --fill",
     `claude --cloud /cloud-ready verify\n\n- Rama de prepare: ${BRANCH}\n- PR: #7`,
   ]);
@@ -172,7 +179,7 @@ test("runs the steps in order with the expected argv", async () => {
   assert.match(out, /## Configurar el entorno en claude\.ai/);
   assert.match(out, /API_TOKEN/);
   assert.ok(out.indexOf("Configurar el entorno") < out.lastIndexOf("push"));
-  assert.match(printed.at(-1) ?? "", /push to .*chore\/cloud-ready-2026-11-02.*comment on the PR/);
+  assert.match(printed.at(-1) ?? "", /push to .*chore\/cloud-ready-20261102.*comment on the PR/);
   assert.equal(git(worktree, ["rev-parse", "--abbrev-ref", "HEAD"]), BRANCH);
   assert.ok(committed().includes("docs/agent-cloud.md"));
   assert.ok(committed().includes(".claude/skills/cloud-ready"));
@@ -222,7 +229,7 @@ test("other changes are committed on yes", async () => {
   assert.ok(argvs().includes("git add -- scratch.txt"));
 });
 
-test("an existing worktree dir stops before touching git", async () => {
+test("an existing worktree dir stops before creating anything", async () => {
   mkdirSync(worktree);
   const code = await prepare(repo, deps());
   assert.equal(code, 1);
@@ -274,4 +281,105 @@ test("no tty exits 1 with the preflight message", async () => {
   assert.equal(code, 1);
   assert.ok(printed.some((l) => l.includes("prepare needs an interactive terminal")));
   assert.ok(!argvs().some((a) => a.startsWith("git fetch")));
+});
+
+test("the branch day is the local YYYYMMDD", () => {
+  assert.equal(branchDay(new Date(2026, 10, 2, 23, 30)), "20261102");
+  assert.equal(branchDay(new Date(2026, 0, 9)), "20260109");
+});
+
+test("--resume reuses the open PR instead of creating one", async () => {
+  agentFails = true;
+  assert.equal(await prepare(repo, deps()), 1);
+  finishConfigure(worktree);
+  existingPr = "12";
+  calls = [];
+  assert.equal(await prepare(worktree, deps(), { resume: true }), 0, printed.join("\n"));
+  const all = argvs();
+  assert.ok(all.includes(`gh pr view ${BRANCH} --json number --jq .number`));
+  assert.ok(!all.includes("gh pr create --draft --fill"));
+  assert.equal(calls.find((c) => c.args[0] === "--cloud")?.args[1], `/cloud-ready verify\n\n- Rama de prepare: ${BRANCH}\n- PR: #12`);
+  assert.ok(!printed.some((l) => l.includes("/compare/")));
+});
+
+test("Ctrl+C at a question after the worktree exists keeps it and says how to resume", async () => {
+  agent = (cwd) => {
+    finishConfigure(cwd);
+    writeFileSync(join(cwd, "scratch.txt"), "x\n");
+  };
+  const ask: PrepareDeps["ask"] = async (question, suggestion) => {
+    if (question.startsWith("Include")) throw new InterruptedError();
+    return suggestion;
+  };
+  const code = await prepare(repo, deps({ ask }));
+  assert.equal(code, 130);
+  assert.ok(existsSync(worktree));
+  assert.equal(git(worktree, ["rev-parse", "--abbrev-ref", "HEAD"]), BRANCH);
+  assert.ok(printed.includes(`interrupted; the worktree is at ${worktree}; run agent-cloud-kit prepare --resume there`));
+  assert.ok(!argvs().some((a) => a.startsWith("git commit") || a.startsWith("git push")));
+});
+
+test("Ctrl+C while waiting for Enter keeps the pushed worktree and says how to resume", async () => {
+  const waitEnter = async (): Promise<void> => {
+    throw new InterruptedError();
+  };
+  assert.equal(await prepare(repo, deps({ waitEnter })), 130);
+  assert.ok(printed.includes(`interrupted; the worktree is at ${worktree}; run agent-cloud-kit prepare --resume there`));
+  assert.ok(!argvs().some((a) => a.startsWith("claude --cloud")));
+});
+
+test("Ctrl+C at the first questions says nothing was created", async () => {
+  const ask = async (): Promise<string> => {
+    throw new InterruptedError();
+  };
+  assert.equal(await prepare(repo, deps({ ask })), 130);
+  assert.ok(printed.includes("agent-cloud-kit: interrupted; nothing was created"));
+  assert.ok(!existsSync(worktree));
+});
+
+test("a Ctrl+C while a child runs prints the resume line through onInterrupt, which is removed at the end", async () => {
+  let handler: (() => void) | undefined;
+  let removed = false;
+  const onInterrupt = (h: () => void): (() => void) => {
+    handler = h;
+    return () => {
+      removed = true;
+    };
+  };
+  const pushRun: Run = async (cmd, args, opts) => {
+    if (cmd === "git" && args[0] === "push") handler?.();
+    return run(cmd, args, opts);
+  };
+  assert.equal(await prepare(repo, deps({ onInterrupt, run: pushRun })), 0, printed.join("\n"));
+  assert.ok(printed.includes(`interrupted; the worktree is at ${worktree}; run agent-cloud-kit prepare --resume there`));
+  assert.equal(removed, true);
+});
+
+test("the test-audit project file is committed and agent deletions go through the question", async () => {
+  agent = (cwd) => {
+    finishConfigure(cwd);
+    mkdirSync(join(cwd, ".agents/skills/test-audit"), { recursive: true });
+    writeFileSync(join(cwd, ".agents/skills/test-audit/project.md"), "tests\n");
+    rmSync(join(cwd, "README.md"));
+  };
+  includeAnswer = "y";
+  assert.equal(await prepare(repo, deps()), 0, printed.join("\n"));
+  assert.ok(argvs().some((a) => a.startsWith("git add -- ") && a.endsWith(".claude/cloud-notes.md .agents/skills/test-audit/project.md")));
+  assert.ok(argvs().includes("git add -- README.md"));
+  const status = git(worktree, ["show", "--name-status", "--format=", "HEAD"]);
+  assert.match(status, /^D\tREADME\.md$/m);
+  assert.match(status, /^A\t\.agents\/skills\/test-audit\/project\.md$/m);
+});
+
+test("a rename staged by the agent is listed with both paths and unstaged on no", async () => {
+  agent = (cwd) => {
+    finishConfigure(cwd);
+    git(cwd, ["mv", "README.md", "DOCS.md"]);
+  };
+  includeAnswer = "n";
+  assert.equal(await prepare(repo, deps()), 0, printed.join("\n"));
+  assert.ok(printed.includes("  DOCS.md") && printed.includes("  README.md"));
+  assert.ok(argvs().includes("git reset -q -- DOCS.md README.md"));
+  assert.ok(!committed().includes("README.md") && !committed().includes("DOCS.md"));
+  assert.ok(existsSync(join(worktree, "DOCS.md")));
 });
