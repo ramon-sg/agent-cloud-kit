@@ -13,6 +13,7 @@ import type { CloudConfig } from "../src/config.ts";
 import { RunTimeoutError } from "../src/run.ts";
 import type { Run, RunOptions } from "../src/run.ts";
 import type { StepResult } from "../src/steps.ts";
+import { GIT_FETCH_TIMEOUT_MS } from "../src/constants.ts";
 import { SESSION_STEP_TIMEOUT_MS, session, toolsEnv } from "../src/session.ts";
 
 const NOTE = "agent-cloud-kit: you are in a Claude Code cloud session. There are no open ports or previews: test against localhost. gh pr and gh issue fail (the GitHub proxy blocks GraphQL): use gh api (REST).";
@@ -261,4 +262,14 @@ test("session steps send their output to stderr and have a time limit", async ()
   assert.equal(SESSION_STEP_TIMEOUT_MS, 120_000);
   assert.ok(lines.includes("agent-cloud-kit: session step timed out: hang forever"));
   assert.ok(steps.some((c) => c.args[1] === "echo next"));
+});
+
+test("session limits each git fetch", async () => {
+  writeConfig();
+  mkdirSync(join(repo, ".git"), { recursive: true });
+  writeFileSync(join(repo, ".git/shallow"), "abc\n");
+  await session(repo, ctx());
+  const fetches = calls.filter((c) => c.cmd === "git" && c.args[0] === "fetch");
+  assert.equal(fetches.length, 2);
+  for (const f of fetches) assert.equal(f.opts?.timeoutMs, GIT_FETCH_TIMEOUT_MS);
 });

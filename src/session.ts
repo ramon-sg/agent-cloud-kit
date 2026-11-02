@@ -7,7 +7,7 @@ import { basename, isAbsolute, join, relative, sep } from "node:path";
 import { findProxyCa, shellQuote } from "./ca.ts";
 import { readConfig } from "./config.ts";
 import type { CloudConfig } from "./config.ts";
-import { CONFIG_FILE, OUTPUT_PREFIX, PACKAGE, SETUP_SLOW_MS } from "./constants.ts";
+import { CONFIG_FILE, GIT_FETCH_TIMEOUT_MS, OUTPUT_PREFIX, PACKAGE, SETUP_SLOW_MS } from "./constants.ts";
 import { configImages, defaultBranch, readToolVersions } from "./detect.ts";
 import { realDocker } from "./docker.ts";
 import type { DockerOps } from "./docker.ts";
@@ -192,8 +192,9 @@ function writeEnvFile(env: NodeJS.ProcessEnv, lines: string[]): string | undefin
  */
 async function syncGit(repo: string, run: Run, env: NodeJS.ProcessEnv): Promise<void> {
   const opts = { cwd: repo, env: { ...env, ...GIT_NON_INTERACTIVE }, stdio: "stderr" as const };
+  const fetchOpts = { ...opts, timeoutMs: GIT_FETCH_TIMEOUT_MS };
   if (existsSync(join(repo, SHALLOW_MARKER))) {
-    await run("git", ["fetch", "-q", "--unshallow", "origin"], opts).catch(() => undefined);
+    await run("git", ["fetch", "-q", "--unshallow", "origin"], fetchOpts).catch(() => undefined);
   }
   const branch = defaultBranch(repo);
   const valid = await run("git", ["check-ref-format", "--branch", branch], opts).then(
@@ -201,7 +202,7 @@ async function syncGit(repo: string, run: Run, env: NodeJS.ProcessEnv): Promise<
     () => false,
   );
   if (!valid) return;
-  await run("git", ["fetch", "-q", "origin", `${branch}:refs/remotes/origin/${branch}`], opts).catch(() => undefined);
+  await run("git", ["fetch", "-q", "origin", `${branch}:refs/remotes/origin/${branch}`], fetchOpts).catch(() => undefined);
 }
 
 /**

@@ -35,6 +35,21 @@ export const DOCKER_WAIT_SECONDS = 60;
 /** Total step time, in milliseconds, above which setup is reported as slow. */
 export const SETUP_SLOW_MS = 240_000;
 
+/** Time limit of one tool install step (a download or an install), in milliseconds. */
+export const TOOL_INSTALL_TIMEOUT_MS = 120_000;
+
+/** Time limit of one apt step (repo script, update or install), in milliseconds. */
+export const APT_STEP_TIMEOUT_MS = 180_000;
+
+/** Time limit of one `docker pull`, in milliseconds. */
+export const DOCKER_PULL_TIMEOUT_MS = 180_000;
+
+/** Time limit of one repo setup command, in milliseconds. */
+export const SETUP_STEP_TIMEOUT_MS = 180_000;
+
+/** Time limit of one `git fetch` at session start, in milliseconds. */
+export const GIT_FETCH_TIMEOUT_MS = 60_000;
+
 /** Default location of the cloud proxy CA bundle. */
 export const PROXY_CA_DEFAULT = "/root/.ccr/ca-bundle.crt";
 

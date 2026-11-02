@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 import { findProxyCa } from "./ca.ts";
 import { readConfig } from "./config.ts";
 import type { CloudConfig } from "./config.ts";
-import { DOCKERD_LOG, PULL_JOBS } from "./constants.ts";
+import { APT_STEP_TIMEOUT_MS, DOCKERD_LOG, DOCKER_PULL_TIMEOUT_MS, PULL_JOBS, SETUP_STEP_TIMEOUT_MS } from "./constants.ts";
 import { configImages, readToolVersions } from "./detect.ts";
 import { realDocker } from "./docker.ts";
 import type { DockerOps } from "./docker.ts";
@@ -115,16 +115,16 @@ async function aptLane(config: CloudConfig, deps: Deps): Promise<StepResult[]> {
       results.push(await refused(name, `apt repo must be an ${HTTPS_PREFIX} URL`));
       continue;
     }
-    results.push(await step(name, () => deps.run("bash", ["-c", APT_REPO_SCRIPT, SCRIPT_NAME, url], { env })));
+    results.push(await step(name, () => deps.run("bash", ["-c", APT_REPO_SCRIPT, SCRIPT_NAME, url], { env, timeoutMs: APT_STEP_TIMEOUT_MS })));
   }
   const valid = config.apt.filter((pkg) => DEBIAN_PACKAGE_NAME.test(pkg));
   for (const pkg of config.apt.filter((p) => !valid.includes(p))) {
     results.push(await refused(`apt package ${pkg}`, "invalid Debian package name"));
   }
   if (!valid.length && !config.aptRepos.length) return results;
-  results.push(await step("apt-get update", () => deps.run("apt-get", ["update", "-q"], { env })));
+  results.push(await step("apt-get update", () => deps.run("apt-get", ["update", "-q"], { env, timeoutMs: APT_STEP_TIMEOUT_MS })));
   if (valid.length) {
-    results.push(await step("apt-get install", () => deps.run("apt-get", ["install", "-y", "-q", "--", ...valid], { env })));
+    results.push(await step("apt-get install", () => deps.run("apt-get", ["install", "-y", "-q", "--", ...valid], { env, timeoutMs: APT_STEP_TIMEOUT_MS })));
   }
   return results;
 }
@@ -143,7 +143,7 @@ async function pullAll(images: string[], deps: Deps): Promise<StepResult[]> {
     while (next < images.length) {
       const index = next++;
       const image = images[index] as string;
-      results[index] = await step(`docker pull ${image}`, () => deps.run("docker", ["pull", "-q", image], { env: deps.env }));
+      results[index] = await step(`docker pull ${image}`, () => deps.run("docker", ["pull", "-q", image], { env: deps.env, timeoutMs: DOCKER_PULL_TIMEOUT_MS }));
     }
   };
   await Promise.all(Array.from({ length: Math.min(PULL_JOBS, images.length) }, worker));
@@ -183,7 +183,7 @@ async function setupSteps(commands: string[], deps: Deps): Promise<StepResult[]>
   const results: StepResult[] = [];
   for (const command of commands) {
     results.push(
-      await step(SETUP_STEP_PREFIX + command, () => deps.run("bash", ["-c", command], { cwd: deps.repo, env: deps.env })),
+      await step(SETUP_STEP_PREFIX + command, () => deps.run("bash", ["-c", command], { cwd: deps.repo, env: deps.env, timeoutMs: SETUP_STEP_TIMEOUT_MS })),
     );
   }
   return results;

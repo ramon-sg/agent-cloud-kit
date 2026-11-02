@@ -19,12 +19,14 @@ import {
   toolBinDirs,
 } from "../src/installers.ts";
 import type { NodeRelease } from "../src/installers.ts";
+import { TOOL_INSTALL_TIMEOUT_MS } from "../src/constants.ts";
 
 /** One recorded process call. */
 interface Call {
   cmd: string;
   args: string[];
   env?: NodeJS.ProcessEnv;
+  timeoutMs?: number;
 }
 
 /**
@@ -32,12 +34,12 @@ interface Call {
  *
  * @returns The recorder and its calls.
  */
-function recorder(): { calls: Call[]; run: (cmd: string, args: string[], opts?: { env?: NodeJS.ProcessEnv }) => Promise<void> } {
+function recorder(): { calls: Call[]; run: (cmd: string, args: string[], opts?: { env?: NodeJS.ProcessEnv; timeoutMs?: number }) => Promise<void> } {
   const calls: Call[] = [];
   return {
     calls,
     run: async (cmd, args, opts) => {
-      calls.push({ cmd, args, env: opts?.env });
+      calls.push({ cmd, args, env: opts?.env, timeoutMs: opts?.timeoutMs });
       if (cmd === "curl") {
         const version = /\/v([^/]+)\/SHASUMS256/.exec(args.at(-1) ?? "")?.[1] ?? "24.14.1";
         writeFileSync(args[args.indexOf("-o") + 1] as string, shasumsFor(`node-v${version}-linux-${ARCH}.tar.xz`));
@@ -249,12 +251,12 @@ test("node aliases are accepted for node only", () => {
  * @param index - Index to write, or undefined to fail like a blocked download.
  * @returns The recorder and its calls.
  */
-function indexServer(index: NodeRelease[] | undefined): { calls: Call[]; run: (cmd: string, args: string[], opts?: { env?: NodeJS.ProcessEnv }) => Promise<void> } {
+function indexServer(index: NodeRelease[] | undefined): { calls: Call[]; run: (cmd: string, args: string[], opts?: { env?: NodeJS.ProcessEnv; timeoutMs?: number }) => Promise<void> } {
   const calls: Call[] = [];
   return {
     calls,
     run: async (cmd, args, opts) => {
-      calls.push({ cmd, args, env: opts?.env });
+      calls.push({ cmd, args, env: opts?.env, timeoutMs: opts?.timeoutMs });
       if (cmd !== "curl") return;
       if (!index) throw new Error("curl exited with code 56");
       writeFileSync(args[args.indexOf("-o") + 1] ?? "", JSON.stringify(index));
@@ -390,4 +392,14 @@ test("an npm installer installs into a temp prefix and renames it", async () => 
   assert.equal(results[0]?.ok, true);
   assert.equal(existsSync(prefix), false);
   assert.equal(existsSync(join(dir, "pnpm-9.0.0", "node_modules", ".bin", "pnpm")), true);
+});
+
+test("every tool install step gets the tool install time limit, with no curl --max-time", async () => {
+  const dir = toolsDir();
+  const { calls, run } = recorder();
+  await installTools({ node: "24.14.1", bun: "1.4.2", uv: "0.5.0" }, dir, run, { PATH: "/usr/bin" });
+  assert.equal(calls.length, 4);
+  for (const call of calls) assert.equal(call.timeoutMs, TOOL_INSTALL_TIMEOUT_MS, `${call.cmd} ${call.args.join(" ")}`);
+  assert.ok(!calls.some((c) => c.args.includes("--max-time") && c.args.includes("SHASUMS256.txt")));
+  assert.ok(!calls[0]?.args.includes("--max-time"));
 });

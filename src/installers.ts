@@ -5,6 +5,7 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { TOOL_INSTALL_TIMEOUT_MS } from "./constants.ts";
 import { TOOLS } from "./detect.ts";
 import type { Tool } from "./detect.ts";
 import type { Run } from "./run.ts";
@@ -66,9 +67,6 @@ const NODE_INDEX_TIMEOUT_SECONDS = "60";
 
 /** File name of the downloaded index inside its temp directory. */
 const NODE_INDEX_FILE = "index.json";
-
-/** Time limit of the SHASUMS256 download, in seconds. */
-const NODE_SHASUMS_TIMEOUT_SECONDS = "60";
 
 /** File name of the downloaded checksum list inside its temp directory. */
 const NODE_SHASUMS_FILE = "SHASUMS256.txt";
@@ -182,7 +180,7 @@ export async function installAtomically(target: string, work: (temp: string) => 
 async function nodeExpectedHash(run: Run, env: NodeJS.ProcessEnv, dir: string, version: string, file: string): Promise<string> {
   const path = join(dir, NODE_SHASUMS_FILE);
   const url = `${NODE_DIST_URL}/v${version}/${NODE_SHASUMS_FILE}`;
-  await run("curl", ["-fsSL", "--max-time", NODE_SHASUMS_TIMEOUT_SECONDS, "-o", path, "--", url], { env });
+  await run("curl", ["-fsSL", "-o", path, "--", url], { env, timeoutMs: TOOL_INSTALL_TIMEOUT_MS });
   const hash = parseShasums(readFileSync(path, "utf8"), file);
   if (!hash) throw new Error(`${file} is not listed in ${NODE_SHASUMS_FILE}`);
   return hash;
@@ -414,7 +412,7 @@ function npmInstaller(tool: Tool, packageFor: (version: string) => string): Inst
         run(
           "npm",
           ["install", "--prefix", temp, "--no-save", "--no-audit", "--no-fund", `${packageFor(version)}@${version}`],
-          { env },
+          { env, timeoutMs: TOOL_INSTALL_TIMEOUT_MS },
         ),
       ),
   };
@@ -434,7 +432,10 @@ export const INSTALLERS: Record<Tool, Installer> = {
         try {
           const hash = await nodeExpectedHash(run, env, downloads, version, file);
           const url = `${NODE_DIST_URL}/v${version}/${file}`;
-          await run("bash", ["-c", NODE_INSTALL_SCRIPT, SCRIPT_NAME, url, temp, join(downloads, NODE_TARBALL_FILE), hash], { env });
+          await run("bash", ["-c", NODE_INSTALL_SCRIPT, SCRIPT_NAME, url, temp, join(downloads, NODE_TARBALL_FILE), hash], {
+            env,
+            timeoutMs: TOOL_INSTALL_TIMEOUT_MS,
+          });
         } finally {
           rmSync(downloads, { recursive: true, force: true });
         }
@@ -448,7 +449,7 @@ export const INSTALLERS: Record<Tool, Installer> = {
     ...uvLayout,
     install: (toolsDir, version, run, env) =>
       installAtomically(uvLayout.dir(toolsDir, version), (temp) =>
-        run("python3", ["-m", "pip", "install", "--target", temp, `uv==${version}`], { env }),
+        run("python3", ["-m", "pip", "install", "--target", temp, `uv==${version}`], { env, timeoutMs: TOOL_INSTALL_TIMEOUT_MS }),
       ),
   },
 };
