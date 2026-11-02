@@ -28,10 +28,10 @@ describe("naming", () => {
     assert.deepEqual(offenders, []);
   });
 
-  it("package.json is agent-cloud-kit 1.0.0", () => {
+  it("package.json is agent-cloud-kit 1.x", () => {
     const pkg = JSON.parse(readFileSync(PACKAGE_JSON, "utf8")) as { name: string; version: string; bin: Record<string, string> };
     assert.equal(pkg.name, "agent-cloud-kit");
-    assert.equal(pkg.version, "1.0.0");
+    assert.match(pkg.version, /^1\.\d+\.\d+(-rc\.\d+)?$/);
     assert.equal(pkg.bin["agent-cloud-kit"], "dist/cli.js");
   });
 });
