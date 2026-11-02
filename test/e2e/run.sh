@@ -109,7 +109,10 @@ echo "ok: doctor saw npm reachable and GitHub blocked"
 
 echo "== manual writes the setup script"
 in_box 'cd /work/fixture && agent-cloud-kit manual >/dev/null 2>&1 || /opt/agent-cloud-kit/bin/agent-cloud-kit manual >/dev/null' || fail "agent-cloud-kit manual failed"
-in_box 'grep -qx "npx -y agent-cloud-kit@1 setup" /work/fixture/docs/agent-cloud.md && grep -qx "#!/bin/bash" /work/fixture/docs/agent-cloud.md' \
+# A release candidate is named exactly: a major range does not match a prerelease.
+version="$(node -p "require('$ROOT/package.json').version")"
+case "$version" in *-*) spec="agent-cloud-kit@$version" ;; *) spec="agent-cloud-kit@${version%%.*}" ;; esac
+in_box "grep -qx 'npx -y $spec setup' /work/fixture/docs/agent-cloud.md && grep -qx '#!/bin/bash' /work/fixture/docs/agent-cloud.md" \
   || fail "docs/agent-cloud.md lacks the exact setup script"
 echo "ok: manual wrote docs/agent-cloud.md with the exact setup script"
 
