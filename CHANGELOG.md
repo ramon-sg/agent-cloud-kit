@@ -6,7 +6,22 @@ All notable changes to this project are documented in this file. The format foll
 
 ## 1.0.0
 
+Continues `@ramon-sg/claude-cloud` 1.0.0. There is no automatic migration.
+
+### Changed
+
+- Renamed from `@ramon-sg/claude-cloud` to `agent-cloud-kit` (binary, state folder
+  `/opt/agent-cloud-kit`, environment variables `AGENT_CLOUD_KIT_*`, output prefix).
+
 ### Added
+
+- `agent-cloud-kit prepare [--resume]`: sets a repo up for the cloud on a dated branch in a
+  worktree, opens a draft PR and verifies it in a real `claude --cloud` session.
+- `agent-cloud-kit manual`: writes `docs/agent-cloud.md` (setup script, domains, variables).
+- `cloud-ready` skill (`configure` and `verify`), copied by `init` to `.agents/skills/cloud-ready`
+  and linked from `.claude/skills/cloud-ready`. It respects the repo's own tests.
+- `domains` field in `.claude/cloud.json`.
+- GitHub Actions pinned by commit SHA.
 
 - `agent-cloud-kit setup [--repo <path>]`: prepares the machine for every repo cloned in the home
   directory, relaunching the exact version each repo pins in `.claude/cloud.json`.

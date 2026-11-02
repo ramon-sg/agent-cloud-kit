@@ -5,6 +5,11 @@ sessions. It installs the tool versions a repo pins, starts Docker, completes th
 clone, and tells you when the saved machine is not what the repo asks for, working around the
 limits of the cloud sandbox that the platform does not document.
 
+> Not affiliated with or endorsed by Anthropic. Works with Claude Code on the web.
+>
+> Continues `@ramon-sg/claude-cloud` (its 1.0.0), with no automatic migration: install this package
+> and run `init` again.
+
 - Written in TypeScript, published compiled, **no runtime dependencies**, Node `>=20` (the cloud
   image ships Node 22, so it runs before any tool of your repo is installed).
 - The **repo decides the version**: `.claude/cloud.json` pins the exact version of this package,
@@ -26,6 +31,37 @@ platform does not tell you:
 - The proxy replaces TLS, and `docker build` does not trust its CA.
 - A resumed session does not run the setup again, and changing the setup does not rebuild the
   saved machine.
+
+## The flow
+
+1. **Install your agent tooling** with agent-kitchen (config, hook and skill arrive in the repo).
+2. **Run `npx agent-cloud-kit prepare`** in a local terminal. It asks a few questions (secret
+   variable names, extra domains), creates a worktree on a dated branch, runs `init`, and opens
+   Claude locally with the `cloud-ready` skill so it can write the cloud preparation with you. Then
+   it writes the manual, commits, pushes and opens a draft PR.
+3. **Configure the environment in claude.ai** following `docs/agent-cloud.md`, which `prepare`
+   generated from your `.claude/cloud.json`.
+4. **Verification in the cloud:** `prepare` launches `claude --cloud` on that branch, so a real
+   cloud session runs `cloud-ready verify`, fixes what fails and reports in the PR.
+
+`claude --cloud` uses the environment chosen with `/remote-env` in `claude`, and the Claude GitHub
+App must be installed on the repo (without it the session cannot push). Inside the cloud, `gh api`
+(REST) works; GraphQL (`gh pr list`, `gh pr create`) is blocked. If `prepare` is interrupted,
+`npx agent-cloud-kit prepare --resume` continues in the existing worktree.
+
+## No opinion about tests
+
+This package does not impose any way of testing, and a repo may have no tests at all (then the
+cloud only needs a prepared machine). The `cloud-ready` skill finds the tests your repo already
+has, tells you which would run in the cloud as they are, and proposes adapting the cloud
+preparation or, only if needed, a cloud variant of them. Nothing changes without your approval.
+
+### The `cloud-ready` skill
+
+`init` copies it to `.agents/skills/cloud-ready` and links it from `.claude/skills/cloud-ready`,
+because Claude Code does not discover `.agents/skills`. Commit both. `cloud-ready configure` runs
+locally with you; `cloud-ready verify` runs inside the cloud session. The skill and the generated
+manual are written in Spanish.
 
 ## Set up claude.ai
 
@@ -61,10 +97,11 @@ broken file never stops a session.
 
 ```json
 {
-  "$schema": "https://unpkg.com/agent-cloud-kit/schema.json",
+  "$schema": "https://unpkg.com/agent-cloud-kit@1.0.0/schema.json",
   "version": "1.0.0",
   "aptRepos": ["https://example.com/setup.deb.sh"],
   "apt": ["direnv", "jq"],
+  "domains": ["registry.example.com"],
   "docker": { "pull": "auto" },
   "setup": ["scripts/cloud-setup-extra.sh"],
   "session": ["scripts/worktree-setup.sh"],
@@ -78,6 +115,7 @@ broken file never stops a session.
 | `version`     | yes      | Exact version of this package to run (no ranges). If `setup` runs a different one it relaunches with this one.                                       |
 | `aptRepos`    | no       | HTTPS URLs of setup scripts that add APT repositories; each is downloaded and piped to `bash` before installing packages.                            |
 | `apt`         | no       | Debian packages to install. Names are validated and passed as arguments, never to a shell.                                                           |
+| `domains`     | no       | Extra hosts the environment must allow; `doctor` probes them and the manual lists them.                                                              |
 | `docker.pull` | no       | `"auto"` (default) pulls the images found in compose files and in `FROM` lines pinned with `@sha256`; a list of image names pulls those; `false` leaves Docker alone during `setup`. |
 | `setup`       | no       | Shell commands run once during `setup`, in the repo, with the pinned tools first on `PATH`. A failing command is recorded and the rest still run.    |
 | `session`     | no       | Shell commands run at the start of every session, in the repo. Their output goes to stderr (not into Claude's context), each one is stopped after 2 minutes, and a failing command is reported while the rest still run. |
@@ -103,6 +141,8 @@ A Node version that is not exact (`22`, `22.1`, `lts/iron`, `lts/*` or `node`) i
 | `agent-cloud-kit docker`         | Starts `dockerd` detached and waits up to 60 seconds for it to answer. Exits 1 if it does not, at once when `dockerd` is not installed.                                                                                             |
 | `agent-cloud-kit doctor`         | Checks that the proxy lets the needed hosts through, that the pinned tools are installed, that Docker answers, and the recorded state (fingerprint and each step). Exits 1 if any check fails.                                       |
 | `agent-cloud-kit init`           | Creates `.claude/cloud.json` if missing, adds the `SessionStart` hook to `.claude/settings.json` (keeping the hooks already there), copies the `cloud-ready` skill to `.agents/skills/cloud-ready` when its version differs, and links it from `.claude/skills/cloud-ready`. Safe to run again.                                                                           |
+| `agent-cloud-kit manual`         | Writes `docs/agent-cloud.md` from `.claude/cloud.json`, deterministically: the exact setup script, domains, variable names, how to verify the environment. |
+| `agent-cloud-kit prepare [--resume]` | Local only, needs an interactive terminal: sets the repo up for the cloud on a new branch in a worktree, opens the PR and verifies it in a real cloud session (see "The flow"). `--resume` continues in the existing worktree. |
 
 Environment variables: `AGENT_CLOUD_KIT_DIR` overrides `/opt/agent-cloud-kit` and `AGENT_CLOUD_KIT_HOME`
 overrides `/home/user`; both exist mainly for tests.
@@ -154,6 +194,9 @@ RUN --mount=type=secret,id=proxy_ca \
   `gh issue` fail (GitHub's GraphQL is blocked; use `gh api`). `gh pr ready` fails too; the 403
   names a REST route for it (`POST /repos/{owner}/{repo}/pulls/{n}/ccr/ready_for_review`), not
   yet verified.
+- It does not configure claude.ai for you: the environment is yours to set, following the manual.
+- It does not download skills in the cloud; they live in the repo.
+- It does not impose a way of testing.
 - It does not install plugins, or run the hooks of plugins, from your machine.
 - It does not install tools from GitHub releases; the proxy blocks them.
 - It does not run Docker inside Docker, and it does not start a Docker daemon in local sessions

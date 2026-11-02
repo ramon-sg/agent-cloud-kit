@@ -107,4 +107,10 @@ grep -qx "agent-cloud-kit: network api.github.com: blocked" <<<"$doctor" || fail
 grep -qx "agent-cloud-kit: tool node 24.14.1: ok" <<<"$doctor" || fail "doctor did not find node"
 echo "ok: doctor saw npm reachable and GitHub blocked"
 
+echo "== manual writes the setup script"
+in_box 'cd /work/fixture && agent-cloud-kit manual >/dev/null 2>&1 || /opt/agent-cloud-kit/bin/agent-cloud-kit manual >/dev/null' || fail "agent-cloud-kit manual failed"
+in_box 'grep -qx "npx -y agent-cloud-kit@1 setup" /work/fixture/docs/agent-cloud.md && grep -qx "#!/bin/bash" /work/fixture/docs/agent-cloud.md' \
+  || fail "docs/agent-cloud.md lacks the exact setup script"
+echo "ok: manual wrote docs/agent-cloud.md with the exact setup script"
+
 echo "PASS: container walkthrough"
