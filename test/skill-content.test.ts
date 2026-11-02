@@ -47,6 +47,13 @@ test("SKILL.md covers both modes, the limits and the PR", () => {
   assert.equal(skill.includes("--level"), false);
 });
 
+test("configure ends by telling the user to exit claude so prepare continues", () => {
+  const skill = read("SKILL.md");
+  const configure = skill.slice(skill.indexOf("## `configure`"), skill.indexOf("## `verify`"));
+  assert.ok(configure.includes("`/exit`"), "configure does not mention /exit");
+  assert.match(configure, /dile al usuario/i);
+});
+
 test("knowledge.md is a table with a status column and at least 12 rows", () => {
   const lines = read("reference/knowledge.md").split("\n");
   assert.ok(lines.includes("| Hecho | Estado | Fuente |"));

@@ -55,6 +55,12 @@ const GITHUB_REMOTE = /github\.com[:/]([^/\s]+\/[^/\s]+?)(?:\.git)?\/?$/;
 /** Matches a pull request URL and captures its number. */
 const PR_URL = /\/pull\/(\d+)/;
 
+/** Command that continues a prepare run; `npx` because a first-time user does not have the binary on PATH. */
+const RESUME_COMMAND = `npx ${PACKAGE} prepare --resume`;
+
+/** Printed just before the local agent starts: `prepare` continues only when `claude` exits. */
+const EXIT_CLAUDE_HINT = `${OUTPUT_PREFIX}when the skill says configure is done, exit claude (/exit) and prepare will commit, push and open the PR`;
+
 /** Exit code for success. */
 const EXIT_OK = 0;
 
@@ -145,7 +151,7 @@ export function branchDay(date: Date): string {
  * resumeLine("interrupted", "/home/u/app-cloud-ready"); // "interrupted; the worktree is at ...; run ... --resume there"
  */
 function resumeLine(reason: string, worktree: string): string {
-  return `${reason}; the worktree is at ${worktree}; run ${PACKAGE} prepare --resume there`;
+  return `${reason}; the worktree is at ${worktree}; run ${RESUME_COMMAND} there`;
 }
 
 /**
@@ -313,14 +319,14 @@ async function findResume(repo: string, deps: PrepareDeps): Promise<{ worktree: 
  */
 async function createAndConfigure(repo: string, branch: string, worktree: string, deps: PrepareDeps, progress: Progress): Promise<boolean> {
   if (existsSync(worktree)) {
-    deps.print(`${OUTPUT_PREFIX}${worktree} already exists; remove it (git worktree remove ${worktree}) or continue there with ${PACKAGE} prepare --resume`);
+    deps.print(`${OUTPUT_PREFIX}${worktree} already exists; remove it (git worktree remove ${worktree}) or continue there with ${RESUME_COMMAND}`);
     return false;
   }
   if ((await tryCapture(deps, "git", ["rev-parse", "--verify", "--quiet", `refs/heads/${branch}`], repo)) !== undefined) {
     deps.print(`${OUTPUT_PREFIX}branch ${branch} already exists; delete it (git branch -D ${branch}) or run prepare another day`);
     return false;
   }
-  const answers = await askAll(deps.ask, { secrets: suggestSecrets(repo) });
+  const answers = await askAll(deps.ask, { secrets: suggestSecrets(repo) }, deps.print);
   const base = `origin/${defaultBranch(repo)}`;
   try {
     await deps.run("git", ["fetch", "-q", "origin"], { cwd: repo });
@@ -343,14 +349,17 @@ async function createAndConfigure(repo: string, branch: string, worktree: string
     deps.print(stopped);
     return false;
   }
+  deps.print(EXIT_CLAUDE_HINT);
   try {
     await runInteractive(deps, progress, [configurePrompt(answers)], worktree);
   } catch {
     deps.print(stopped);
     return false;
   }
-  if (configureProblem(worktree) !== undefined) {
-    deps.print(stopped);
+  const problem = configureProblem(worktree);
+  if (problem !== undefined) {
+    deps.print(`${OUTPUT_PREFIX}configure did not finish: ${problem}`);
+    deps.print(resumeLine("prepare stopped", worktree));
     return false;
   }
   return true;
@@ -393,7 +402,7 @@ async function commitAndPush(worktree: string, branch: string, deps: PrepareDeps
     await deps.run("git", ["push", "-u", "origin", branch], { cwd: worktree });
   } catch (err) {
     if (err instanceof InterruptedError) throw err;
-    deps.print(`${OUTPUT_PREFIX}could not commit and push: ${message(err)}; fix it in ${worktree} and run ${PACKAGE} prepare --resume there`);
+    deps.print(`${OUTPUT_PREFIX}could not commit and push: ${message(err)}; fix it in ${worktree} and run ${RESUME_COMMAND} there`);
     return false;
   }
   const existing = await tryCapture(deps, "gh", ["pr", "view", branch, "--json", "number", "--jq", ".number"], worktree);
@@ -512,7 +521,7 @@ async function prepareSteps(gitRoot: string, deps: PrepareDeps, options: Prepare
     progress.worktree = worktree;
     const problem = configureProblem(worktree);
     if (problem) {
-      deps.print(`${OUTPUT_PREFIX}configure is not finished in ${worktree}: ${problem}; run claude "/cloud-ready configure" there first`);
+      deps.print(`${OUTPUT_PREFIX}configure is not finished in ${worktree}: ${problem}; run claude "/cloud-ready configure" there first, then ${RESUME_COMMAND}`);
       return EXIT_FAIL;
     }
   } else {
@@ -528,7 +537,7 @@ async function prepareSteps(gitRoot: string, deps: PrepareDeps, options: Prepare
   try {
     await runInteractive(deps, progress, ["--cloud", verifyPrompt({ branch, pr: pushed.pr })], worktree);
   } catch (err) {
-    deps.print(`${OUTPUT_PREFIX}claude --cloud failed: ${message(err)}; run ${PACKAGE} prepare --resume in ${worktree} to try again`);
+    deps.print(`${OUTPUT_PREFIX}claude --cloud failed: ${message(err)}; run ${RESUME_COMMAND} in ${worktree} to try again`);
     return EXIT_FAIL;
   }
   deps.print(`${OUTPUT_PREFIX}the cloud session will report back as a push to ${branch} and a comment on the PR`);

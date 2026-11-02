@@ -84,6 +84,9 @@ partida: no las vuelvas a preguntar.
    claude.ai" de `docs/agent-cloud.md` (setup script, dominios, variables).
 10. **No hagas commit:** `agent-cloud-kit prepare` lo hace al salir. Si te invocaron fuera de
     `prepare`, pregunta al usuario.
+11. **Termina diciéndole al usuario que salga:** dile al usuario, con estas palabras o parecidas,
+    "configure terminó: sal de claude con `/exit` y `prepare` sigue (commit, push y PR)". Si te
+    invocaron fuera de `prepare`, omite este paso.
 
 ## `verify` (en la nube)
 
