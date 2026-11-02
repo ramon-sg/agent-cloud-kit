@@ -2,7 +2,7 @@
  * @file The `manual` command: generates `docs/agent-cloud.md` (in Spanish) from the repo's cloud config
  * and last test record, keeping everything a person or agent wrote outside the generated block.
  */
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { readConfig } from "./config.ts";
 import type { CloudConfig } from "./config.ts";
@@ -135,7 +135,7 @@ function renderRecordSection(record: TestRecord | undefined): string {
   const lines = ["## Último resultado", ""];
   if (!record) return [...lines, "Sin registro: todavía no se corrió."].join("\n");
   const where = record.remote ? "nube" : "local";
-  lines.push(`${record.finishedAt} (${where}), commit ${record.commit.slice(0, SHORT_COMMIT_LENGTH)}`, "");
+  lines.push(`Nivel alcanzado: ${record.level}`, `${record.finishedAt} (${where}), commit ${record.commit.slice(0, SHORT_COMMIT_LENGTH)}`, "");
   for (const r of record.results) lines.push(`- ${r.ok ? "✓" : "✗"} \`${r.command}\``);
   return lines.join("\n");
 }
@@ -200,7 +200,12 @@ export function writeManual(repo: string, packageVersion: string): string {
   const block = renderManual({ config, record: readTestRecord(repo), packageVersion });
   mkdirSync(dirname(file), { recursive: true });
   const temp = `${file}.${process.pid}.tmp`;
-  writeFileSync(temp, mergeManual(existing, block));
-  renameSync(temp, file);
+  try {
+    writeFileSync(temp, mergeManual(existing, block));
+    renameSync(temp, file);
+  } catch (err) {
+    rmSync(temp, { force: true });
+    throw err;
+  }
   return file;
 }

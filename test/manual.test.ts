@@ -94,6 +94,9 @@ test("shows the last record", () => {
   assert.ok(out.includes("agent-cloud-kit test --level full"));
   assert.ok(out.includes("2026-11-02T10:00:00.000Z"));
   assert.ok(out.includes("nube"));
+  assert.ok(out.includes("Nivel alcanzado: full"));
+  const fellBack = renderManual({ config, record: { ...record, level: "minimum" }, packageVersion: "1.2.3" });
+  assert.ok(fellBack.includes("Nivel alcanzado: minimum"));
   assert.ok(out.includes("0123456"));
   assert.ok(!out.includes("0123456789"));
   assert.ok(out.includes("✓ `npm run lint`"));
