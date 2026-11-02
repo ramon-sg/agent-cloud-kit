@@ -65,6 +65,11 @@ const run: Run = async (cmd, args) => {
   if (cmd === "curl" && args.includes("https://nodejs.org/dist/index.json")) {
     writeFileSync(args[args.indexOf("-o") + 1] ?? "", JSON.stringify(INDEX));
   }
+  const shasums = args.at(-1)?.match(/\/dist\/(v[^/]+)\/SHASUMS256\.txt$/);
+  if (cmd === "curl" && shasums) {
+    const lines = ["x64", "arm64"].map((arch) => `${"ab".repeat(32)}  node-${shasums[1]}-linux-${arch}.tar.xz`);
+    writeFileSync(args[args.indexOf("-o") + 1] ?? "", lines.join("\n"));
+  }
   const label = `${cmd} ${args.join(" ")}`;
   log.push(label);
   const group = exclusive(cmd, args);

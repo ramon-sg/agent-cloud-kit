@@ -2,7 +2,7 @@
  * @file Tool installers whose download sources pass the Claude cloud egress proxy
  * (nodejs.org, npm and PyPI; GitHub releases are blocked).
  */
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { TOOLS } from "./detect.ts";
@@ -67,8 +67,30 @@ const NODE_INDEX_TIMEOUT_SECONDS = "60";
 /** File name of the downloaded index inside its temp directory. */
 const NODE_INDEX_FILE = "index.json";
 
-/** Script that downloads (`$1`) and extracts into a directory (`$2`); fails if curl fails. */
-const NODE_INSTALL_SCRIPT = 'set -o pipefail; curl -fsSL -- "$1" | tar -xJ -C "$2" --strip-components=1';
+/** Time limit of the SHASUMS256 download, in seconds. */
+const NODE_SHASUMS_TIMEOUT_SECONDS = "60";
+
+/** File name of the downloaded checksum list inside its temp directory. */
+const NODE_SHASUMS_FILE = "SHASUMS256.txt";
+
+/** File name of the downloaded tarball inside its temp directory. */
+const NODE_TARBALL_FILE = "node.tar.xz";
+
+/** Prefix of the temp download directories of the node installer. */
+const NODE_DOWNLOAD_PREFIX = "agent-cloud-kit-node-";
+
+/** Suffix of a temp install directory (after the pid), renamed to the final one on success. */
+const TEMP_SUFFIX = "tmp";
+
+/** A line of SHASUMS256.txt: a 64-digit hex hash, two spaces (or ` *`) and the file name. */
+const SHASUMS_LINE = /^([0-9a-f]{64}) [ *](.+)$/;
+
+/**
+ * Script that downloads (`$1`) into a file (`$3`), checks it against the expected sha256 (`$4`)
+ * and extracts it into a directory (`$2`); fails if curl, the checksum or tar fails.
+ */
+const NODE_INSTALL_SCRIPT =
+  'set -eo pipefail; curl -fsSL -o "$3" -- "$1"; echo "$4  $3" | sha256sum -c -; tar -xJ -f "$3" -C "$2" --strip-components=1';
 
 /** Placeholder for `$0` in the node install script. */
 const SCRIPT_NAME = "_";
@@ -102,6 +124,68 @@ export interface Installer {
    * @throws When the installation fails.
    */
   install(toolsDir: string, version: string, run: Run, env: NodeJS.ProcessEnv): Promise<void>;
+}
+
+/**
+ * Finds the sha256 of a file in the text of a SHASUMS256.txt.
+ *
+ * @param text - Content of SHASUMS256.txt.
+ * @param file - File name, such as `node-v24.14.1-linux-x64.tar.xz`.
+ * @returns The lowercase hex hash, or undefined when the file is not listed.
+ * @example
+ * parseShasums(`${"a".repeat(64)}  node-v24.14.1-linux-x64.tar.xz`, "node-v24.14.1-linux-x64.tar.xz"); // "aaaa..."
+ */
+export function parseShasums(text: string, file: string): string | undefined {
+  for (const line of text.split("\n")) {
+    const match = SHASUMS_LINE.exec(line.trimEnd());
+    if (match && match[2] === file) return match[1];
+  }
+  return undefined;
+}
+
+/**
+ * Installs into `<target>.<pid>.tmp` and renames it to `target` only when `work` succeeds, so a
+ * half-extracted install never leaves `target` behind (an existing `target` would be skipped).
+ *
+ * @param target - Final install directory.
+ * @param work - Installs into the temp directory it receives.
+ * @returns Resolves when `target` is in place.
+ * @throws What `work` throws, after removing the temp directory.
+ * @example
+ * await installAtomically("/opt/agent-cloud-kit/uv-0.5.0", async (temp) => { await install(temp); });
+ */
+export async function installAtomically(target: string, work: (temp: string) => Promise<void>): Promise<void> {
+  const temp = `${target}.${process.pid}.${TEMP_SUFFIX}`;
+  rmSync(temp, { recursive: true, force: true });
+  mkdirSync(temp, { recursive: true });
+  try {
+    await work(temp);
+    rmSync(target, { recursive: true, force: true });
+    renameSync(temp, target);
+  } catch (error) {
+    rmSync(temp, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+/**
+ * Downloads the checksum list of a Node.js release with curl and finds the hash of one archive.
+ *
+ * @param run - Process runner.
+ * @param env - Environment for curl.
+ * @param dir - Directory for the downloaded list.
+ * @param version - Exact Node.js version.
+ * @param file - Archive name to look up.
+ * @returns The expected sha256.
+ * @throws When the list does not name the archive.
+ */
+async function nodeExpectedHash(run: Run, env: NodeJS.ProcessEnv, dir: string, version: string, file: string): Promise<string> {
+  const path = join(dir, NODE_SHASUMS_FILE);
+  const url = `${NODE_DIST_URL}/v${version}/${NODE_SHASUMS_FILE}`;
+  await run("curl", ["-fsSL", "--max-time", NODE_SHASUMS_TIMEOUT_SECONDS, "-o", path, "--", url], { env });
+  const hash = parseShasums(readFileSync(path, "utf8"), file);
+  if (!hash) throw new Error(`${file} is not listed in ${NODE_SHASUMS_FILE}`);
+  return hash;
 }
 
 /**
@@ -326,10 +410,12 @@ function npmInstaller(tool: Tool, packageFor: (version: string) => string): Inst
   return {
     ...base,
     install: (toolsDir, version, run, env) =>
-      run(
-        "npm",
-        ["install", "--prefix", base.dir(toolsDir, version), "--no-save", "--no-audit", "--no-fund", `${packageFor(version)}@${version}`],
-        { env },
+      installAtomically(base.dir(toolsDir, version), (temp) =>
+        run(
+          "npm",
+          ["install", "--prefix", temp, "--no-save", "--no-audit", "--no-fund", `${packageFor(version)}@${version}`],
+          { env },
+        ),
       ),
   };
 }
@@ -341,12 +427,18 @@ const uvLayout = layout("uv", "bin");
 export const INSTALLERS: Record<Tool, Installer> = {
   node: {
     ...nodeLayout,
-    install: (toolsDir, version, run, env) => {
-      const target = nodeLayout.dir(toolsDir, version);
-      const url = `${NODE_DIST_URL}/v${version}/node-v${version}-linux-${nodeArch(process.arch)}.tar.xz`;
-      mkdirSync(target, { recursive: true });
-      return run("bash", ["-c", NODE_INSTALL_SCRIPT, SCRIPT_NAME, url, target], { env });
-    },
+    install: (toolsDir, version, run, env) =>
+      installAtomically(nodeLayout.dir(toolsDir, version), async (temp) => {
+        const file = `node-v${version}-linux-${nodeArch(process.arch)}.tar.xz`;
+        const downloads = mkdtempSync(join(tmpdir(), NODE_DOWNLOAD_PREFIX));
+        try {
+          const hash = await nodeExpectedHash(run, env, downloads, version, file);
+          const url = `${NODE_DIST_URL}/v${version}/${file}`;
+          await run("bash", ["-c", NODE_INSTALL_SCRIPT, SCRIPT_NAME, url, temp, join(downloads, NODE_TARBALL_FILE), hash], { env });
+        } finally {
+          rmSync(downloads, { recursive: true, force: true });
+        }
+      }),
   },
   bun: npmInstaller("bun", () => NPM_PACKAGES.bun),
   deno: npmInstaller("deno", () => NPM_PACKAGES.deno),
@@ -355,7 +447,9 @@ export const INSTALLERS: Record<Tool, Installer> = {
   uv: {
     ...uvLayout,
     install: (toolsDir, version, run, env) =>
-      run("python3", ["-m", "pip", "install", "--target", uvLayout.dir(toolsDir, version), `uv==${version}`], { env }),
+      installAtomically(uvLayout.dir(toolsDir, version), (temp) =>
+        run("python3", ["-m", "pip", "install", "--target", temp, `uv==${version}`], { env }),
+      ),
   },
 };
 
