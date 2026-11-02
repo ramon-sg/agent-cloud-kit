@@ -30,8 +30,9 @@ jobs:
         run: |
           version="$(node -p "require('./package.json').version")"
           latest="$(npm view agent-cloud-kit dist-tags.latest 2>/dev/null || true)"
+          # npm requires --tag for a prerelease.
           case "$version:$latest" in
-            *-*:*-*|*-*:) npm publish ;;
+            *-*:*-*|*-*:) npm publish --tag latest ;;
             *-*:*) npm publish --tag next ;;
             *) npm publish ;;
           esac
