@@ -66,7 +66,7 @@
     },
     "notes": {
       "type": "string",
-      "description": "What does and does not run in the cloud: free text, or a path, relative to the repo, of a text file the manual inlines."
+      "description": "What does and does not run in the cloud: free text, or a path, relative to the repo, of a text file inside it whose contents are used instead. The session prints it at start and the manual shows it."
     }
   }
 }

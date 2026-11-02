@@ -120,7 +120,7 @@ broken file never stops a session.
 | `setup`       | no       | Shell commands run once during `setup`, in the repo, with the pinned tools first on `PATH`. A failing command is recorded and the rest still run.    |
 | `session`     | no       | Shell commands run at the start of every session, in the repo. Their output goes to stderr (not into Claude's context), each one is stopped after 2 minutes, and a failing command is reported while the rest still run. |
 | `requiredEnv` | no       | Environment variables that must be set; the session warns about the missing ones.                                                                    |
-| `notes`       | no       | Path, relative to the repo, of a text file appended to the session notes shown at the start of every session.                                       |
+| `notes`       | no       | What does and does not run in the cloud: free text, or a path, relative to the repo, of a text file inside it (then its contents are used). Printed at the start of every session and shown in the manual. `prepare` expects the file the `cloud-ready` skill writes. |
 
 Tool versions are deduced, in order, from `.tool-versions`, `mise.toml`, `.nvmrc` and
 `package.json#packageManager`. The default branch comes from `origin/HEAD`. Each tool is installed

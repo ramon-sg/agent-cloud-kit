@@ -22,7 +22,14 @@ Continues `@ramon-sg/claude-cloud` 1.0.0. There is no automatic migration.
   and linked from `.claude/skills/cloud-ready`. It respects the repo's own tests.
 - `domains` field in `.claude/cloud.json`.
 - GitHub Actions pinned by commit SHA.
-
+- Atomic tool installs: each tool is unpacked into a temporary folder and renamed into place only
+  when the install succeeds, so a failed or interrupted install never leaves a half-installed tool.
+- The Node download is checked against the release's `SHASUMS256.txt` before it is installed.
+- Time limits for setup steps (tool installs 2 min; apt steps, `docker pull` and each repo `setup`
+  command 3 min) and for the `git fetch` at session start (1 min); a step over its limit is
+  stopped instead of hanging the setup or the session start.
+- `doctor` warnings that do not fail it: plugins enabled in the project settings (they do not
+  reach the cloud) and a `cloud-ready` skill of another version than the package.
 - `agent-cloud-kit setup [--repo <path>]`: prepares the machine for every repo cloned in the home
   directory, relaunching the exact version each repo pins in `.claude/cloud.json`.
 - `agent-cloud-kit session`: reports the state of the machine, wires the pinned tools into the session

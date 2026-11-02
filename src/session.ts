@@ -2,8 +2,8 @@
  * @file The `session` phase: runs from the SessionStart hook of a cloud session, reports the
  * state of the machine, wires the pinned tools into the session and runs the repo's session steps.
  */
-import { appendFileSync, existsSync, readFileSync, realpathSync } from "node:fs";
-import { basename, isAbsolute, join, relative, sep } from "node:path";
+import { appendFileSync, existsSync } from "node:fs";
+import { basename, join } from "node:path";
 import { findProxyCa, shellQuote } from "./ca.ts";
 import { readConfig } from "./config.ts";
 import type { CloudConfig } from "./config.ts";
@@ -14,6 +14,7 @@ import type { DockerOps } from "./docker.ts";
 import { pathLine, toolBinDirs } from "./installers.ts";
 import type { Versions } from "./installers.ts";
 import { linkDir } from "./launcher.ts";
+import { resolveNotes } from "./manual.ts";
 import { RunTimeoutError } from "./run.ts";
 import type { Run } from "./run.ts";
 import { fingerprint, readState } from "./state.ts";
@@ -144,26 +145,6 @@ function machineWarnings(repo: string, config: CloudConfig, state: MachineState 
 }
 
 /**
- * Reads the notes file, only when it resolves inside the repo.
- *
- * @param repo - Repo root.
- * @param notes - Path from the config.
- * @returns The trimmed contents, or undefined when absent, outside the repo or unreadable.
- */
-function readNotes(repo: string, notes: string | undefined): string | undefined {
-  if (!notes || isAbsolute(notes)) return undefined;
-  try {
-    const root = realpathSync(repo);
-    const target = realpathSync(join(root, notes));
-    const rel = relative(root, target);
-    if (rel === "" || rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) return undefined;
-    return readFileSync(target, "utf8").trim() || undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-/**
  * Appends the PATH line and the CA export to `$CLAUDE_ENV_FILE`, when it is set; never throws.
  *
  * @param env - Process environment.
@@ -263,7 +244,7 @@ async function sessionBody(repo: string, ctx: SessionContext, out: string[]): Pr
   if (config) out.push(...machineWarnings(repo, config, state));
   const missing = (config?.requiredEnv ?? []).filter((name) => !ctx.env[name]);
   if (missing.length) out.push(`missing environment variables: ${missing.join(", ")}`);
-  const notes = readNotes(repo, config?.notes);
+  const notes = resolveNotes(repo, config?.notes)?.trim();
   if (notes) out.push(notes);
   const dockerProblem = startDocker(ctx.docker ?? realDocker);
   if (dockerProblem) out.push(`could not start dockerd: ${dockerProblem}`);

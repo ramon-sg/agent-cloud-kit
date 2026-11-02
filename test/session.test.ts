@@ -111,7 +111,7 @@ test("missing env vars are listed by name only", async () => {
   assert.ok(!lines.join("\n").includes("super-secret-value"));
 });
 
-test("notes inside the repo are printed; escaping paths are skipped", async () => {
+test("notes inside the repo are printed; escaping paths are not read", async () => {
   writeFileSync(join(repo, "NOTES.md"), "hello notes\n");
   writeFileSync(join(root, "outside.md"), "leak");
   writeConfig({ notes: "NOTES.md" });
@@ -205,7 +205,12 @@ test("a branch starting with a dash is never fetched", async () => {
   assert.ok(!calls.some((c) => c.args.some((a) => a.includes(":refs/remotes/origin/"))));
 });
 
-test("notes: symlinks escaping the repo are skipped and dot-prefixed names are allowed", async () => {
+test("notes that are free text are printed as is, like the manual shows them", async () => {
+  writeConfig({ notes: "Sin GPU: los tests de modelos no corren en la nube." });
+  assert.ok((await session(repo, ctx())).includes("agent-cloud-kit: Sin GPU: los tests de modelos no corren en la nube."));
+});
+
+test("notes: symlinks escaping the repo are not read and dot-prefixed names are allowed", async () => {
   writeFileSync(join(root, "outside.md"), "leak");
   symlinkSync(join(root, "outside.md"), join(repo, "link.md"));
   writeConfig({ notes: "link.md" });
