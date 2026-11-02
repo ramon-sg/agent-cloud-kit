@@ -19,6 +19,8 @@ import { captureProcess, runProcess } from "./run.ts";
 import type { Capture, Run } from "./run.ts";
 import { session } from "./session.ts";
 import { setupRepo } from "./setup.ts";
+import { runTests, writeTestRecord } from "./tests.ts";
+import type { TestLevel } from "./tests.ts";
 
 /** Help text shown by `--help`. */
 const HELP = `${OUTPUT_PREFIX}prepares Claude Code cloud sessions.
@@ -31,6 +33,8 @@ Commands:
   docker                 start the Docker daemon and wait until it answers
   doctor                 check the network allowlist, tools, Docker and the machine state
   init                   create .claude/cloud.json and register the SessionStart hook
+  test [--level minimum|full] [--record]
+                         run the tests of .claude/cloud.json (default level: full); --record saves the result
 
 Options:
   --help                 show this help
@@ -270,6 +274,51 @@ function initCommand(deps: CliDeps): number {
   return result.ok ? EXIT_OK : EXIT_FAIL;
 }
 
+/** Test levels `test --level` accepts. */
+const TEST_LEVELS: readonly TestLevel[] = ["minimum", "full"];
+
+/** Level `test` runs when `--level` is not given. */
+const DEFAULT_TEST_LEVEL: TestLevel = "full";
+
+/** Milliseconds in a second. */
+const MS_PER_SECOND = 1000;
+
+/**
+ * Runs `test`: the repo's test commands for a level, optionally recording the result.
+ *
+ * @param args - Arguments after `test`.
+ * @param deps - CLI dependencies.
+ * @returns 0 when every test passes, 1 on a failure, a missing level or wrong usage.
+ */
+async function testCommand(args: string[], deps: CliDeps): Promise<number> {
+  const at = args.indexOf("--level");
+  const level = at >= 0 ? args[at + 1] : DEFAULT_TEST_LEVEL;
+  if (!TEST_LEVELS.includes(level as TestLevel)) {
+    deps.print(`${OUTPUT_PREFIX}--level must be one of: ${TEST_LEVELS.join(", ")}`);
+    return EXIT_FAIL;
+  }
+  const repo = sessionRepo(deps);
+  if (!readConfig(repo).config?.tests[level as TestLevel]) {
+    deps.print(`${OUTPUT_PREFIX}no tests.${level} in ${CONFIG_FILE}`);
+    return EXIT_FAIL;
+  }
+  const results = await runTests(repo, level as TestLevel, { run: deps.run, env: deps.env, toolsDir: toolsDir(deps.env) });
+  for (const r of results) {
+    deps.print(`${OUTPUT_PREFIX}${r.ok ? "✓" : "✗"} ${r.level}: ${r.command} (${(r.ms / MS_PER_SECOND).toFixed(1)}s)`);
+  }
+  if (args.includes("--record")) {
+    const commit = (await (deps.capture ?? captureProcess)("git", ["rev-parse", "HEAD"], { cwd: repo })).trim();
+    writeTestRecord(repo, {
+      level: level as TestLevel,
+      results,
+      finishedAt: new Date().toISOString(),
+      commit,
+      remote: deps.env.CLAUDE_CODE_REMOTE === "true",
+    });
+  }
+  return results.every((r) => r.ok) ? EXIT_OK : EXIT_FAIL;
+}
+
 /**
  * Runs the CLI.
  *
@@ -286,6 +335,7 @@ export async function main(argv: string[], deps: CliDeps): Promise<number> {
   if (command === "docker") return dockerCommand(deps);
   if (command === "doctor") return doctorCommand(deps);
   if (command === "init") return initCommand(deps);
+  if (command === "test") return testCommand(rest, deps);
   if (command === "--version") {
     deps.print(deps.packageVersion);
     return EXIT_OK;
