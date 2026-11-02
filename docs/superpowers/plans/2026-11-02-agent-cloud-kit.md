@@ -63,6 +63,8 @@ Throwaway: no produce código del paquete, produce `docs/cloud-cli.md` con respu
   6. ¿La sesión descubre las skills en `.agents/skills/` del repo? (poner una skill de prueba)
   7. ¿Las variables del panel del entorno llegan al setup script? (setup script que haga `env | sort > /tmp/setup-env` y comprobar en la sesión)
   8. ¿El `node_modules` instalado por el setup script en `/home/user/<repo>` sigue ahí al empezar la sesión?
+  9. ¿`gh` está instalado y autenticado en la sesión? ¿`gh api repos/{owner}/{repo}/issues/{n}/comments -f body=...` funciona?
+  10. En local: ¿`claude` encuentra `/cloud-ready` en `.agents/skills/` sin `.claude/skills/`? (lo necesita el paso 5 de `prepare`)
 - [ ] **Step 3:** Para cada respuesta que contradiga el spec, escribir en `docs/cloud-cli.md` el ajuste que aplica a las Tareas 9–11 (por ejemplo: si no se puede pushear a la rama de `prepare`, `verify` pushea a su rama `claude/...` y abre un PR contra la rama de `prepare`).
 - [ ] **Step 4:** Commit: `git add docs/cloud-cli.md && git commit -m "docs: what claude --cloud does, verified"`
 
@@ -77,6 +79,7 @@ Throwaway: no produce código del paquete, produce `docs/cloud-cli.md` con respu
 - Modify: `src/constants.ts` (`OUTPUT_PREFIX`, `PACKAGE = "agent-cloud-kit"`, `TOOLS_DIR = "/opt/agent-cloud-kit"`, `TOOLS_DIR_ENV = "AGENT_CLOUD_KIT_DIR"`, `HOME_DIR_ENV = "AGENT_CLOUD_KIT_HOME"`, `DOCKERD_LOG = "/var/log/agent-cloud-kit-dockerd.log"`)
 - Modify: `src/cli.ts` (`HELP`, `DELEGATED_ENV = "AGENT_CLOUD_KIT_DELEGATED"`), `src/launcher.ts` (`BIN_NAME`), `src/init.ts` (`HOOK_COMMAND` con `/opt/agent-cloud-kit/bin/agent-cloud-kit session` y el mensaje `npx agent-cloud-kit doctor`; `HOOK_MARKER = "agent-cloud-kit session"`), `src/session.ts` (`machineWarnings` usa `npx -y ${PACKAGE}@1 setup`), `schema.json` (title, descriptions)
 - Modify: todos los tests que esperan los textos viejos; `test/fake-package.ts` (name)
+- Modify: `test/e2e/run.sh`, `test/e2e/compose.yml` (rutas `/opt/agent-cloud-kit`, bin, variables y nombre del paquete nuevos), para que el e2e siga pasando desde aquí (la Tarea 3 lo corre)
 - Create: `test/naming.test.ts`
 
 **Interfaces:**
@@ -85,7 +88,7 @@ Throwaway: no produce código del paquete, produce `docs/cloud-cli.md` con respu
 - [ ] **Step 1: Test que falla** — `test/naming.test.ts`: `"src has no claude-cloud"`: recorre `src/` (como `test/no-project-names.test.ts`) y afirma que ningún archivo contiene `/claude-cloud|CLAUDE_CLOUD/`. `"package.json is agent-cloud-kit 1.0.0"`: `name === "agent-cloud-kit"`, `version === "1.0.0"`, `bin["agent-cloud-kit"] === "dist/cli.js"`. Y en `test/init.test.ts`, `"a hook that already runs agent-cloud-kit session counts as present"`: settings con un hook de issue-flow cuyo comando contiene `agent-cloud-kit session` → `init` no añade otro (Review Focus).
 - [ ] **Step 2:** `npm test` → FAIL en `naming.test.ts`.
 - [ ] **Step 3:** Hacer los cambios listados. Actualizar las expectativas de los tests existentes a los nuevos textos (ej. `init.test.ts`: `$schema` `https://unpkg.com/agent-cloud-kit@1.2.3/schema.json`, comando con `agent-cloud-kit session`).
-- [ ] **Step 4:** `npm test && npm run typecheck && npm run build && node dist/cli.js --help` → todo pasa; la ayuda empieza por `agent-cloud-kit: `.
+- [ ] **Step 4:** `npm test && npm run typecheck && npm run build && node dist/cli.js --help` → todo pasa; la ayuda empieza por `agent-cloud-kit: `. `bash test/e2e/run.sh` → PASS y `grep -rn "claude-cloud\|CLAUDE_CLOUD" test/e2e` no encuentra nada.
 - [ ] **Step 5:** Commit `feat!: rename to agent-cloud-kit`.
 
 ---
@@ -100,11 +103,14 @@ Throwaway: no produce código del paquete, produce `docs/cloud-cli.md` con respu
 
 **Interfaces:**
 - Produces: `export function parseShasums(text: string, file: string): string | undefined` (hash hex de esa línea). `Installer.install` instala en `<dir>.<pid>.tmp` y renombra a `<dir>`; en error borra el temporal y relanza.
-- `NODE_INSTALL_SCRIPT` pasa a: descargar a un archivo (`curl -fsSL --max-time 120 -o "$3" -- "$1"`), comprobar con `sha256sum -c` contra la línea de `SHASUMS256.txt` (descargado con curl a otro archivo), y extraer en `$2`. Mantener argv posicional, nada interpolado.
+- El hash lo resuelve TypeScript: `INSTALLERS.node.install` descarga `https://nodejs.org/dist/v<versión>/SHASUMS256.txt` con curl a un archivo temporal (como `curlNodeIndex`), lo lee con `parseShasums(text, "node-v<versión>-linux-<arch>.tar.xz")` y, si no hay hash, falla sin descargar el tarball.
+- `NODE_INSTALL_SCRIPT` recibe `$1` url, `$2` destino, `$3` archivo de descarga, `$4` hash esperado: `curl -fsSL -o "$3" -- "$1"`, `echo "$4  $3" | sha256sum -c -`, y extrae `$3` en `$2`. Mantener argv posicional, nada interpolado. El tiempo límite lo pone `timeoutMs` (Tarea 4), no `--max-time`.
 
 - [ ] **Step 1: Tests que fallan:**
   - `"parseShasums finds the hash of the linux tarball"`: texto con dos líneas `"<64 hex>  node-v24.14.1-linux-x64.tar.xz"` → devuelve el hash correcto; archivo ausente → `undefined`.
   - `"a failed node install leaves no install dir"`: `Run` falso que crea `<tmp>/bin/node` y luego rechaza → `existsSync(INSTALLERS.node.dir(toolsDir, "24.14.1")) === false` y no queda `*.tmp`.
+  - `"a missing hash in SHASUMS256 fails before downloading the tarball"`: `Run` falso que escribe un SHASUMS sin esa línea → rechaza y el script de instalación no se llamó.
+  - `"the node script gets the expected hash as $4"`: el argv del `bash -c` lleva el hash de `parseShasums`.
   - `"a successful install renames the temp dir"`: `Run` falso que crea `bin/node` en el dir recibido como `$2` y resuelve → existe `node-24.14.1/bin/node`.
   - Igual para un instalador npm (`pnpm`): el `--prefix` que recibe npm termina en `.tmp`.
 - [ ] **Step 2:** `npm test` → FAIL.
@@ -145,15 +151,18 @@ Throwaway: no produce código del paquete, produce `docs/cloud-cli.md` con respu
 ### Task 6: Avisos de `doctor` (plugins y versión de la skill)
 
 **Files:**
+- Create: `src/skill.ts` (solo `SKILL_DIR` y `skillVersion` por ahora; la Tarea 9 lo amplía)
 - Modify: `src/doctor.ts`
-- Test: `test/doctor.test.ts`
+- Test: `test/doctor.test.ts`, `test/skill.test.ts`
 
 **Interfaces:**
+- Produces: `export const SKILL_DIR = ".agents/skills/cloud-ready"`; `export function skillVersion(repo: string): string | undefined`.
 - `Check` gana `level: "ok" | "fail" | "warn"` (reemplaza `ok: boolean` internamente; `DoctorResult.ok` es `true` si ningún `fail`). Línea de aviso: `agent-cloud-kit: warn: <texto>`.
-- `DoctorContext.packageVersion` ya existe; añadir lectura de `.agents/skills/cloud-ready/SKILL.md` (`metadata.version` en el frontmatter, regex `/^\s+version:\s*"?([^"\n]+)"?$/m` dentro del bloque `metadata:`).
+- `DoctorContext.packageVersion` ya existe; `doctor` usa `skillVersion` (lee `metadata.version` del frontmatter de `SKILL_DIR/SKILL.md`, regex `/^\s+version:\s*"?([^"\n]+)"?$/m` dentro del bloque `metadata:`). Sin skill, no hay aviso.
 
 - [ ] **Step 1: Tests que fallan:**
   - `"an enabled plugin is a warning that does not fail doctor"`: `.claude/settings.json` con `{"enabledPlugins": {"x@m": true, "y@m": false}}` → hay una línea `warn: plugin x@m is enabled but is not in the repo; it will not reach the cloud (copy its skills with skills-manager)`, ninguna para `y@m`, y `ok` no cambia por eso.
+  - `"skillVersion reads metadata.version"` (en `test/skill.test.ts`).
   - `"a cloud-ready skill of another version is a warning"`: skill con `version: "0.9.0"` y paquete `1.0.0` → `warn: .agents/skills/cloud-ready is 0.9.0, the package is 1.0.0; run npx agent-cloud-kit@1.0.0 init`.
 - [ ] **Step 2:** FAIL. **Step 3:** implementar. **Step 4:** PASS.
 - [ ] **Step 5:** Commit `feat: doctor warns about plugins and a stale cloud-ready skill`.
@@ -207,20 +216,19 @@ Throwaway: no produce código del paquete, produce `docs/cloud-cli.md` con respu
 
 **Files:**
 - Create: `skills/cloud-ready/SKILL.md`, `skills/cloud-ready/reference/knowledge.md`, `skills/cloud-ready/reference/tests.md`
-- Create: `src/skill.ts`
-- Modify: `src/init.ts` (llama a `installSkill`), `test/fake-package.ts` (incluye `skills/cloud-ready/SKILL.md`)
+- Modify: `src/skill.ts` (de la Tarea 6)
+- Modify: `src/init.ts` (firma `init(repo, packageVersion, packageRoot)`; llama a `installSkill`), `src/cli.ts` (`initCommand` pasa `packageRoot`), `test/fake-package.ts` (incluye `skills/cloud-ready/SKILL.md`)
 - Test: `test/skill.test.ts`, `test/init.test.ts`
 
 **Interfaces:**
 - Produces (`src/skill.ts`):
-  - `export const SKILL_DIR = ".agents/skills/cloud-ready"`
   - `export function installSkill(repo: string, packageRoot: string, packageVersion: string): string` — copia `skills/cloud-ready/**` a `SKILL_DIR`, reescribe `metadata.version` del frontmatter a `packageVersion`; si ya está en esa versión, no toca nada. Devuelve la línea para el usuario. Atómico (temp + rename).
-  - `export function skillVersion(repo: string): string | undefined` (la usa `doctor` de la Tarea 6; mover allí la regex).
-- `SKILL.md` (español): frontmatter `name: cloud-ready`, `description` (cuándo usarla: preparar o verificar el repo para la nube de Claude Code; modos `configure` y `verify`), `argument-hint: "configure [respuestas] | verify"`, `metadata.version`. Cuerpo, siguiendo el spec sección 3 al pie de la letra: pasos de `configure`, pasos de `verify` con los límites de archivos y los 3 intentos, cómo comentar el PR con `gh api repos/{owner}/{repo}/issues/{n}/comments -f body=...`, qué hacer con lo que solo se cambia en claude.ai, y la regla de "Hallazgos". Ajustar con lo que dejó `docs/cloud-cli.md` (Tarea 1).
+- `InitResult` incluye la línea de la skill. `init` es lo único que copia la skill: ni `prepare` ni agent-kitchen llaman a `installSkill` aparte.
+- `SKILL.md` (español): frontmatter `name: cloud-ready`, `description` (cuándo usarla: preparar o verificar el repo para la nube de Claude Code; modos `configure` y `verify`), `argument-hint: "configure [respuestas] | verify"`, `metadata.version`. Cuerpo, siguiendo el spec sección 3 al pie de la letra: pasos de `configure`, pasos de `verify` con los límites de archivos y los 3 intentos, una comprobación antes de cada commit (`git diff --name-only HEAD` y `git status --porcelain`: lo que no sea uno de los cuatro archivos permitidos se revierte con `git checkout --` o se borra, y en `package.json` solo pueden cambiar claves de `"scripts"`), cómo encontrar el PR si el prompt no trae número (`gh api "repos/{owner}/{repo}/pulls?head={owner}:{rama}&state=open"`; si no hay, el resultado queda solo en `docs/agent-cloud.md` y en el resumen final), cómo comentar el PR con `gh api repos/{owner}/{repo}/issues/{n}/comments -f body=...`, qué hacer con lo que solo se cambia en claude.ai, y la regla de "Hallazgos". Ajustar con lo que dejó `docs/cloud-cli.md` (Tarea 1).
 - `reference/knowledge.md`: tabla `| Hecho | Estado | Fuente |` con la semilla del spec; los puntos que la Tarea 1 verificó van como `verificado (Tarea 1, 2026-11)`.
 - `reference/tests.md`: la clasificación del spec, con un ejemplo de `.claude/cloud.json` para un repo vitest + Postgres en compose + Playwright.
 
-- [ ] **Step 1: Tests que fallan:** `"init copies the skill with the package version"`, `"a second init at the same version leaves the skill untouched"` (mtime igual), `"init at a new version replaces the skill"`, `"skillVersion reads metadata.version"`, y en `test/skill-content.test.ts`: `SKILL.md` tiene `name: cloud-ready`, menciona `configure`, `verify`, `agent-cloud-kit test --level full --record`, `agent-cloud-kit manual`, los cuatro archivos permitidos y `3` intentos; `knowledge.md` tiene la columna `Estado` y al menos 12 filas.
+- [ ] **Step 1: Tests que fallan:** `"init copies the skill with the package version"`, `"a second init at the same version leaves the skill untouched"` (mtime igual), `"init at a new version replaces the skill"`, y en `test/skill-content.test.ts`: `SKILL.md` tiene `name: cloud-ready`, menciona `configure`, `verify`, `git diff --name-only`, `pulls?head=`, `agent-cloud-kit test --level full --record`, `agent-cloud-kit manual`, los cuatro archivos permitidos y `3` intentos; `knowledge.md` tiene la columna `Estado` y al menos 12 filas.
 - [ ] **Step 2:** FAIL. **Step 3:** escribir la skill e implementar. **Step 4:** PASS; `npm pack --dry-run` lista `skills/cloud-ready/SKILL.md`.
 - [ ] **Step 5:** Commit `feat: cloud-ready skill, copied by init`.
 
@@ -262,9 +270,9 @@ Throwaway: no produce código del paquete, produce `docs/cloud-cli.md` con respu
   1. `preflight` → si hay problemas, imprimirlos y devolver 1.
   2. `askAll`.
   3. `git fetch -q origin`; `git worktree add -b chore/cloud-ready-<today> <dirname(repo)>/<basename(repo)>-cloud-ready origin/<defaultBranch>`. Si la carpeta o la rama ya existen → mensaje con qué borrar y devolver 1.
-  4. `init(worktree, packageVersion)` + `installSkill(worktree, packageRoot, packageVersion)`.
-  5. `claude <configurePrompt(answers)>` con `cwd: worktree`, stdio heredado. Si sale ≠ 0: imprimir `the local agent stopped; the worktree is at <path>; run agent-cloud-kit prepare --resume there` y devolver 1. (`--resume`: salta pasos 2–5 si el worktree ya existe y está en la rama `chore/cloud-ready-*`.)
-  6. `writeManual(worktree, packageVersion)`; `git add -A`; `git commit -m "chore: prepare the repo for the Claude Code cloud"`; `git push -u origin <rama>`; `gh pr create --draft --fill` (si `gh` falla: imprimir el link de comparación `https://github.com/<owner>/<repo>/compare/<rama>?expand=1` y seguir).
+  4. `init(worktree, packageVersion, packageRoot)` (copia también la skill).
+  5. `claude <configurePrompt(answers)>` con `cwd: worktree`, stdio heredado. Al volver (el usuario sale con `/exit` o Ctrl+C, así que el código de salida no dice si terminó), comprobar que `.claude/cloud.json` del worktree se lee sin errores y tiene `tests.minimum`. Si sale ≠ 0 o falta eso: imprimir `the local agent stopped; the worktree is at <path>; run agent-cloud-kit prepare --resume there` y devolver 1. (`--resume`: salta pasos 2–5 si el worktree ya existe y está en la rama `chore/cloud-ready-*`.)
+  6. `writeManual(worktree, packageVersion)`; `git add -- .claude/cloud.json .claude/settings.json .agents/skills/cloud-ready docs/agent-cloud.md package.json` más `.agents/skills/test-audit/project.md` si existe (nunca `git add -A`); si `git status --porcelain` muestra otros cambios, listarlos y decir que quedan sin commitear en el worktree; `git commit -m "chore: prepare the repo for the Claude Code cloud"`; `git push -u origin <rama>`; `gh pr create --draft --fill` (si `gh` falla: imprimir el link de comparación `https://github.com/<owner>/<repo>/compare/<rama>?expand=1` y seguir).
   7. Imprimir el bloque "Configurar el entorno en claude.ai" del manual y `waitEnter("Configure the environment in claude.ai, then press Enter")`.
   8. `claude --cloud <verifyPrompt({branch, pr})>` según lo que fijó la Tarea 1 (si la rama se elige de otra forma, aplicarla aquí). Imprimir la URL/ID devuelta y `claude --teleport <id>`.
   9. Devolver 0.
@@ -273,6 +281,8 @@ Throwaway: no produce código del paquete, produce `docs/cloud-cli.md` con respu
 - [ ] **Step 1: Tests que fallan** (con `Run`/`Capture` falsos que registran argv y un repo git temporal con un `origin` local bare):
   - `"runs the steps in order with the expected argv"` — compara la lista de argv contra la secuencia de arriba.
   - `"a failing local agent keeps the worktree and says how to resume"` (Review Focus).
+  - `"an agent that exits 0 without tests.minimum is treated as stopped"`.
+  - `"only the known files are committed"`: un archivo `scratch.txt` creado por el agente falso no entra en el commit y se lista.
   - `"an existing worktree dir stops before touching git"`.
   - `"gh missing prints the compare link and continues to --cloud"`.
   - `"--resume skips questions, worktree and the local agent"`.
@@ -288,7 +298,7 @@ Throwaway: no produce código del paquete, produce `docs/cloud-cli.md` con respu
 
 **Files:**
 - Modify: `test/e2e/run.sh`, `test/e2e/Dockerfile`, `test/e2e/compose.yml`, `test/e2e/fixture/.claude/cloud.json` (version `1.0.0`, `tests.minimum: "node --version"`), `.github/workflows/*.yml`, `README.md`, `CHANGELOG.md`
-- [ ] **Step 1:** e2e: rutas nuevas (`/opt/agent-cloud-kit`, bin nuevo), y al final `agent-cloud-kit test --level minimum --record` en la caja → sale 0 y `.claude/cloud-tests.json` tiene `ok: true`.
+- [ ] **Step 1:** e2e (las rutas ya cambiaron en la Tarea 2): al final `agent-cloud-kit test --level minimum --record` en la caja → sale 0 y `.claude/cloud-tests.json` tiene `ok: true`.
 - [ ] **Step 2:** `bash test/e2e/run.sh` → PASS.
 - [ ] **Step 3:** CI: fijar `actions/checkout` y `actions/setup-node` por SHA de commit (con el tag en comentario) en los tres workflows.
 - [ ] **Step 4:** README reescrito: qué es; aviso de no afiliación; el flujo (agent-kitchen → `prepare` → claude.ai → verificación en la nube); comandos (`setup`, `session`, `docker`, `doctor`, `init`, `test`, `manual`, `prepare`); `.claude/cloud.json` con `domains` y `tests`; la skill; una nota corta: "continúa `@ramon-sg/claude-cloud`, sin migración automática"; lo que no hace; releasing (igual que hoy con el nombre nuevo). CHANGELOG `## 1.0.0` con Added/Changed y una línea "Continues @ramon-sg/claude-cloud 1.0.0".
@@ -301,7 +311,7 @@ Throwaway: no produce código del paquete, produce `docs/cloud-cli.md` con respu
 ### Task 13: Dogfooding en un repo Node/TS real
 
 - [ ] **Step 1:** Pedir al usuario qué repo usar (uno con tests reales; idealmente con Docker o Playwright) y confirmación para crear el worktree, el PR en draft y la sesión en la nube.
-- [ ] **Step 2:** Desde ese repo: `node /Users/ramon/Projects/ramon-sg/agent-cloud-kit/dist/cli.js prepare` (el paquete aún no está en npm: el setup script de prueba en claude.ai usa `npx -y github:ramon-sg/agent-cloud-kit#<rama> setup` si el repo GitHub ya existe, o se publica antes una `1.0.0-rc.0`; decidir con el usuario).
+- [ ] **Step 2:** Desde ese repo: `node /Users/ramon/Projects/ramon-sg/agent-cloud-kit/dist/cli.js prepare` (el paquete aún no está en npm). Antes, con el usuario, publicar `1.0.0-rc.0` con `npm publish --tag next` (`npx github:...` no sirve: `dist/` no está en git y no hay script `prepare` que compile). Un rango como `@1` no elige prereleases: el setup script de prueba en claude.ai es `npx -y agent-cloud-kit@1.0.0-rc.0 setup` y `.claude/cloud.json` del repo fija `"version": "1.0.0-rc.0"` (la config acepta prereleases).
 - [ ] **Step 3:** Seguir el flujo completo hasta el comentario del PR. Anotar cada fricción.
 - [ ] **Step 4:** Pasar los hallazgos del repo de prueba a `skills/cloud-ready/reference/knowledge.md` (estado `verificado`) y corregir lo que haya fallado en el paquete con su test.
 - [ ] **Step 5:** Commit `docs: knowledge verified on <repo>`.
@@ -327,10 +337,12 @@ Throwaway: no produce código del paquete, produce `docs/cloud-cli.md` con respu
 
 **Interfaces:**
 - `NAME = "agent-cloud-kit"`, `PACKAGE = "agent-cloud-kit"`. Textos `cloud-install`/`cloud-update` con el nombre nuevo. Sin alias ni paso de migración.
+- `cloud-update`, además de mover `version` y `$schema`, corre `npx agent-cloud-kit@<nueva> init` para que la skill `cloud-ready` quede en la misma versión (si no, `doctor` avisaría en cada sesión). `init` es idempotente: no duplica el hook ni pisa `.claude/cloud.json`.
 
 - [ ] **Step 1: Tests que fallan:**
   - `"a fresh repo installs agent-cloud-kit"`: `["agent-cloud-kit@1.1.0", "init"]` con el npm falso en `1.1.0`.
   - `"updating moves version and $schema of agent-cloud-kit"`: `{ $schema: "https://unpkg.com/agent-cloud-kit@1.0.0/schema.json", version: "1.0.0" }` → `1.1.0` en ambos (adaptar el test actual de `$schema`).
+  - `"updating runs init of the new version"`: el npx falso recibe `["agent-cloud-kit@1.1.0", "init"]` después de mover la versión.
   - `"after apply with the piece installed, the next step is printed"`: la salida termina con `Siguiente paso para la nube: npx agent-cloud-kit prepare`.
   - Renombrar `claude-cloud` → `agent-cloud-kit` en todos los `--skip`, decisiones y expectativas de los tests existentes.
 - [ ] **Step 2:** `npm test` → FAIL. **Step 3:** implementar y actualizar docs (tabla de piezas, agent-guide: archivos `.agents/skills/cloud-ready/`, `docs/agent-cloud.md`, `.claude/cloud-tests.json`; sección "En la nube de Claude": `agent-cloud-kit session`, `prepare`). **Step 4:** PASS.
@@ -347,5 +359,5 @@ Throwaway: no produce código del paquete, produce `docs/cloud-cli.md` con respu
 
 ## Orden y dependencias
 
-1 → 2 → (3, 4 en cualquier orden) → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 12 → 13 → 14 → 15 → 16.
+1 → 2 → (3, 4 en cualquier orden) → 5 → 6 (crea `src/skill.ts`) → 7 → 8 → 9 → 10 → 11 → 12 → 13 → 14 → 15 → 16.
 La Tarea 1 puede cambiar detalles de 9–11. Si `claude --cloud` no acepta prompt o rama, aplicar el respaldo del spec en la Tarea 11 (paso 8): imprimir los pasos para abrir la sesión en claude.ai y el prompt de `verify` listo para pegar, y añadir el test `"without --cloud support prints the verify prompt to paste"`. Si contradice el spec en algo más de fondo, parar y preguntar al usuario.

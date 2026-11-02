@@ -51,8 +51,8 @@ paquete debe juntarlo y hacerlo crecer.
 - **issue-flow también se actualiza:** su hook pasa a `/opt/agent-cloud-kit/bin/agent-cloud-kit`,
   su mensaje apunta a `agent-cloud-kit@1` y su marca a `agent-cloud-kit session`. Sin respaldo al bin viejo.
 - **La pieza de agent-kitchen** pasa a llamarse `agent-cloud-kit`. Instala con
-  `npx agent-cloud-kit@<última> init` (que también copia la skill), sigue moviendo `version` y
-  `$schema` al actualizar, y al terminar `apply` sugiere `npx agent-cloud-kit prepare`. Sin alias
+  `npx agent-cloud-kit@<última> init` (que también copia la skill), al actualizar sigue moviendo
+  `version` y `$schema` y además corre `init` de la versión nueva (para actualizar la skill), y al terminar `apply` sugiere `npx agent-cloud-kit prepare`. Sin alias
   ni migración del nombre viejo.
 - **Si `claude --cloud` no acepta prompt o rama**, `prepare` no se rinde: imprime los pasos exactos
   para abrir la sesión en claude.ai y el prompt de `verify` para pegarlo.
