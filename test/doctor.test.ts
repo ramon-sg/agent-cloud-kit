@@ -147,3 +147,29 @@ test("checks tools, docker, fingerprint and step durations", async () => {
   result = await doctor(repo, ctx());
   assert.ok(result.lines.some((l) => l.includes("fingerprint: mismatch")));
 });
+
+const warnings = (lines: string[]): string[] => lines.filter((l) => l.startsWith("agent-cloud-kit: warn: "));
+
+test("an enabled plugin is a warning that does not fail doctor", async () => {
+  const before = (await doctor(repo, ctx())).ok;
+  writeFileSync(join(repo, ".claude/settings.json"), JSON.stringify({ enabledPlugins: { "x@m": true, "y@m": false } }));
+  const { lines, ok } = await doctor(repo, ctx());
+  assert.deepEqual(warnings(lines), [
+    "agent-cloud-kit: warn: plugin x@m is enabled but is not in the repo; it will not reach the cloud (copy its skills with skills-manager)",
+  ]);
+  assert.equal(ok, before);
+});
+
+test("a malformed settings.json gives no plugin warning", async () => {
+  writeFileSync(join(repo, ".claude/settings.json"), "{ nope");
+  assert.deepEqual(warnings((await doctor(repo, ctx())).lines), []);
+});
+
+test("a cloud-ready skill of another version is a warning", async () => {
+  mkdirSync(join(repo, ".agents/skills/cloud-ready"), { recursive: true });
+  writeFileSync(join(repo, ".agents/skills/cloud-ready/SKILL.md"), '---\nname: cloud-ready\nmetadata:\n  version: "0.9.0"\n---\n');
+  const { lines } = await doctor(repo, ctx());
+  assert.deepEqual(warnings(lines), [
+    "agent-cloud-kit: warn: .agents/skills/cloud-ready is 0.9.0, the package is 1.0.0; run npx agent-cloud-kit@1.0.0 init",
+  ]);
+});

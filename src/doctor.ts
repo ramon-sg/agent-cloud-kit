@@ -2,7 +2,7 @@
  * @file The `doctor` command: checks the network allowlist, the pinned tools, Docker and the
  * recorded machine state, and reports one line per check.
  */
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { readConfig } from "./config.ts";
 import { CONFIG_FILE, OUTPUT_PREFIX } from "./constants.ts";
@@ -10,6 +10,7 @@ import { TOOLS, readToolVersions } from "./detect.ts";
 import { isValidRequest, toolExecutable } from "./installers.ts";
 import type { Capture } from "./run.ts";
 import { expectedFingerprint } from "./session.ts";
+import { SKILL_DIR, skillVersion } from "./skill.ts";
 import { readState } from "./state.ts";
 import type { MachineState } from "./state.ts";
 
@@ -47,7 +48,7 @@ export interface DoctorContext {
 export interface DoctorResult {
   /** One prefixed line per check. */
   lines: string[];
-  /** False when any check failed. */
+  /** False when any check failed; warnings do not count. */
   ok: boolean;
 }
 
@@ -55,8 +56,23 @@ export interface DoctorResult {
 interface Check {
   /** Description of what was checked, with its verdict. */
   text: string;
-  /** Whether it passed. */
-  ok: boolean;
+  /** Verdict: a failure makes `doctor` fail, a warning only informs. */
+  level: "ok" | "fail" | "warn";
+}
+
+/** Repo-relative Claude Code project settings. */
+const SETTINGS_FILE = ".claude/settings.json";
+
+/**
+ * Maps a pass/fail boolean to a check level.
+ *
+ * @param passed - Whether the check passed.
+ * @returns `"ok"` or `"fail"`.
+ * @example
+ * verdict(false); // "fail"
+ */
+function verdict(passed: boolean): "ok" | "fail" {
+  return passed ? "ok" : "fail";
 }
 
 /**
@@ -72,9 +88,9 @@ async function checkDomain(host: string, capture: Capture): Promise<Check> {
   try {
     const status = (await capture("curl", args)).trim();
     const ok = status !== BLOCKED_STATUS && status !== NO_ANSWER_STATUS;
-    return { text: `network ${host}: ${ok ? "ok" : "blocked"}`, ok };
+    return { text: `network ${host}: ${ok ? "ok" : "blocked"}`, level: verdict(ok) };
   } catch {
-    return { text: `network ${host}: blocked`, ok: false };
+    return { text: `network ${host}: blocked`, level: "fail" };
   }
 }
 
@@ -104,11 +120,11 @@ function checkTools(repo: string, toolsDir: string, state: MachineState | undefi
   return TOOLS.flatMap((tool): Check[] => {
     const version = versions[tool];
     if (!version) return [];
-    if (!isValidRequest(tool, version)) return [{ text: `tool ${tool} ${version}: invalid version`, ok: false }];
+    if (!isValidRequest(tool, version)) return [{ text: `tool ${tool} ${version}: invalid version`, level: "fail" }];
     const executable = toolExecutable(tool, version, toolsDir, state?.resolved ?? {});
-    if (!executable) return [{ text: `tool ${tool} ${version}: not resolved (setup did not install it)`, ok: false }];
+    if (!executable) return [{ text: `tool ${tool} ${version}: not resolved (setup did not install it)`, level: "fail" }];
     const present = existsSync(executable);
-    return [{ text: `tool ${tool} ${version}: ${present ? "ok" : "missing"}`, ok: present }];
+    return [{ text: `tool ${tool} ${version}: ${present ? "ok" : "missing"}`, level: verdict(present) }];
   });
 }
 
@@ -120,19 +136,64 @@ function checkTools(repo: string, toolsDir: string, state: MachineState | undefi
  * @returns The checks, in order.
  */
 function checkState(repo: string, ctx: DoctorContext): Check[] {
-  if (!existsSync(join(repo, CONFIG_FILE))) return [{ text: `${CONFIG_FILE}: missing`, ok: false }];
+  if (!existsSync(join(repo, CONFIG_FILE))) return [{ text: `${CONFIG_FILE}: missing`, level: "fail" }];
   const { config, errors } = readConfig(repo);
-  const out: Check[] = errors.map((text) => ({ text: `${CONFIG_FILE}: ${text}`, ok: false }));
+  const out: Check[] = errors.map((text) => ({ text: `${CONFIG_FILE}: ${text}`, level: "fail" }));
   if (!config) return out;
   const state = readState(ctx.toolsDir, repo);
-  if (!state) return [...out, { text: "state: missing (setup did not run)", ok: false }];
+  if (!state) return [...out, { text: "state: missing (setup did not run)", level: "fail" }];
   const same = expectedFingerprint(repo, config, state) === state.fingerprint;
-  out.push({ text: `fingerprint: ${same ? "ok" : "mismatch"}`, ok: same });
+  out.push({ text: `fingerprint: ${same ? "ok" : "mismatch"}`, level: verdict(same) });
   for (const s of state.steps) {
     const seconds = (s.ms / MS_PER_SECOND).toFixed(DURATION_DECIMALS);
-    out.push({ text: `step ${s.name}: ${s.ok ? "ok" : "failed"} (${seconds}s)`, ok: s.ok });
+    out.push({ text: `step ${s.name}: ${s.ok ? "ok" : "failed"} (${seconds}s)`, level: verdict(s.ok) });
   }
   return out;
+}
+
+/**
+ * Warns about each plugin enabled in the project settings: plugins do not reach cloud sessions.
+ * Missing or malformed settings give no warnings.
+ *
+ * @param repo - Repo root.
+ * @returns One warning per enabled plugin.
+ * @example
+ * checkPlugins("/home/user/app"); // [{ text: "plugin x@m is enabled but ...", level: "warn" }]
+ */
+function checkPlugins(repo: string): Check[] {
+  try {
+    const settings: unknown = JSON.parse(readFileSync(join(repo, SETTINGS_FILE), "utf8"));
+    const plugins = (settings as { enabledPlugins?: unknown } | null)?.enabledPlugins;
+    if (typeof plugins !== "object" || plugins === null) return [];
+    return Object.entries(plugins)
+      .filter(([, enabled]) => enabled === true)
+      .map(([name]) => ({
+        text: `warn: plugin ${name} is enabled but is not in the repo; it will not reach the cloud (copy its skills with skills-manager)`,
+        level: "warn",
+      }));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Warns when the installed `cloud-ready` skill is of another version than the package.
+ *
+ * @param repo - Repo root.
+ * @param packageVersion - Version of this package.
+ * @returns A warning, or nothing when there is no skill or the versions match.
+ * @example
+ * checkSkill("/home/user/app", "1.0.0"); // [{ text: "warn: .agents/skills/cloud-ready is 0.9.0, ...", level: "warn" }]
+ */
+function checkSkill(repo: string, packageVersion: string): Check[] {
+  const installed = skillVersion(repo);
+  if (installed === undefined || installed === packageVersion) return [];
+  return [
+    {
+      text: `warn: ${SKILL_DIR} is ${installed}, the package is ${packageVersion}; run npx agent-cloud-kit@${packageVersion} init`,
+      level: "warn",
+    },
+  ];
 }
 
 /**
@@ -146,7 +207,7 @@ async function guarded(name: string, fn: () => Check[] | Promise<Check[]>): Prom
   try {
     return await fn();
   } catch (err) {
-    return [{ text: `${name}: error: ${err instanceof Error ? err.message : String(err)}`, ok: false }];
+    return [{ text: `${name}: error: ${err instanceof Error ? err.message : String(err)}`, level: "fail" }];
   }
 }
 
@@ -166,9 +227,11 @@ export async function doctor(repo: string, ctx: DoctorContext): Promise<DoctorRe
   checks.push(
     ...(await guarded("docker", () => {
       const docker = ctx.dockerInfo();
-      return [{ text: `docker: ${docker ? "ok" : "missing"}`, ok: docker }];
+      return [{ text: `docker: ${docker ? "ok" : "missing"}`, level: verdict(docker) }];
     })),
   );
   checks.push(...(await guarded("state", () => checkState(repo, ctx))));
-  return { lines: checks.map((c) => OUTPUT_PREFIX + c.text), ok: checks.every((c) => c.ok) };
+  checks.push(...(await guarded("plugins", () => checkPlugins(repo))));
+  checks.push(...(await guarded("skill", () => checkSkill(repo, ctx.packageVersion))));
+  return { lines: checks.map((c) => OUTPUT_PREFIX + c.text), ok: checks.every((c) => c.level !== "fail") };
 }
