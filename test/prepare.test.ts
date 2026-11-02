@@ -169,11 +169,10 @@ test("runs the steps in order with the expected argv", async () => {
     "gh pr create --draft --fill",
     `claude --cloud /cloud-ready verify\n\n- Rama de prepare: ${BRANCH}\n- PR: #7`,
   ]);
-  assert.match(configure?.args[0] ?? "", /Variables secretas: API_TOKEN/);
   assert.equal(configure?.cwd, worktree);
   assert.equal(cloud?.cwd, worktree);
   assert.equal(calls.find((c) => c.args[0] === "push")?.cwd, worktree);
-  assert.equal(asked.length, 2);
+  assert.equal(asked.length, 0);
   assert.deepEqual(waited, ["Configure the environment in claude.ai, then press Enter"]);
   const out = printed.join("\n");
   assert.match(out, /## Configurar el entorno en claude\.ai/);
@@ -365,14 +364,6 @@ test("Ctrl+C while waiting for Enter keeps the pushed worktree and says how to r
   assert.ok(!argvs().some((a) => a.startsWith("claude --cloud")));
 });
 
-test("Ctrl+C at the first questions says nothing was created", async () => {
-  const ask = async (): Promise<string> => {
-    throw new InterruptedError();
-  };
-  assert.equal(await prepare(repo, deps({ ask })), 130);
-  assert.ok(printed.includes("agent-cloud-kit: interrupted; nothing was created"));
-  assert.ok(!existsSync(worktree));
-});
 
 test("a Ctrl+C while a child runs prints the resume line through onInterrupt, which is removed at the end", async () => {
   let handler: (() => void) | undefined;

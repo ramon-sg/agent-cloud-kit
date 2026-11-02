@@ -11,9 +11,8 @@ import { defaultBranch } from "../detect.ts";
 import { init } from "../init.ts";
 import { renderEnvironmentSection, writeManual } from "../manual.ts";
 import type { Capture, Run } from "../run.ts";
-import { preflight, suggestSecrets } from "./detect.ts";
+import { preflight } from "./detect.ts";
 import { configurePrompt, verifyPrompt } from "./prompts.ts";
-import { askAll } from "./questions.ts";
 import type { Ask } from "./questions.ts";
 
 /** Prefix of the branch `prepare` creates; the day follows it. */
@@ -124,7 +123,7 @@ export interface PrepareDeps {
 
 /** Options of `prepare`. */
 export interface PrepareOptions {
-  /** Continue in an existing prepare worktree: skip the questions, the worktree and the local agent. */
+  /** Continue in an existing prepare worktree: skip creating the worktree and the local agent. */
   resume?: boolean;
 }
 
@@ -305,7 +304,7 @@ async function findResume(repo: string, deps: PrepareDeps): Promise<{ worktree: 
 }
 
 /**
- * Steps 2–5: asks the questions, creates the worktree, installs the kit and runs the local agent.
+ * Steps 2–5: creates the worktree, installs the kit and runs the local agent.
  *
  * @param repo - Git root of the repo.
  * @param branch - Branch to create.
@@ -313,7 +312,6 @@ async function findResume(repo: string, deps: PrepareDeps): Promise<{ worktree: 
  * @param deps - Dependencies.
  * @param progress - Gets the worktree once it exists.
  * @returns True when the worktree is ready to commit.
- * @throws InterruptedError when the user presses Ctrl+C during the questions.
  * @example
  * await createAndConfigure("/home/u/app", "chore/cloud-ready-20261102", "/home/u/app-cloud-ready", deps, {});
  */
@@ -326,7 +324,6 @@ async function createAndConfigure(repo: string, branch: string, worktree: string
     deps.print(`${OUTPUT_PREFIX}branch ${branch} already exists; delete it (git branch -D ${branch}) or run prepare another day`);
     return false;
   }
-  const answers = await askAll(deps.ask, { secrets: suggestSecrets(repo) }, deps.print);
   const base = `origin/${defaultBranch(repo)}`;
   try {
     await deps.run("git", ["fetch", "-q", "origin"], { cwd: repo });
@@ -351,7 +348,7 @@ async function createAndConfigure(repo: string, branch: string, worktree: string
   }
   deps.print(EXIT_CLAUDE_HINT);
   try {
-    await runInteractive(deps, progress, [configurePrompt(answers)], worktree);
+    await runInteractive(deps, progress, [configurePrompt()], worktree);
   } catch {
     deps.print(stopped);
     return false;
@@ -532,7 +529,7 @@ async function prepareSteps(gitRoot: string, deps: PrepareDeps, options: Prepare
   const pushed = await commitAndPush(worktree, branch, deps);
   if (!pushed) return EXIT_FAIL;
   const config = readConfig(worktree).config;
-  if (config) deps.print(renderEnvironmentSection(config));
+  if (config) deps.print(renderEnvironmentSection(config, deps.packageVersion));
   await deps.waitEnter(WAIT_TEXT);
   try {
     await runInteractive(deps, progress, ["--cloud", verifyPrompt({ branch, pr: pushed.pr })], worktree);

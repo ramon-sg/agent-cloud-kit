@@ -4,6 +4,21 @@ All notable changes to this project are documented in this file. The format foll
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 1.0.0-rc.1
+
+### Changed
+
+- `prepare` asks nothing up front: no secret names, no extra domains. The `cloud-ready` skill
+  notes what it sees the repo needs and, when something fails for a missing domain or variable,
+  adds it to `.claude/cloud.json`, regenerates `docs/agent-cloud.md` and tells the user in the
+  session right away (and in the PR comment in `verify`).
+- `docs/agent-cloud.md` says it keeps being updated as the skill finds new domains or variables.
+
+### Fixed
+
+- The setup script in `docs/agent-cloud.md` and the "setup did not run" warning name the exact
+  version for a release candidate; `agent-cloud-kit@1` does not match `1.0.0-rc.N`.
+
 ## 1.0.0-rc.0
 
 Continues `@ramon-sg/claude-cloud` 1.0.0. There is no automatic migration.

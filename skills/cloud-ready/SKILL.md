@@ -1,7 +1,7 @@
 ---
 name: cloud-ready
 description: Prepara o verifica un repo Node/TypeScript para las sesiones en la nube de Claude Code (claude.ai/code). Usa `configure` en local, con el usuario, para escribir `.claude/cloud.json` y decidir qué corre en la nube; usa `verify` dentro de una sesión en la nube para comprobar la preparación, arreglarla y reportar en el PR.
-argument-hint: "configure [respuestas] | verify"
+argument-hint: "configure | verify"
 metadata:
   version: "1.0.0"
 ---
@@ -33,8 +33,9 @@ Son los únicos que `verify` puede cambiar:
 ## `configure` (local, con el usuario)
 
 Si `CLAUDE_CODE_REMOTE=true`, detente: este modo necesita al usuario en una terminal local.
-Las respuestas que traiga el argumento (variables secretas, dominios extra) son el punto de
-partida: no las vuelvas a preguntar.
+No le pidas al usuario una lista de variables secretas ni de dominios: anota en `requiredEnv` y
+`domains` solo lo que veas que el repo necesita en la nube; lo que falte lo detecta `verify` (ver
+"Dominios y variables nuevos").
 
 1. **Lee qué usa el repo:** `package.json` (scripts, `packageManager`, `engines`), el lockfile,
    `.tool-versions`, `mise.toml`, `.nvmrc`, archivos de Docker compose, `Dockerfile`,
@@ -81,7 +82,9 @@ partida: no las vuelvas a preguntar.
 8. **Si existe `.agents/skills/test-audit/project.md`:** escribe o actualiza su sección "Nube"
    con el mismo resumen; no toques el resto del archivo.
 9. **Corre `agent-cloud-kit manual`** y muéstrale al usuario la sección "Configurar el entorno en
-   claude.ai" de `docs/agent-cloud.md` (setup script, dominios, variables).
+   claude.ai" de `docs/agent-cloud.md` (setup script, dominios, variables). Dile que ese
+   documento se irá actualizando: si la skill, en local o en la nube, detecta que hace falta un
+   dominio o una variable nueva, lo agrega ahí y se lo dice.
 10. **No hagas commit:** `agent-cloud-kit prepare` lo hace al salir. Si te invocaron fuera de
     `prepare`, pregunta al usuario.
 11. **Termina diciéndole al usuario que salga:** dile al usuario, con estas palabras o parecidas,
@@ -112,9 +115,11 @@ Solo con `CLAUDE_CODE_REMOTE=true`; si no, detente y dilo. El prompt trae la ram
    - **Se arregla en la preparación:** cambia solo los archivos de la preparación y vuelve a
      comprobar. Un cambio de `setup` no se re-ejecuta en esta sesión (el setup ya corrió): corre
      el comando a mano para probarlo y anota que la máquina guardada se rehará en una sesión nueva.
-   - **Solo se cambia en claude.ai** (dominios de la red, variables, entorno por defecto con
-     `/remote-env`, rehacer la máquina editando el setup script, el Claude GitHub App): no lo
-     intentes; deja la instrucción exacta para el reporte y deja de intentar arreglos.
+   - **Falta un dominio o una variable:** sigue "Dominios y variables nuevos" y deja de intentar
+     arreglos que dependan de eso.
+   - **Solo se cambia en claude.ai** (entorno por defecto con `/remote-env`, rehacer la máquina
+     editando el setup script, el Claude GitHub App): no lo intentes; deja la instrucción exacta
+     para el reporte y deja de intentar arreglos.
    - **Requiere cambiar código, tests o scripts:** no lo cambies; deja el cambio propuesto
      (archivo y diff) para el comentario del PR.
 
@@ -156,6 +161,24 @@ Solo con `CLAUDE_CODE_REMOTE=true`; si no, detente y dilo. El prompt trae la ram
 **Arreglado en la preparación:** archivos y por qué. Intentos: n de 3.
 **Hallazgos:** los nuevos, o "ninguno".
 ```
+
+## Dominios y variables nuevos
+
+En ambos modos, cuando algo falla porque falta un dominio en la red del entorno (el proxy
+rechaza la conexión, `403` o `CONNECT` fallido hacia un host) o una variable de entorno (el
+inicio de la sesión la marca como faltante, o el error nombra una variable vacía):
+
+1. Agrega el host a `domains` o el nombre a `requiredEnv` en `.claude/cloud.json` (solo el
+   nombre; nunca un valor).
+2. Corre `agent-cloud-kit manual`: `docs/agent-cloud.md` queda con lo nuevo.
+3. **Díselo al usuario en la sesión, en ese momento**, sin esperar al final: qué falta, por qué
+   (el comando y el error) y qué hacer, con estas palabras o parecidas: "Falta `<X>` en el entorno
+   de claude.ai. Agrégalo en <Network access / Variables de entorno> (está en
+   `docs/agent-cloud.md`), abre una sesión nueva y corre `/cloud-ready verify`".
+4. En `verify`, ponlo también en "Cambiar en claude.ai" del comentario del PR.
+
+Un dominio que ya está en `domains`, o una variable que ya está en `requiredEnv`, no se agrega
+de nuevo: si sigue faltando, el usuario aún no actualizó el entorno; recuérdaselo.
 
 ## Hallazgos
 

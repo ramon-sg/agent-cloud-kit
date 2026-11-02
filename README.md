@@ -35,12 +35,15 @@ platform does not tell you:
 ## The flow
 
 1. **Install your agent tooling** with agent-kitchen (config, hook and skill arrive in the repo).
-2. **Run `npx agent-cloud-kit prepare`** in a local terminal. It asks a few questions (secret
-   variable names, extra domains), creates a worktree on a dated branch, runs `init`, and opens
+2. **Run `npx agent-cloud-kit prepare`** in a local terminal. It asks nothing up front: it
+   creates a worktree on a dated branch, runs `init`, and opens
    Claude locally with the `cloud-ready` skill so it can write the cloud preparation with you. Then
    it writes the manual, commits, pushes and opens a draft PR.
 3. **Configure the environment in claude.ai** following `docs/agent-cloud.md`, which `prepare`
-   generated from your `.claude/cloud.json`.
+   generated from your `.claude/cloud.json`. The document keeps growing: when the skill, locally
+   or in the cloud, finds that a domain or an environment variable is missing, it adds it to
+   `.claude/cloud.json`, regenerates the document and tells you in the session what to add in
+   claude.ai.
 4. **Verification in the cloud:** `prepare` launches `claude --cloud` on that branch, so a real
    cloud session runs `cloud-ready verify`, fixes what fails and reports in the PR.
 
@@ -141,7 +144,7 @@ A Node version that is not exact (`22`, `22.1`, `lts/iron`, `lts/*` or `node`) i
 | `agent-cloud-kit docker`         | Starts `dockerd` detached and waits up to 60 seconds for it to answer. Exits 1 if it does not, at once when `dockerd` is not installed.                                                                                             |
 | `agent-cloud-kit doctor`         | Checks that the proxy lets the needed hosts through, that the pinned tools are installed, that Docker answers, and the recorded state (fingerprint and each step). Exits 1 if any check fails.                                       |
 | `agent-cloud-kit init`           | Creates `.claude/cloud.json` if missing, adds the `SessionStart` hook to `.claude/settings.json` (keeping the hooks already there), copies the `cloud-ready` skill to `.agents/skills/cloud-ready` when its version differs, and links it from `.claude/skills/cloud-ready`. Safe to run again.                                                                           |
-| `agent-cloud-kit manual`         | Writes `docs/agent-cloud.md` from `.claude/cloud.json`, deterministically: the exact setup script, domains, variable names, how to verify the environment. |
+| `agent-cloud-kit manual`         | Writes `docs/agent-cloud.md` from `.claude/cloud.json`, deterministically: the exact setup script (`agent-cloud-kit@<major>`, or the exact version for a release candidate), domains, variable names, how to verify the environment. |
 | `agent-cloud-kit prepare [--resume]` | Local only, needs an interactive terminal: sets the repo up for the cloud on a new branch in a worktree, opens the PR and verifies it in a real cloud session (see "The flow"). `--resume` continues in the existing worktree. |
 
 Environment variables: `AGENT_CLOUD_KIT_DIR` overrides `/opt/agent-cloud-kit` and `AGENT_CLOUD_KIT_HOME`

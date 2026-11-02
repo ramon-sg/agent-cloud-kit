@@ -324,7 +324,7 @@ function manualCommand(deps: CliDeps): number {
  * @returns The raw answer.
  * @throws InterruptedError on Ctrl+C.
  * @example
- * await askTerminal("Extra domains", ""); // "api.example.com"
+ * await askTerminal("Include these changes in the commit? [y/N]", ""); // "y"
  */
 const askTerminal: Ask = async (question, suggestion) => {
   const rl = createInterface({ input: process.stdin, output: process.stdout });

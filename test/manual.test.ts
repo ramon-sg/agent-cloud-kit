@@ -41,7 +41,7 @@ test("renders domains from config and apt repos, sorted and unique", () => {
 });
 
 test("renders the exact setup script", () => {
-  const out = renderEnvironmentSection(base);
+  const out = renderEnvironmentSection(base, "1.2.0");
   assert.ok(out.includes("```bash\n#!/bin/bash\nnpx -y agent-cloud-kit@1 setup\n```"));
   assert.ok(out.startsWith("## Configurar el entorno en claude.ai"));
   assert.ok(out.includes("Also include default list of common package managers"));
@@ -97,7 +97,7 @@ test("the manual tells how to verify the environment", () => {
 });
 
 test("environment section mentions /remote-env and the GitHub App", () => {
-  const out = renderEnvironmentSection(base);
+  const out = renderEnvironmentSection(base, "1.2.0");
   assert.ok(out.includes("/remote-env"));
   assert.ok(!out.includes("por defecto de tu cuenta"));
   assert.ok(out.includes("Claude GitHub App"));
@@ -147,4 +147,15 @@ test("manual command prints the result and exits 1 without a config", async () =
   assert.equal(await main(["manual"], deps), 0);
   assert.equal(lines[lines.length - 1], "agent-cloud-kit: wrote docs/agent-cloud.md");
   assert.ok(existsSync(join(repo, "docs/agent-cloud.md")));
+});
+
+test("the manual says it is updated when the skill finds a new domain or variable", () => {
+  const out = renderManual({ config: base, packageVersion: "1.0.0" });
+  assert.match(out, /Este documento se va actualizando/);
+  assert.match(out, /dominio o una variable de entorno nueva/);
+});
+
+test("a prerelease gets the exact version in the setup script; a major range would not match it", () => {
+  const out = renderEnvironmentSection(base, "1.0.0-rc.1");
+  assert.ok(out.includes("npx -y agent-cloud-kit@1.0.0-rc.1 setup"));
 });

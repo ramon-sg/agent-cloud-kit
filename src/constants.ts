@@ -15,6 +15,21 @@ export const RUNNING_PACKAGE_ROOT = fileURLToPath(new URL("..", import.meta.url)
 /** Name of this package on npm. */
 export const PACKAGE = "agent-cloud-kit";
 
+/**
+ * The npm spec the setup script installs: the major (`agent-cloud-kit@1`) for a stable version,
+ * the exact version for a prerelease, which a major range does not match.
+ *
+ * @param packageVersion - Version of the running package.
+ * @returns The spec.
+ * @example
+ * packageSpec("1.2.0"); // "agent-cloud-kit@1"
+ * packageSpec("1.0.0-rc.1"); // "agent-cloud-kit@1.0.0-rc.1"
+ */
+export function packageSpec(packageVersion: string): string {
+  if (packageVersion.includes("-")) return `${PACKAGE}@${packageVersion}`;
+  return `${PACKAGE}@${packageVersion.split(".")[0]}`;
+}
+
 /** Default root directory that holds the installed tools and the state files. */
 export const TOOLS_DIR = "/opt/agent-cloud-kit";
 

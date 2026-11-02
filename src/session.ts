@@ -7,7 +7,7 @@ import { basename, join } from "node:path";
 import { findProxyCa, shellQuote } from "./ca.ts";
 import { readConfig } from "./config.ts";
 import type { CloudConfig } from "./config.ts";
-import { CONFIG_FILE, GIT_FETCH_TIMEOUT_MS, OUTPUT_PREFIX, PACKAGE, SETUP_SLOW_MS } from "./constants.ts";
+import { CONFIG_FILE, GIT_FETCH_TIMEOUT_MS, OUTPUT_PREFIX, packageSpec, SETUP_SLOW_MS } from "./constants.ts";
 import { configImages, defaultBranch, readToolVersions } from "./detect.ts";
 import { realDocker } from "./docker.ts";
 import type { DockerOps } from "./docker.ts";
@@ -123,12 +123,13 @@ export function expectedFingerprint(repo: string, config: CloudConfig, state: Ma
  * @param repo - Repo root.
  * @param config - Repo config.
  * @param state - Recorded state, if any.
+ * @param packageVersion - Version of the running package, for the setup command.
  * @returns Warning messages, without prefix.
  */
-function machineWarnings(repo: string, config: CloudConfig, state: MachineState | undefined): string[] {
+function machineWarnings(repo: string, config: CloudConfig, state: MachineState | undefined, packageVersion: string): string[] {
   if (!state) {
     return [
-      `the environment setup did not run for ${basename(repo)}. Set the setup script of the environment in claude.ai to: npx -y ${PACKAGE}@1 setup`,
+      `the environment setup did not run for ${basename(repo)}. Set the setup script of the environment in claude.ai to: npx -y ${packageSpec(packageVersion)} setup`,
     ];
   }
   const out: string[] = [];
@@ -241,7 +242,7 @@ async function sessionBody(repo: string, ctx: SessionContext, out: string[]): Pr
   const ca = findProxyCa(ctx.env, existsSync);
   const envFileProblem = writeEnvFile(ctx.env, [pathLine(dirs), ca ? `export ${PROXY_CA_VAR}=${shellQuote(ca)}` : ""]);
   if (envFileProblem) out.push(envFileProblem);
-  if (config) out.push(...machineWarnings(repo, config, state));
+  if (config) out.push(...machineWarnings(repo, config, state, ctx.packageVersion));
   const missing = (config?.requiredEnv ?? []).filter((name) => !ctx.env[name]);
   if (missing.length) out.push(`missing environment variables: ${missing.join(", ")}`);
   const notes = resolveNotes(repo, config?.notes)?.trim();

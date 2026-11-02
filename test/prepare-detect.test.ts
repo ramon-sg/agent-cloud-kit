@@ -1,33 +1,11 @@
 /**
- * @file Tests for `prepare` secret suggestions and preflight checks.
+ * @file Tests for `prepare` preflight checks.
  */
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { test } from "node:test";
-import { preflight, suggestSecrets } from "../src/prepare/detect.ts";
+import { preflight } from "../src/prepare/detect.ts";
 
 const OK = { isTty: true, gitRoot: "/r", hasOrigin: true, clean: true, claudeHelp: "Usage: claude --cloud" };
-
-test("suggestSecrets reads KEY= lines of .env.example, skipping comments and blanks", () => {
-  const dir = mkdtempSync(join(tmpdir(), "cc-prep-"));
-  try {
-    writeFileSync(join(dir, ".env.example"), "# c\nAPI_TOKEN=\n\nDB_URL=x\nAPI_TOKEN=y\n");
-    assert.deepEqual(suggestSecrets(dir), ["API_TOKEN", "DB_URL"]);
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
-});
-
-test("suggestSecrets returns [] without .env.example", () => {
-  const dir = mkdtempSync(join(tmpdir(), "cc-prep-"));
-  try {
-    assert.deepEqual(suggestSecrets(dir), []);
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
-});
 
 test("preflight is empty when everything is fine", () => {
   assert.deepEqual(preflight(OK), []);

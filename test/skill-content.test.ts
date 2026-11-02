@@ -17,7 +17,7 @@ test("SKILL.md has the frontmatter the package relies on", () => {
   const frontmatter = /^---\n([\s\S]*?)\n---\n/.exec(skill)?.[1] ?? "";
   assert.match(frontmatter, /^name: cloud-ready$/m);
   assert.match(frontmatter, /^description: .*configure.*verify/m);
-  assert.match(frontmatter, /^argument-hint: "configure \[respuestas\] \| verify"$/m);
+  assert.match(frontmatter, /^argument-hint: "configure \| verify"$/m);
   assert.match(frontmatter, /^metadata:\n {2}version: "\d+\.\d+\.\d+"$/m);
 });
 
@@ -84,4 +84,14 @@ test("compat.md has the example repos, from least to most invasive", () => {
     assert.ok(compat.includes(text), `compat.md lacks ${text}`);
   }
   assert.ok(compat.indexOf("Adaptar") < compat.indexOf("Bifurcar"));
+});
+
+test("new domains and variables go to the config and the manual, and the user is told right away", () => {
+  const skill = read("SKILL.md");
+  const section = skill.slice(skill.indexOf("## Dominios y variables nuevos"), skill.indexOf("## Hallazgos"));
+  assert.ok(section.length > 0, "no section for new domains and variables");
+  for (const text of ["`domains`", "`requiredEnv`", "agent-cloud-kit manual", "Díselo al usuario en la sesión", "/cloud-ready verify"]) {
+    assert.ok(section.includes(text), `section lacks ${text}`);
+  }
+  assert.equal(skill.includes("[respuestas]"), false);
 });

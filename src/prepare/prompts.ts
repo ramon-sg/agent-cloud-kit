@@ -1,37 +1,16 @@
 /**
  * @file Prompts `prepare` hands to Claude, in Spanish: they invoke the `cloud-ready` skill.
  */
-import type { Answers } from "./questions.ts";
-
 /**
- * Formats a list for a prompt line.
+ * Prompt for the local session: `configure` mode. `prepare` asks nothing first; the skill detects
+ * secrets and domains itself.
  *
- * @param items Items.
- * @param none Text when there are no items.
- * @returns The items joined by commas, or `none`.
- * @example
- * list(["A", "B"], "ninguna"); // "A, B"
- */
-function list(items: string[], none: string): string {
-  return items.length > 0 ? items.join(", ") : none;
-}
-
-/**
- * Prompt for the local session: `configure` mode with the user's answers.
- *
- * @param answers What the user answered.
  * @returns The prompt.
  * @example
- * configurePrompt({ secrets: ["A"], domains: [] }).startsWith("/cloud-ready configure"); // true
+ * configurePrompt(); // "/cloud-ready configure"
  */
-export function configurePrompt(answers: Answers): string {
-  return [
-    "/cloud-ready configure",
-    "",
-    "Respuestas del usuario (no las vuelvas a preguntar):",
-    `- Variables secretas: ${list(answers.secrets, "ninguna")}`,
-    `- Dominios extra: ${list(answers.domains, "ninguno")}`,
-  ].join("\n");
+export function configurePrompt(): string {
+  return "/cloud-ready configure";
 }
 
 /**

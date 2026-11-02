@@ -25,7 +25,7 @@ paquete debe juntarlo y hacerlo crecer.
 - **Solo Node y TypeScript** por ahora. Nada de Go, Python (salvo uv, que ya existe), Ruby, Java.
 - **Separado de agent-kitchen:** `agent-kitchen apply` sigue liviano: instala la pieza (config,
   hook, skill) y al final sugiere el paso siguiente. No lanza agentes.
-- **`prepare` es un paso aparte**, después de agent-kitchen y cuando se quiera: pregunta cosas en
+- **`prepare` es un paso aparte**, después de agent-kitchen y cuando se quiera: no pregunta nada en
   la terminal, trabaja en un worktree, lanza un agente local con la skill, genera un manual y
   termina con una **prueba real en la nube** (no simulada).
 - **Manual `.md`** que explica el flujo y cómo configurar el entorno en claude.ai: setup script,
@@ -147,11 +147,12 @@ Viaja en el paquete (`skills/cloud-ready/`) y `init` la copia a `.agents/skills/
 
 ### 4. Manual `docs/agent-cloud.md` (generado, en español)
 
-Secciones: qué es y el flujo en 5 líneas; cómo configurar el entorno en claude.ai (el entorno
+Secciones: qué es y el flujo en 5 líneas, más el aviso de que el documento se va actualizando
+cuando la skill detecta un dominio o una variable nueva; cómo configurar el entorno en claude.ai (el entorno
 que usa `claude --cloud` es el elegido con `/remote-env`; el Claude GitHub App instalado en el
 repo; Network access: *Custom* + "Also include default list…" + la lista de dominios =
 `domains` más los hosts de `aptRepos`; el setup script exacto
-`#!/bin/bash\nnpx -y agent-cloud-kit@1 setup`; las variables de `requiredEnv`, solo nombres,
+`#!/bin/bash\nnpx -y agent-cloud-kit@1 setup` (con la versión exacta si el paquete es una `rc`); las variables de `requiredEnv`, solo nombres,
 con la advertencia de que el entorno es legible por quien lo use y que no llegan al setup
 script); cómo verificar el entorno en una sesión nueva (`agent-cloud-kit doctor`,
 `node_modules` presente, versiones fijadas); qué corre en la nube y qué no (el archivo de
@@ -161,14 +162,14 @@ script); cómo verificar el entorno en una sesión nueva (`agent-cloud-kit docto
 
 1. Comprueba: terminal interactiva, repo git con `origin`, árbol limpio, `claude` en `PATH` y
    que `claude --help` mencione `--cloud`. Si falta algo, dice qué y sale 1.
-2. Preguntas (con `node:readline/promises`, sin dependencias), con valores sugeridos detectados:
-   nombres de variables secretas que necesita el repo (sugerencia: claves de `.env.example`);
-   dominios extra. Nada sobre tests: eso lo ve la skill con el usuario.
+2. Sin preguntas: las variables secretas y los dominios no se piden por adelantado. La skill
+   anota los que ve necesarios y, cuando algo falla en la nube por un dominio o una variable que
+   falta, lo agrega a `.claude/cloud.json`, regenera `docs/agent-cloud.md` y se lo dice al
+   usuario en la sesión en ese momento (y en el comentario del PR).
 3. Worktree `../<repo>-cloud-ready` en `chore/cloud-ready-<AAAAMMDD>` desde
    `origin/<rama por defecto>`.
 4. `agent-cloud-kit init` en el worktree (config, hook, skill).
-5. Lanza `claude` interactivo en el worktree con un prompt que invoca `cloud-ready configure` y
-   lleva las respuestas. Al salir el agente, `prepare` sigue.
+5. Lanza `claude` interactivo en el worktree con un prompt que invoca `cloud-ready configure`. Al salir el agente, `prepare` sigue.
 6. `agent-cloud-kit manual`, commit, push, PR en draft (`gh pr create --draft` local; si no hay
    `gh`, lo dice y sigue).
 7. Muestra el resumen del manual (setup script, dominios, variables) y espera Enter: el usuario

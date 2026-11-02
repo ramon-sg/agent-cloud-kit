@@ -1,15 +1,6 @@
 /**
- * @file Pure parts of `prepare`: secret-name suggestions and preflight checks.
+ * @file Pure parts of `prepare`: preflight checks.
  */
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
-
-/** File, in the repo root, whose keys are suggested as secret names. */
-const ENV_EXAMPLE_FILE = ".env.example";
-
-/** Matches a `KEY=value` line (optionally prefixed by `export`) and captures the key. */
-const ENV_LINE = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=/;
-
 /** Flag `claude` must advertise in its help to launch cloud sessions. */
 const CLOUD_FLAG = "--cloud";
 
@@ -25,26 +16,6 @@ export interface Probe {
   clean: boolean;
   /** Output of `claude --help`; undefined when `claude` could not be run. */
   claudeHelp?: string;
-}
-
-/**
- * Suggests secret names from the keys of `.env.example` in the repo root.
- *
- * @param repo Repo root.
- * @returns Keys in file order, without duplicates; empty when the file does not exist.
- * @example
- * suggestSecrets("/repo"); // ["API_TOKEN", "DB_URL"]
- */
-export function suggestSecrets(repo: string): string[] {
-  const file = join(repo, ENV_EXAMPLE_FILE);
-  if (!existsSync(file)) return [];
-  const keys: string[] = [];
-  for (const line of readFileSync(file, "utf8").split(/\r?\n/)) {
-    if (line.trimStart().startsWith("#")) continue;
-    const key = ENV_LINE.exec(line)?.[1];
-    if (key !== undefined && !keys.includes(key)) keys.push(key);
-  }
-  return keys;
 }
 
 /**

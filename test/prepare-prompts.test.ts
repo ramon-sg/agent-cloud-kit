@@ -5,17 +5,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { configurePrompt, verifyPrompt } from "../src/prepare/prompts.ts";
 
-test("configurePrompt starts with the skill call and lists the answers", () => {
-  const p = configurePrompt({ secrets: ["A", "B"], domains: ["x.com"] });
-  assert.ok(p.startsWith("/cloud-ready configure"));
-  assert.match(p, /- Variables secretas: A, B/);
-  assert.match(p, /- Dominios extra: x\.com/);
-});
-
-test("configurePrompt says ninguno for empty lists", () => {
-  const p = configurePrompt({ secrets: [], domains: [] });
-  assert.match(p, /- Variables secretas: ninguna/);
-  assert.match(p, /- Dominios extra: ninguno/);
+test("configurePrompt only calls the skill: prepare asks nothing first", () => {
+  assert.equal(configurePrompt(), "/cloud-ready configure");
 });
 
 test("verifyPrompt carries the branch and, when known, the PR", () => {

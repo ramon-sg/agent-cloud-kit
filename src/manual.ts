@@ -6,7 +6,7 @@ import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, 
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { readConfig } from "./config.ts";
 import type { CloudConfig } from "./config.ts";
-import { CONFIG_FILE, OUTPUT_PREFIX, PACKAGE } from "./constants.ts";
+import { CONFIG_FILE, OUTPUT_PREFIX, PACKAGE, packageSpec } from "./constants.ts";
 
 /** Path of the manual, relative to the repo. */
 export const MANUAL_FILE = "docs/agent-cloud.md";
@@ -23,18 +23,29 @@ const FINDINGS = "## Hallazgos\n\n_Lo que el agente descubra de la nube va aquí
 /** Prefix of an https URL. */
 const HTTPS_PREFIX = "https://";
 
-/** Setup script the environment must run, in a `bash` block. */
-const SETUP_SCRIPT = `#!/bin/bash\nnpx -y ${PACKAGE}@1 setup`;
+/**
+ * Setup script the environment must run, for a `bash` block.
+ *
+ * @param packageVersion - Version of the running package.
+ * @returns The script.
+ * @example
+ * setupScript("1.2.0"); // "#!/bin/bash\nnpx -y agent-cloud-kit@1 setup"
+ */
+function setupScript(packageVersion: string): string {
+  return `#!/bin/bash\nnpx -y ${packageSpec(packageVersion)} setup`;
+}
 
 /** The "how it works" section, five lines. */
 const HOW_IT_WORKS = [
   "## Cómo funciona",
   "",
   "1. agent-kitchen instala las herramientas y los ganchos en el repo.",
-  `2. \`${PACKAGE} prepare\` configura el repo con la skill y deja lista la lista de dominios y variables.`,
+  `2. \`${PACKAGE} prepare\` configura el repo con la skill y genera este documento.`,
   "3. Tú configuras el entorno en claude.ai con lo que indica la siguiente sección.",
   "4. Una sesión en la nube verifica que el entorno quedó bien.",
   "5. El PR guarda el resultado.",
+  "",
+  "Este documento se va actualizando. Cuando la skill `cloud-ready`, en local o en la nube, detecta que hace falta un dominio o una variable de entorno nueva, la agrega a `.claude/cloud.json`, regenera este archivo y te lo dice en la sesión. Cuando cambie la sección \"Configurar el entorno en claude.ai\", aplica lo nuevo en claude.ai y abre una sesión nueva.",
 ].join("\n");
 
 /**
@@ -71,11 +82,12 @@ function allowedHosts(config: CloudConfig): string[] {
  * Renders the "Configurar el entorno en claude.ai" section.
  *
  * @param config - Repo config.
+ * @param packageVersion - Version of the running package, for the setup script.
  * @returns The section, without a trailing newline.
  * @example
- * renderEnvironmentSection(config).startsWith("## Configurar el entorno en claude.ai"); // true
+ * renderEnvironmentSection(config, "1.0.0").startsWith("## Configurar el entorno en claude.ai"); // true
  */
-export function renderEnvironmentSection(config: CloudConfig): string {
+export function renderEnvironmentSection(config: CloudConfig, packageVersion: string): string {
   const hosts = allowedHosts(config);
   const lines = [
     "## Configurar el entorno en claude.ai",
@@ -91,7 +103,7 @@ export function renderEnvironmentSection(config: CloudConfig): string {
     "### Setup script",
     "",
     "```bash",
-    SETUP_SCRIPT,
+    setupScript(packageVersion),
     "```",
     "",
     "### Variables de entorno",
@@ -166,7 +178,7 @@ export function renderManual(input: { config: CloudConfig; packageVersion: strin
     `<!-- Generado por ${PACKAGE} ${input.packageVersion}. No edites entre las marcas. -->`,
     "# Nube de Claude Code",
     HOW_IT_WORKS,
-    renderEnvironmentSection(input.config),
+    renderEnvironmentSection(input.config, input.packageVersion),
     VERIFY_SECTION,
     `## Qué corre en la nube\n\n${notes?.trim() ? notes.trim() : "Nada anotado."}`,
     END,
