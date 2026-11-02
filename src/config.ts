@@ -34,6 +34,19 @@ const LIST_KEYS = ["aptRepos", "apt", "setup", "session", "requiredEnv"] as cons
 /** A DNS host name: dot-separated labels, no scheme, port or path. */
 const HOST_NAME = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/i;
 
+/**
+ * Tells whether a string is a plain DNS host name, the rule `domains` entries follow.
+ *
+ * @param host - Candidate host.
+ * @returns True for names like `api.example.com`; false with a scheme, port, path or one label.
+ * @example
+ * isHostName("api.example.com"); // true
+ * isHostName("https://api.example.com"); // false
+ */
+export function isHostName(host: string): boolean {
+  return HOST_NAME.test(host);
+}
+
 /** Value of `docker.pull` that asks for image auto-detection. */
 const PULL_AUTO = "auto";
 
@@ -144,7 +157,7 @@ function parseDomains(value: unknown, errors: string[]): string[] {
     return [];
   }
   return value.filter((host) => {
-    const valid = HOST_NAME.test(host);
+    const valid = isHostName(host);
     if (!valid) errors.push(fail(`"domains" has an invalid host: ${JSON.stringify(host)}`));
     return valid;
   });

@@ -6,7 +6,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, it } from "node:test";
-import { CONFIG_KEYS, readConfig } from "../src/config.ts";
+import { CONFIG_KEYS, isHostName, readConfig } from "../src/config.ts";
 
 const tmpDirs: string[] = [];
 
@@ -152,4 +152,9 @@ describe("schema.json", () => {
     assert.deepEqual([...keys].sort(), [...CONFIG_KEYS].sort());
     assert.ok("$schema" in schema.properties);
   });
+});
+
+it("isHostName accepts plain hosts only", () => {
+  assert.equal(isHostName("api.example.com"), true);
+  for (const bad of ["localhost", "https://a.com", "a.com:443", "a.com/x", "-a.com"]) assert.equal(isHostName(bad), false, bad);
 });
