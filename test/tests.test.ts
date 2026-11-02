@@ -130,12 +130,42 @@ test("a failing result exits 1", async () => {
   assert.match(printed[0] ?? "", /✗ minimum: bad/);
 });
 
-test("a missing level exits 1 with the message", async () => {
+test("full without tests.full runs minimum only, says so, and records minimum", async () => {
   config({ minimum: "good" });
   const printed: string[] = [];
+  assert.equal(await main(["test", "--record"], deps({ CLAUDE_PROJECT_DIR: repo }, printed)), 0);
+  assert.equal(printed[0], "agent-cloud-kit: no tests.full in .claude/cloud.json; ran minimum only");
+  assert.match(printed[1] ?? "", /✓ minimum: good/);
+  assert.equal(seen.length, 1);
+  assert.equal(readTestRecord(repo)?.level, "minimum");
+});
+
+test("full with only tests.full runs just full and records full", async () => {
+  config({ full: "good" });
+  const printed: string[] = [];
+  assert.equal(await main(["test", "--level", "full", "--record"], deps({ CLAUDE_PROJECT_DIR: repo }, printed)), 0);
+  assert.equal(seen.length, 1);
+  assert.match(printed.join("\n"), /✓ full: good/);
+  assert.equal(readTestRecord(repo)?.level, "full");
+});
+
+test("a missing minimum exits 1 with the message", async () => {
+  config({ full: "good" });
+  const printed: string[] = [];
+  assert.equal(await main(["test", "--level", "minimum"], deps({ CLAUDE_PROJECT_DIR: repo }, printed)), 1);
+  assert.deepEqual(printed, ["agent-cloud-kit: no tests.minimum in .claude/cloud.json"]);
+  config({});
+  printed.length = 0;
   assert.equal(await main(["test"], deps({ CLAUDE_PROJECT_DIR: repo }, printed)), 1);
   assert.deepEqual(printed, ["agent-cloud-kit: no tests.full in .claude/cloud.json"]);
   assert.equal(seen.length, 0);
+});
+
+test("--record writes an empty commit when git rev-parse fails", async () => {
+  config({ minimum: "good" });
+  const d = { ...deps({ CLAUDE_PROJECT_DIR: repo }, []), capture: async () => Promise.reject(new Error("no git")) };
+  assert.equal(await main(["test", "--level", "minimum", "--record"], d), 0);
+  assert.equal(readTestRecord(repo)?.commit, "");
 });
 
 test("an unknown level exits 1", async () => {

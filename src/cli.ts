@@ -298,18 +298,23 @@ async function testCommand(args: string[], deps: CliDeps): Promise<number> {
     return EXIT_FAIL;
   }
   const repo = sessionRepo(deps);
-  if (!readConfig(repo).config?.tests[level as TestLevel]) {
+  const tests = readConfig(repo).config?.tests ?? {};
+  if (!(level === "full" ? tests.minimum ?? tests.full : tests.minimum)) {
     deps.print(`${OUTPUT_PREFIX}no tests.${level} in ${CONFIG_FILE}`);
     return EXIT_FAIL;
   }
+  if (level === "full" && !tests.full) deps.print(`${OUTPUT_PREFIX}no tests.full in ${CONFIG_FILE}; ran minimum only`);
   const results = await runTests(repo, level as TestLevel, { run: deps.run, env: deps.env, toolsDir: toolsDir(deps.env) });
   for (const r of results) {
     deps.print(`${OUTPUT_PREFIX}${r.ok ? "✓" : "✗"} ${r.level}: ${r.command} (${(r.ms / MS_PER_SECOND).toFixed(1)}s)`);
   }
   if (args.includes("--record")) {
-    const commit = (await (deps.capture ?? captureProcess)("git", ["rev-parse", "HEAD"], { cwd: repo })).trim();
+    const commit = await (deps.capture ?? captureProcess)("git", ["rev-parse", "HEAD"], { cwd: repo }).then(
+      (out) => out.trim(),
+      () => "",
+    );
     writeTestRecord(repo, {
-      level: level as TestLevel,
+      level: results[results.length - 1]?.level ?? (level as TestLevel),
       results,
       finishedAt: new Date().toISOString(),
       commit,
