@@ -223,7 +223,7 @@ is configured on a package that already exists. Publish the first version by han
 2. On npmjs.com, open the package settings and add a trusted publisher: this GitHub repository and
    the `publish.yml` workflow.
 3. Remove the `NPM_TOKEN` secret if you created one. From then on, bump `version` in
-   `package.json`, update `CHANGELOG.md`, and publish a GitHub release tagged `v<version>`.
+   `package.json`, update `CHANGELOG.md`, and publish a GitHub release tagged `v<version>`. A version with a prerelease suffix (`1.0.0-rc.1`) is published under the `next` tag; mark its GitHub release as a pre-release.
 
 ## License
 
