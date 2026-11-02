@@ -45,7 +45,8 @@ test("renders the exact setup script", () => {
   assert.ok(out.includes("```bash\n#!/bin/bash\nnpx -y agent-cloud-kit@1 setup\n```"));
   assert.ok(out.startsWith("## Configurar el entorno en claude.ai"));
   assert.ok(out.includes("Also include default list of common package managers"));
-  assert.ok(out.includes("por defecto"));
+  assert.ok(out.includes("/remote-env"));
+  assert.ok(!out.includes("por defecto de tu cuenta"));
   assert.ok(renderManual({ config: base, packageVersion: "1.2.3" }).includes(out));
 });
 
@@ -98,6 +99,7 @@ test("the manual tells how to verify the environment", () => {
 test("environment section mentions /remote-env and the GitHub App", () => {
   const out = renderEnvironmentSection(base);
   assert.ok(out.includes("/remote-env"));
+  assert.ok(!out.includes("por defecto de tu cuenta"));
   assert.ok(out.includes("Claude GitHub App"));
 });
 

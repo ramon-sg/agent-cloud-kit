@@ -3,7 +3,7 @@
  * keeping everything a person or agent wrote outside the generated block.
  */
 import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { readConfig } from "./config.ts";
 import type { CloudConfig } from "./config.ts";
 import { CONFIG_FILE, OUTPUT_PREFIX, PACKAGE } from "./constants.ts";
@@ -80,9 +80,7 @@ export function renderEnvironmentSection(config: CloudConfig): string {
   const lines = [
     "## Configurar el entorno en claude.ai",
     "",
-    "`claude --cloud` usa el entorno de nube por defecto de tu cuenta. Configura ese entorno (sus ajustes en claude.ai/code):",
-    "",
-    "El entorno que usa `claude --cloud` se elige con `/remote-env` en una terminal.",
+    "`claude --cloud` usa el entorno que elijas con `/remote-env` en una terminal (queda en tu configuración de usuario). Configura ese entorno en claude.ai/code:",
     "",
     "### Network access",
     "",
@@ -142,7 +140,7 @@ export function resolveNotes(repo: string, notes: string | undefined): string | 
   const file = resolve(repo, notes);
   const inside = (path: string, root: string): boolean => {
     const rel = relative(root, path);
-    return rel !== "" && !rel.startsWith("..") && !isAbsolute(rel);
+    return rel !== "" && rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel);
   };
   try {
     if (!inside(file, repo) || !statSync(file).isFile()) return notes;
