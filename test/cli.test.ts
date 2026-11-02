@@ -180,3 +180,25 @@ test("help lists doctor and init", async () => {
   assert.ok(printed.join("\n").includes("doctor"));
   assert.ok(printed.join("\n").includes("init"));
 });
+
+test("help lists prepare --resume", async () => {
+  await main(["--help"], deps());
+  assert.ok(printed.join("\n").includes("prepare [--resume]"));
+});
+
+test("prepare runs preflight and exits 1 without a terminal", async () => {
+  const captured: string[] = [];
+  const capture = async (cmd: string, args: string[]): Promise<string> => {
+    captured.push([cmd, ...args].join(" "));
+    throw new Error("not available");
+  };
+  assert.equal(await main(["prepare"], { ...deps(), capture, isTty: false }), 1);
+  assert.ok(printed.includes("agent-cloud-kit: prepare needs an interactive terminal"));
+  assert.ok(captured.includes("claude --help"));
+  assert.ok(!calls.length);
+});
+
+test("prepare rejects unknown options", async () => {
+  assert.equal(await main(["prepare", "--force"], deps()), 1);
+  assert.ok(printed.some((l) => l.includes("unknown option for prepare: --force")));
+});

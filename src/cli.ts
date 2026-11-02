@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 /**
- * @file Command line entry point of agent-cloud-kit: wires `setup`, `session` and `docker` to their
- * modules, relaunching or delegating to the version each repo pins.
+ * @file Command line entry point of agent-cloud-kit: wires `setup`, `session`, `docker`, `doctor`,
+ * `init`, `manual` and `prepare` to their modules, relaunching or delegating to the version each
+ * repo pins.
  */
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { resolve } from "node:path";
+import { createInterface } from "node:readline/promises";
 import { pathToFileURL } from "node:url";
 import { readConfig } from "./config.ts";
 import { CONFIG_FILE, DOCKERD_LOG, OUTPUT_PREFIX, RUNNING_PACKAGE_ROOT, homeDir, toolsDir } from "./constants.ts";
@@ -16,6 +18,8 @@ import { init } from "./init.ts";
 import { findRepos, packageBin, planSetup, relaunch } from "./launcher.ts";
 import type { SetupPlanItem } from "./launcher.ts";
 import { MANUAL_FILE, writeManual } from "./manual.ts";
+import { prepare } from "./prepare/index.ts";
+import type { Ask } from "./prepare/questions.ts";
 import { captureProcess, runProcess } from "./run.ts";
 import type { Capture, Run } from "./run.ts";
 import { session } from "./session.ts";
@@ -33,6 +37,7 @@ Commands:
   doctor                 check the network allowlist, tools, Docker and the machine state
   init                   create .claude/cloud.json and register the SessionStart hook
   manual                 write docs/agent-cloud.md from .claude/cloud.json
+  prepare [--resume]     run locally: set the repo up for the cloud on a new branch and verify it in a cloud session
 
 Options:
   --help                 show this help
@@ -53,6 +58,12 @@ const REPO_OPTION = "--repo";
 
 /** Timeout of the git call that finds the repo root, in milliseconds. */
 const GIT_TIMEOUT_MS = 10_000;
+
+/** Option of `prepare` that continues in an existing prepare worktree. */
+const RESUME_OPTION = "--resume";
+
+/** Length of the `YYYY-MM-DD` prefix of an ISO date. */
+const ISO_DAY_LENGTH = 10;
 
 /** Exit code for success. */
 const EXIT_OK = 0;
@@ -80,6 +91,14 @@ export interface CliDeps {
   cwd: string;
   /** Root of the package that setup copies into the tools dir and init copies the skill from; the running package when omitted. */
   packageRoot?: string;
+  /** Asks one question for `prepare`; reads stdin when omitted. */
+  ask?: Ask;
+  /** Waits for Enter for `prepare`; reads stdin when omitted. */
+  waitEnter?: (text: string) => Promise<void>;
+  /** Whether stdin and stdout are terminals; taken from the process when omitted. */
+  isTty?: boolean;
+  /** Today as `YYYY-MM-DD`; the current UTC day when omitted. */
+  today?: string;
 }
 
 /**
@@ -296,6 +315,66 @@ function manualCommand(deps: CliDeps): number {
 }
 
 /**
+ * Asks one question on the terminal, showing the suggestion in brackets. The interface is closed
+ * after each answer so child processes (claude) get stdin back.
+ *
+ * @param question - Question text.
+ * @param suggestion - Suggested answer, shown when not empty.
+ * @returns The raw answer.
+ * @example
+ * await askTerminal("Extra domains", ""); // "api.example.com"
+ */
+const askTerminal: Ask = async (question, suggestion) => {
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    return await rl.question(`${question}${suggestion ? ` [${suggestion}]` : ""}: `);
+  } finally {
+    rl.close();
+  }
+};
+
+/**
+ * Shows a text on the terminal and waits for Enter.
+ *
+ * @param text - Text to show.
+ * @example
+ * await waitTerminal("Press Enter");
+ */
+async function waitTerminal(text: string): Promise<void> {
+  await askTerminal(text, "");
+}
+
+/**
+ * Runs `prepare` in the working directory.
+ *
+ * @param args - Arguments after `prepare`.
+ * @param deps - CLI dependencies.
+ * @returns 0 when the cloud session was started, 1 otherwise.
+ */
+async function prepareCommand(args: string[], deps: CliDeps): Promise<number> {
+  const unknown = args.filter((arg) => arg !== RESUME_OPTION);
+  if (unknown.length) {
+    deps.print(`${OUTPUT_PREFIX}unknown option for prepare: ${unknown.join(" ")}`);
+    return EXIT_FAIL;
+  }
+  return prepare(
+    deps.cwd,
+    {
+      run: deps.run,
+      capture: deps.capture ?? captureProcess,
+      ask: deps.ask ?? askTerminal,
+      waitEnter: deps.waitEnter ?? waitTerminal,
+      print: deps.print,
+      packageVersion: deps.packageVersion,
+      packageRoot: deps.packageRoot ?? RUNNING_PACKAGE_ROOT,
+      today: deps.today ?? new Date().toISOString().slice(0, ISO_DAY_LENGTH),
+      isTty: deps.isTty ?? (process.stdin.isTTY === true && process.stdout.isTTY === true),
+    },
+    { resume: args.includes(RESUME_OPTION) },
+  );
+}
+
+/**
  * Runs the CLI.
  *
  * @param argv - Arguments after the executable name.
@@ -312,6 +391,7 @@ export async function main(argv: string[], deps: CliDeps): Promise<number> {
   if (command === "doctor") return doctorCommand(deps);
   if (command === "init") return initCommand(deps);
   if (command === "manual") return manualCommand(deps);
+  if (command === "prepare") return prepareCommand(rest, deps);
   if (command === "--version") {
     deps.print(deps.packageVersion);
     return EXIT_OK;
