@@ -23,7 +23,6 @@ export const CONFIG_KEYS = [
   "requiredEnv",
   "notes",
   "domains",
-  "tests",
 ] as const;
 
 /** Keys accepted inside the `docker` object. */
@@ -31,9 +30,6 @@ const DOCKER_KEYS = ["pull"] as const;
 
 /** Keys that hold a list of strings. */
 const LIST_KEYS = ["aptRepos", "apt", "setup", "session", "requiredEnv"] as const;
-
-/** Keys accepted inside the `tests` object. */
-const TESTS_KEYS = ["minimum", "full"] as const;
 
 /** A DNS host name: dot-separated labels, no scheme, port or path. */
 const HOST_NAME = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/i;
@@ -53,8 +49,6 @@ export interface CloudConfig {
   notes?: string;
   /** Extra hosts the cloud environment must allow. */
   domains: string[];
-  /** Shell commands for each test level. */
-  tests: { minimum?: string; full?: string };
 }
 
 /** Result of reading a config: errors never throw, they are collected. */
@@ -157,30 +151,6 @@ function parseDomains(value: unknown, errors: string[]): string[] {
 }
 
 /**
- * Validates `tests`, keeping only the string commands of known levels.
- *
- * @param value - Raw `tests` value, possibly undefined.
- * @param errors - Collector that receives any problem found.
- * @returns The valid test commands.
- * @example
- * parseTests({ minimum: "npm test" }, errors); // { minimum: "npm test" }
- */
-function parseTests(value: unknown, errors: string[]): CloudConfig["tests"] {
-  if (value === undefined) return {};
-  if (!isRecord(value)) {
-    errors.push(fail('"tests" must be an object'));
-    return {};
-  }
-  const tests: CloudConfig["tests"] = {};
-  for (const [key, command] of Object.entries(value)) {
-    if (!(TESTS_KEYS as readonly string[]).includes(key)) errors.push(fail(`unknown field "tests.${key}"`));
-    else if (typeof command !== "string") errors.push(fail(`"tests.${key}" must be a string`));
-    else tests[key as (typeof TESTS_KEYS)[number]] = command;
-  }
-  return tests;
-}
-
-/**
  * Validates the parsed object and builds a normalized config.
  *
  * @param raw - Parsed JSON object.
@@ -207,7 +177,6 @@ function parseConfig(raw: Record<string, unknown>, errors: string[]): CloudConfi
     session: lists.session ?? [],
     requiredEnv: lists.requiredEnv ?? [],
     domains: parseDomains(raw.domains, errors),
-    tests: parseTests(raw.tests, errors),
   };
   if (typeof raw.notes === "string") config.notes = raw.notes;
   else if (raw.notes !== undefined) errors.push(fail('"notes" must be a string'));

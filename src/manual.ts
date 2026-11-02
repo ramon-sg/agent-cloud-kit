@@ -1,14 +1,12 @@
 /**
  * @file The `manual` command: generates `docs/agent-cloud.md` (in Spanish) from the repo's cloud config
- * and last test record, keeping everything a person or agent wrote outside the generated block.
+ * keeping everything a person or agent wrote outside the generated block.
  */
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { readConfig } from "./config.ts";
 import type { CloudConfig } from "./config.ts";
-import { CONFIG_FILE, PACKAGE } from "./constants.ts";
-import { readTestRecord } from "./tests.ts";
-import type { TestRecord } from "./tests.ts";
+import { CONFIG_FILE, OUTPUT_PREFIX, PACKAGE } from "./constants.ts";
 
 /** Path of the manual, relative to the repo. */
 export const MANUAL_FILE = "docs/agent-cloud.md";
@@ -25,9 +23,6 @@ const FINDINGS = "## Hallazgos\n\n_Lo que el agente descubra de la nube va aquí
 /** Prefix of an https URL. */
 const HTTPS_PREFIX = "https://";
 
-/** Length of the short commit hash shown in the manual. */
-const SHORT_COMMIT_LENGTH = 7;
-
 /** Setup script the environment must run, in a `bash` block. */
 const SETUP_SCRIPT = `#!/bin/bash\nnpx -y ${PACKAGE}@1 setup`;
 
@@ -36,10 +31,10 @@ const HOW_IT_WORKS = [
   "## Cómo funciona",
   "",
   "1. agent-kitchen instala las herramientas y los ganchos en el repo.",
-  `2. \`${PACKAGE} prepare\` configura el repo y prepara la lista de dominios y variables.`,
-  "3. Tú configuras el entorno por defecto en claude.ai con lo que indica la siguiente sección.",
-  "4. La nube verifica: corre `setup` al iniciar y después los tests.",
-  "5. El PR guarda el resultado en `.claude/cloud-tests.json`.",
+  `2. \`${PACKAGE} prepare\` configura el repo con la skill y deja lista la lista de dominios y variables.`,
+  "3. Tú configuras el entorno en claude.ai con lo que indica la siguiente sección.",
+  "4. Una sesión en la nube verifica que el entorno quedó bien.",
+  "5. El PR guarda el resultado.",
 ].join("\n");
 
 /**
@@ -87,6 +82,8 @@ export function renderEnvironmentSection(config: CloudConfig): string {
     "",
     "`claude --cloud` usa el entorno de nube por defecto de tu cuenta. Configura ese entorno (sus ajustes en claude.ai/code):",
     "",
+    "El entorno que usa `claude --cloud` se elige con `/remote-env` en una terminal.",
+    "",
     "### Network access",
     "",
     'Elige **Custom**, marca "Also include default list of common package managers" y agrega estos dominios:',
@@ -108,47 +105,63 @@ export function renderEnvironmentSection(config: CloudConfig): string {
   } else {
     lines.push("Ninguna.");
   }
+  lines.push(
+    "",
+    "### Claude GitHub App",
+    "",
+    "El Claude GitHub App debe estar instalado en el repo. Sin él, la sesión no puede pushear.",
+  );
   return lines.join("\n");
 }
 
-/**
- * Renders the "Correr los tests" section.
- *
- * @param config - Repo config.
- * @returns The section.
- */
-function renderTestsSection(config: CloudConfig): string {
-  const lines = ["## Correr los tests", "", "```bash", `${PACKAGE} test --level full`, "```", ""];
-  if (config.tests.minimum) lines.push(`- minimum: \`${config.tests.minimum}\``);
-  if (config.tests.full) lines.push(`- full: \`${config.tests.full}\``);
-  if (!config.tests.minimum && !config.tests.full) lines.push("Todavía no hay tests en `.claude/cloud.json`.");
-  return lines.join("\n");
-}
+/** The "how to verify" section: what a fresh cloud session checks. */
+const VERIFY_SECTION = [
+  "## Verificar el entorno",
+  "",
+  "En una sesión nueva en la nube, revisa esto:",
+  "",
+  `1. \`${PACKAGE} doctor\` muestra todo en \`ok\` y termina con salida 0.`,
+  "2. `node_modules` existe.",
+  "3. Las versiones de `.tool-versions` son las que están instaladas.",
+  `4. Al empezar la sesión no hay líneas \`${OUTPUT_PREFIX.trim()}\` de falla.`,
+].join("\n");
 
 /**
- * Renders the "Último resultado" section.
+ * Resolves the `notes` of the config: the content of the file when it is a relative path to an
+ * existing file inside the repo, else the text as is. Absolute paths and escapes are plain text.
  *
- * @param record - Last test record, if any.
- * @returns The section.
+ * @param repo - Repo root.
+ * @param notes - Value of `notes` in the config, if any.
+ * @returns The notes text to show, if any.
+ * @example
+ * resolveNotes("/home/user/app", ".claude/cloud-notes.md"); // content of that file
+ * resolveNotes("/home/user/app", "Sin GPU."); // "Sin GPU."
  */
-function renderRecordSection(record: TestRecord | undefined): string {
-  const lines = ["## Último resultado", ""];
-  if (!record) return [...lines, "Sin registro: todavía no se corrió."].join("\n");
-  const where = record.remote ? "nube" : "local";
-  lines.push(`Nivel alcanzado: ${record.level}`, `${record.finishedAt} (${where}), commit ${record.commit.slice(0, SHORT_COMMIT_LENGTH)}`, "");
-  for (const r of record.results) lines.push(`- ${r.ok ? "✓" : "✗"} \`${r.command}\``);
-  return lines.join("\n");
+export function resolveNotes(repo: string, notes: string | undefined): string | undefined {
+  if (!notes || isAbsolute(notes)) return notes;
+  const file = resolve(repo, notes);
+  const inside = (path: string, root: string): boolean => {
+    const rel = relative(root, path);
+    return rel !== "" && !rel.startsWith("..") && !isAbsolute(rel);
+  };
+  try {
+    if (!inside(file, repo) || !statSync(file).isFile()) return notes;
+    if (!inside(realpathSync(file), realpathSync(repo))) return notes;
+    return readFileSync(file, "utf8");
+  } catch {
+    return notes;
+  }
 }
 
 /**
  * Renders the generated block of the manual, markers included.
  *
- * @param input - Config, last record, package version and optional notes (default: `config.notes`).
+ * @param input - Config, package version and optional notes text (default: `config.notes`).
  * @returns The block.
  * @example
  * renderManual({ config, packageVersion: "1.0.0" }).startsWith(BEGIN); // true
  */
-export function renderManual(input: { config: CloudConfig; record?: TestRecord; packageVersion: string; notes?: string }): string {
+export function renderManual(input: { config: CloudConfig; packageVersion: string; notes?: string }): string {
   const notes = input.notes ?? input.config.notes;
   const parts = [
     BEGIN,
@@ -156,9 +169,8 @@ export function renderManual(input: { config: CloudConfig; record?: TestRecord; 
     "# Nube de Claude Code",
     HOW_IT_WORKS,
     renderEnvironmentSection(input.config),
-    renderTestsSection(input.config),
-    renderRecordSection(input.record),
-    `## Qué no corre en la nube\n\n${notes?.trim() ? notes.trim() : "Nada anotado."}`,
+    VERIFY_SECTION,
+    `## Qué corre en la nube\n\n${notes?.trim() ? notes.trim() : "Nada anotado."}`,
     END,
   ];
   return parts.join("\n\n");
@@ -197,7 +209,7 @@ export function writeManual(repo: string, packageVersion: string): string {
   if (!config) throw new Error(errors[0] ?? `${CONFIG_FILE} not found; run init first`);
   const file = join(repo, MANUAL_FILE);
   const existing = existsSync(file) ? readFileSync(file, "utf8") : undefined;
-  const block = renderManual({ config, record: readTestRecord(repo), packageVersion });
+  const block = renderManual({ config, packageVersion, notes: resolveNotes(repo, config.notes) });
   mkdirSync(dirname(file), { recursive: true });
   const temp = `${file}.${process.pid}.tmp`;
   try {

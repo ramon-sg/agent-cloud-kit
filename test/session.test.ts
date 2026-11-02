@@ -52,7 +52,7 @@ const writeConfig = (extra: Record<string, unknown> = {}) =>
   writeFileSync(join(repo, ".claude/cloud.json"), JSON.stringify({ version: "1.0.0", ...extra }));
 
 const config = (extra: Partial<CloudConfig> = {}): CloudConfig => ({
-  version: "1.0.0", aptRepos: [], apt: [], docker: { pull: "auto" }, setup: [], session: [], requiredEnv: [], domains: [], tests: {}, ...extra,
+  version: "1.0.0", aptRepos: [], apt: [], docker: { pull: "auto" }, setup: [], session: [], requiredEnv: [], domains: [], ...extra,
 });
 
 const record = (steps: StepResult[], fp = fingerprint(config(), {}, [], "1.0.0"), resolved = {}) =>

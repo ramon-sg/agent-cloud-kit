@@ -64,19 +64,9 @@
       "default": [],
       "description": "Extra hosts the cloud environment must allow; doctor probes them and the manual lists them."
     },
-    "tests": {
-      "type": "object",
-      "additionalProperties": false,
-      "default": {},
-      "properties": {
-        "minimum": { "type": "string", "description": "Shell command for the minimum test level." },
-        "full": { "type": "string", "description": "Shell command for the full test level." }
-      },
-      "description": "Shell commands for each test level."
-    },
     "notes": {
       "type": "string",
-      "description": "Path, relative to the repo, of a text file appended to the session notes."
+      "description": "What does and does not run in the cloud: free text, or a path, relative to the repo, of a text file the manual inlines."
     }
   }
 }

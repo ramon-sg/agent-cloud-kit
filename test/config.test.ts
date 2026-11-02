@@ -45,7 +45,6 @@ describe("readConfig", () => {
       requiredEnv: ["TOKEN"],
       notes: "hello",
       domains: ["api.example.com"],
-      tests: { minimum: "npm run t", full: "npm test" },
     };
     const result = readConfig(makeRepo(JSON.stringify({ $schema: "./schema.json", ...full })));
     assert.deepEqual(result, { config: full, errors: [] });
@@ -70,7 +69,6 @@ describe("readConfig", () => {
         session: [],
         requiredEnv: [],
         domains: [],
-        tests: {},
       },
       errors: [],
     });
@@ -118,19 +116,17 @@ describe("readConfig", () => {
   });
 });
 
-describe("domains and tests", () => {
-  it("reads domains and tests", () => {
-    const repo = makeRepo(JSON.stringify({ version: "1.0.0", domains: ["api.example.com"], tests: { minimum: "npm run t", full: "npm test" } }));
+describe("domains", () => {
+  it("reads domains", () => {
+    const repo = makeRepo(JSON.stringify({ version: "1.0.0", domains: ["api.example.com"] }));
     const result = readConfig(repo);
     assert.deepEqual(result.errors, []);
     assert.deepEqual(result.config?.domains, ["api.example.com"]);
-    assert.deepEqual(result.config?.tests, { minimum: "npm run t", full: "npm test" });
   });
 
-  it("defaults to no domains and no tests", () => {
+  it("defaults to no domains", () => {
     const result = readConfig(makeRepo(JSON.stringify({ version: "1.0.0" })));
     assert.deepEqual(result.config?.domains, []);
-    assert.deepEqual(result.config?.tests, {});
   });
 
   it("reports and drops invalid hosts", () => {
@@ -140,20 +136,10 @@ describe("domains and tests", () => {
     assert.deepEqual(result.config?.domains, ["ok.example.com"]);
   });
 
-  it("reports unknown and non-string tests fields", () => {
-    const repo = makeRepo(JSON.stringify({ version: "1.0.0", tests: { e2e: "x", full: 3, minimum: "m" } }));
-    const result = readConfig(repo);
-    assert.deepEqual(result.errors, [
-      '.claude/cloud.json: unknown field "tests.e2e"',
-      '.claude/cloud.json: "tests.full" must be a string',
-    ]);
-    assert.deepEqual(result.config?.tests, { minimum: "m" });
-  });
-
-  it("reports a non-object tests", () => {
-    const result = readConfig(makeRepo(JSON.stringify({ version: "1.0.0", tests: "npm test" })));
-    assert.deepEqual(result.errors, ['.claude/cloud.json: "tests" must be an object']);
-    assert.deepEqual(result.config?.tests, {});
+  it("tests is an unknown field", () => {
+    const result = readConfig(makeRepo(JSON.stringify({ version: "1.0.0", tests: { unit: "npm test" } })));
+    assert.deepEqual(result.errors, ['.claude/cloud.json: unknown field "tests"']);
+    assert.equal("tests" in (result.config ?? {}), false);
   });
 });
 

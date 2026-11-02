@@ -19,7 +19,6 @@ const BASE: CloudConfig = {
   session: [],
   requiredEnv: [],
   domains: [],
-  tests: {},
 };
 
 let dir = "";
@@ -44,8 +43,7 @@ test("fingerprint ignores key order", () => {
     aptRepos: [],
     version: "1.0.0",
     domains: [],
-    tests: {},
-  };
+    };
   assert.equal(
     fingerprint(BASE, { node: "20", bun: "1" }, [], "1.0.0"),
     fingerprint(reordered, { bun: "1", node: "20" }, [], "1.0.0"),
@@ -60,8 +58,8 @@ test("fingerprint changes with apt, versions, images or package version", () => 
   assert.notEqual(base, fingerprint(BASE, {}, [], "1.0.1"));
 });
 
-test("domains and tests do not change the fingerprint", () => {
-  const other: CloudConfig = { ...BASE, domains: ["api.example.com"], tests: { minimum: "a", full: "b" } };
+test("domains do not change the fingerprint", () => {
+  const other: CloudConfig = { ...BASE, domains: ["api.example.com"] };
   assert.equal(fingerprint(BASE, {}, [], "1.0.0"), fingerprint(other, {}, [], "1.0.0"));
 });
 
