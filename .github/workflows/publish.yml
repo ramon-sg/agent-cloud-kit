@@ -26,10 +26,12 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
-      - name: Publish (prereleases such as 1.0.0-rc.1 go to the next tag)
+      - name: Publish (a prerelease goes to next once a stable version is latest)
         run: |
           version="$(node -p "require('./package.json').version")"
-          case "$version" in
-            *-*) npm publish --tag next ;;
+          latest="$(npm view agent-cloud-kit dist-tags.latest 2>/dev/null || true)"
+          case "$version:$latest" in
+            *-*:*-*|*-*:) npm publish ;;
+            *-*:*) npm publish --tag next ;;
             *) npm publish ;;
           esac
