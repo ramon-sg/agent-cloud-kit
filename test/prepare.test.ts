@@ -340,14 +340,14 @@ test("Ctrl+C at the first questions says nothing was created", async () => {
 test("a Ctrl+C while a child runs prints the resume line through onInterrupt, which is removed at the end", async () => {
   let handler: (() => void) | undefined;
   let removed = false;
-  const onInterrupt = (h: () => void): (() => void) => {
+  const onInterrupt = (h: () => boolean): (() => void) => {
     handler = h;
     return () => {
       removed = true;
     };
   };
   const pushRun: Run = async (cmd, args, opts) => {
-    if (cmd === "git" && args[0] === "push") handler?.();
+    if (cmd === "git" && args[0] === "push") assert.equal(handler?.(), true);
     return run(cmd, args, opts);
   };
   assert.equal(await prepare(repo, deps({ onInterrupt, run: pushRun })), 0, printed.join("\n"));
@@ -382,4 +382,35 @@ test("a rename staged by the agent is listed with both paths and unstaged on no"
   assert.ok(argvs().includes("git reset -q -- DOCS.md README.md"));
   assert.ok(!committed().includes("README.md") && !committed().includes("DOCS.md"));
   assert.ok(existsSync(join(worktree, "DOCS.md")));
+});
+
+test("a Ctrl+C inside the interactive claude does not end prepare", async () => {
+  let handler: (() => boolean) | undefined;
+  const results: boolean[] = [];
+  const onInterrupt = (h: () => boolean): (() => void) => {
+    handler = h;
+    return () => undefined;
+  };
+  const claudeRun: Run = async (cmd, args, opts) => {
+    if (cmd === "claude") results.push(handler?.() ?? true);
+    return run(cmd, args, opts);
+  };
+  assert.equal(await prepare(repo, deps({ onInterrupt, run: claudeRun })), 0, printed.join("\n"));
+  assert.deepEqual(results, [false, false]);
+  assert.ok(!printed.some((l) => l.startsWith("interrupted")));
+  assert.equal(handler?.(), true);
+});
+
+test("a Ctrl+C inside an agent that then stops still leads to the notes check", async () => {
+  let handler: (() => boolean) | undefined;
+  const onInterrupt = (h: () => boolean): (() => void) => {
+    handler = h;
+    return () => undefined;
+  };
+  agent = () => {
+    assert.equal(handler?.(), false);
+  };
+  assert.equal(await prepare(repo, deps({ onInterrupt })), 1);
+  assert.ok(printed.includes(`the local agent stopped; the worktree is at ${worktree}; run agent-cloud-kit prepare --resume there`));
+  assert.ok(!printed.some((l) => l.startsWith("interrupted")));
 });

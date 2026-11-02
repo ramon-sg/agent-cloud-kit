@@ -19,6 +19,7 @@ import { findRepos, packageBin, planSetup, relaunch } from "./launcher.ts";
 import type { SetupPlanItem } from "./launcher.ts";
 import { MANUAL_FILE, writeManual } from "./manual.ts";
 import { EXIT_INTERRUPTED, InterruptedError, branchDay, prepare } from "./prepare/index.ts";
+import type { InterruptHandler } from "./prepare/index.ts";
 import type { Ask } from "./prepare/questions.ts";
 import { captureProcess, runProcess } from "./run.ts";
 import type { Capture, Run } from "./run.ts";
@@ -97,7 +98,7 @@ export interface CliDeps {
   /** Today as `YYYYMMDD`; the current local day when omitted. */
   today?: string;
   /** Registers a Ctrl+C handler for `prepare`; the process one (exiting 130) when omitted. */
-  onInterrupt?: (handler: () => void) => () => void;
+  onInterrupt?: (handler: InterruptHandler) => () => void;
 }
 
 /**
@@ -338,19 +339,20 @@ const askTerminal: Ask = async (question, suggestion) => {
 };
 
 /**
- * Registers a process SIGINT handler (Ctrl+C while a child runs) that exits 130 after it.
+ * Registers a process SIGINT listener (Ctrl+C while a child runs). Being registered, it replaces
+ * Node's default exit for every Ctrl+C; it exits 130 only when the handler says so, so a Ctrl+C
+ * meant for an interactive `claude` (same process group) does not end `prepare`.
  *
- * @param handler - Prints where the worktree is.
- * @returns Removes the handler.
+ * @param handler - Prints where the worktree is and says whether to exit.
+ * @returns Removes the listener.
  * @example
- * const stop = onProcessInterrupt(() => console.log("bye")); stop();
+ * const stop = onProcessInterrupt(() => true); stop();
  */
-function onProcessInterrupt(handler: () => void): () => void {
+function onProcessInterrupt(handler: InterruptHandler): () => void {
   const listener = (): void => {
-    handler();
-    process.exit(EXIT_INTERRUPTED);
+    if (handler()) process.exit(EXIT_INTERRUPTED);
   };
-  process.once("SIGINT", listener);
+  process.on("SIGINT", listener);
   return () => process.off("SIGINT", listener);
 }
 

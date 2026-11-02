@@ -80,7 +80,12 @@ export class InterruptedError extends Error {
 interface Progress {
   /** Worktree folder, once it exists. */
   worktree?: string;
+  /** True while an interactive `claude` owns the terminal: Ctrl+C is for it, not for `prepare`. */
+  childOwnsTerminal?: boolean;
 }
+
+/** Handler `prepare` registers for Ctrl+C; returns true when the process should exit. */
+export type InterruptHandler = () => boolean;
 
 /** Everything `prepare` needs from the outside, so tests can inject fakes. */
 export interface PrepareDeps {
@@ -103,10 +108,12 @@ export interface PrepareDeps {
   /** Whether stdin and stdout are interactive terminals. */
   isTty: boolean;
   /**
-   * Registers a handler for Ctrl+C while a child runs; returns a function that removes it. The
-   * caller exits with `EXIT_INTERRUPTED` after the handler. Nothing is registered when omitted.
+   * Registers a handler for every Ctrl+C until the returned function removes it. While it is
+   * registered the default exit must not happen: the caller exits with `EXIT_INTERRUPTED` only
+   * when the handler returns true (it returns false while an interactive `claude` owns the
+   * terminal). Nothing is registered when omitted.
    */
-  onInterrupt?: (handler: () => void) => () => void;
+  onInterrupt?: (handler: InterruptHandler) => () => void;
 }
 
 /** Options of `prepare`. */
@@ -337,7 +344,7 @@ async function createAndConfigure(repo: string, branch: string, worktree: string
     return false;
   }
   try {
-    await deps.run("claude", [configurePrompt(answers)], { cwd: worktree });
+    await runInteractive(deps, progress, [configurePrompt(answers)], worktree);
   } catch {
     deps.print(stopped);
     return false;
@@ -430,7 +437,11 @@ export async function prepare(repo: string, deps: PrepareDeps, options: PrepareO
     return EXIT_FAIL;
   }
   const progress: Progress = {};
-  const stop = deps.onInterrupt?.(() => deps.print(interruptedLine(progress)));
+  const stop = deps.onInterrupt?.(() => {
+    if (progress.childOwnsTerminal) return false;
+    deps.print(interruptedLine(progress));
+    return true;
+  });
   try {
     return await prepareSteps(gitRoot, deps, options, progress);
   } catch (err) {
@@ -439,6 +450,28 @@ export async function prepare(repo: string, deps: PrepareDeps, options: PrepareO
     return EXIT_INTERRUPTED;
   } finally {
     stop?.();
+  }
+}
+
+/**
+ * Runs an interactive `claude` that owns the terminal. Ctrl+C meanwhile belongs to Claude (it
+ * interrupts the agent), so the interrupt handler ignores it until the child returns.
+ *
+ * @param deps - Dependencies.
+ * @param progress - Marks the child as owning the terminal.
+ * @param args - Arguments of `claude`.
+ * @param cwd - Worktree.
+ * @returns Resolves when `claude` exits 0.
+ * @throws When `claude` exits non-zero.
+ * @example
+ * await runInteractive(deps, progress, ["--cloud", prompt], "/home/u/app-cloud-ready");
+ */
+async function runInteractive(deps: PrepareDeps, progress: Progress, args: string[], cwd: string): Promise<void> {
+  progress.childOwnsTerminal = true;
+  try {
+    await deps.run("claude", args, { cwd });
+  } finally {
+    progress.childOwnsTerminal = false;
   }
 }
 
@@ -493,7 +526,7 @@ async function prepareSteps(gitRoot: string, deps: PrepareDeps, options: Prepare
   if (config) deps.print(renderEnvironmentSection(config));
   await deps.waitEnter(WAIT_TEXT);
   try {
-    await deps.run("claude", ["--cloud", verifyPrompt({ branch, pr: pushed.pr })], { cwd: worktree });
+    await runInteractive(deps, progress, ["--cloud", verifyPrompt({ branch, pr: pushed.pr })], worktree);
   } catch (err) {
     deps.print(`${OUTPUT_PREFIX}claude --cloud failed: ${message(err)}; run ${PACKAGE} prepare --resume in ${worktree} to try again`);
     return EXIT_FAIL;
