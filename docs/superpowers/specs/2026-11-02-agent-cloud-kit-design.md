@@ -39,8 +39,7 @@ paquete debe juntarlo y hacerlo crecer.
   `.agents/skills/test-audit/project.md` y entradas de `"scripts"` en `package.json`. Nunca
   código ni tests. Máximo 3 intentos. Lo que solo se cambia en claude.ai (dominios, variables,
   rehacer la máquina) lo reporta con la instrucción exacta y se detiene.
-- **Versión inicial 2.0.0**, para que un `version` < 2.0.0 en `.claude/cloud.json` signifique
-  sin ambigüedad "el paquete viejo `@ramon-sg/claude-cloud`".
+- **Versión inicial 1.0.0** del paquete nuevo. **Sin migración ni compatibilidad** con `@ramon-sg/claude-cloud`: solo un repo lo usa y se actualiza a mano al final.
 - **Se mantiene `.claude/cloud.json`** como archivo de config (agent-kitchen lo lee y "cloud" es
   genérico).
 - **Idioma:** código, CLI y README en inglés (como hoy). La skill y el manual generado en
@@ -49,17 +48,12 @@ paquete debe juntarlo y hacerlo crecer.
   usa skills-manager; como el lock no la conoce, es "skill propia del repo" y `check` no la marca).
 - **Manual en `docs/agent-cloud.md`**, generado por la CLI de forma determinista.
 - **Worktree hermano:** `../<repo>-cloud-ready`, rama `chore/cloud-ready-<AAAAMMDD>`.
-- **Última versión del paquete viejo, `@ramon-sg/claude-cloud` 1.1.0:** cuando un repo fija
-  `version` >= 2.0.0, relanza `npx -y agent-cloud-kit@<v> setup --repo <repo>` en vez de
-  `@ramon-sg/claude-cloud@<v>` (que no existe). Así un entorno de claude.ai con el setup script
-  viejo (`@ramon-sg/claude-cloud@1`) sigue funcionando con repos ya migrados. Se publica antes que
-  issue-flow y agent-kitchen.
-- **issue-flow también se actualiza:** busca primero `/opt/agent-cloud-kit/bin/agent-cloud-kit` y
-  luego el bin viejo, su mensaje apunta a `agent-cloud-kit@2`, y reconoce ambas marcas de hook.
-- **La pieza de agent-kitchen** pasa a llamarse `agent-cloud-kit`. Instala y migra con
+- **issue-flow también se actualiza:** su hook pasa a `/opt/agent-cloud-kit/bin/agent-cloud-kit`,
+  su mensaje apunta a `agent-cloud-kit@1` y su marca a `agent-cloud-kit session`. Sin respaldo al bin viejo.
+- **La pieza de agent-kitchen** pasa a llamarse `agent-cloud-kit`. Instala con
   `npx agent-cloud-kit@<última> init` (que también copia la skill), sigue moviendo `version` y
-  `$schema` en las actualizaciones 2.x, acepta `claude-cloud` como alias en `--skip` y en
-  `.agents/kitchen.json`, y al terminar `apply` sugiere `npx agent-cloud-kit prepare`.
+  `$schema` al actualizar, y al terminar `apply` sugiere `npx agent-cloud-kit prepare`. Sin alias
+  ni migración del nombre viejo.
 - **Si `claude --cloud` no acepta prompt o rama**, `prepare` no se rinde: imprime los pasos exactos
   para abrir la sesión en claude.ai y el prompt de `verify` para pegarlo.
 
@@ -73,15 +67,6 @@ paquete debe juntarlo y hacerlo crecer.
   herramientas `/opt/agent-cloud-kit`; variables `AGENT_CLOUD_KIT_DIR`, `AGENT_CLOUD_KIT_HOME`,
   `AGENT_CLOUD_KIT_DELEGATED`. Las variables de la plataforma (`CLAUDE_CODE_REMOTE`,
   `CLAUDE_ENV_FILE`, `CLAUDE_PROJECT_DIR`) no cambian.
-- **Compatibilidad con el paquete viejo:**
-  - `setup` con un repo que fija `version` < 2.0.0 relanza `npx -y @ramon-sg/claude-cloud@<v>
-    setup --repo <repo>` y avisa que se migre con `npx agent-cloud-kit init`.
-  - `setup` deja también `/opt/claude-cloud/bin/claude-cloud` apuntando al bin nuevo **solo si
-    esa ruta no existe**, para que el hook de un issue-flow viejo siga funcionando.
-  - `init` reconoce como hook ya presente tanto `agent-cloud-kit session` como
-    `claude-cloud session`. Si encuentra el hook propio viejo de claude-cloud (su comando exacto),
-    lo reemplaza por el nuevo. Si `.claude/cloud.json` fija < 2.0.0 o su `$schema` apunta a
-    `@ramon-sg/claude-cloud`, lo migra: `version` y `$schema` a la versión actual.
 - **Fiabilidad:**
   - Instalación atómica: Node y los instaladores npm/pip escriben en `<dir>.<pid>.tmp` y
     renombran al terminar; un fallo borra el temporal.
@@ -152,7 +137,7 @@ Viaja en el paquete (`skills/cloud-ready/`) y `init` la copia a `.agents/skills/
 
 Secciones: qué es y el flujo en 5 líneas; cómo configurar el entorno en claude.ai (Network
 access: *Custom* + "Also include default list…" + la lista de dominios = `domains` más los hosts
-de `aptRepos`; el setup script exacto `#!/bin/bash\nnpx -y agent-cloud-kit@2 setup`; las
+de `aptRepos`; el setup script exacto `#!/bin/bash\nnpx -y agent-cloud-kit@1 setup`; las
 variables de `requiredEnv`, solo nombres, con la advertencia de que el entorno es legible por
 quien lo use y que no llegan al setup script); cómo correr los tests (`agent-cloud-kit test
 --level full`); último resultado (de `.claude/cloud-tests.json`: nivel, ✓/✗ por comando, fecha,
@@ -189,11 +174,11 @@ si fue en la nube); qué no corre en la nube (de `notes`, si existe).
   `setup`, `session` y `tests`, que son del repo por diseño).
 - `setup` y `session` nunca fallan la sesión (sale 0, registra fallos).
 - Nada de acciones externas sin el usuario: crear el repo en GitHub, el primer `npm publish`,
-  `npm deprecate` del paquete viejo y configurar claude.ai son pasos del usuario.
+  `npm deprecate` del paquete viejo, actualizar el repo que usa el paquete viejo y configurar claude.ai son pasos del usuario.
 
 ## Fuera de alcance
 
-Otros lenguajes; descargar skills; simular la nube como prueba final (el e2e con proxy sigue
+Migración automática desde `@ramon-sg/claude-cloud`. Otros lenguajes; descargar skills; simular la nube como prueba final (el e2e con proxy sigue
 como test del paquete, no como verificación del usuario); configurar claude.ai
 automáticamente.
 
