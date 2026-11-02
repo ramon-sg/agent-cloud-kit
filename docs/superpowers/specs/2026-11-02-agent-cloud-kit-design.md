@@ -39,7 +39,7 @@ paquete debe juntarlo y hacerlo crecer.
   `.agents/skills/test-audit/project.md` y entradas de `"scripts"` en `package.json`. Nunca
   código ni tests. Máximo 3 intentos. Lo que solo se cambia en claude.ai (dominios, variables,
   rehacer la máquina) lo reporta con la instrucción exacta y se detiene.
-- **Versión inicial 1.0.0** del paquete nuevo. **Sin migración ni compatibilidad** con `@ramon-sg/claude-cloud`: solo un repo lo usa y se actualiza a mano al final.
+- **Versión inicial 1.0.0** del paquete nuevo. **Sin migración ni compatibilidad** con `@ramon-sg/claude-cloud`: solo kaname lo usa (junto con agent-kitchen) y el usuario lo actualiza a mano al final.
 - **Se mantiene `.claude/cloud.json`** como archivo de config (agent-kitchen lo lee y "cloud" es
   genérico).
 - **Idioma:** código, CLI y README en inglés (como hoy). La skill y el manual generado en
@@ -174,7 +174,7 @@ si fue en la nube); qué no corre en la nube (de `notes`, si existe).
   `setup`, `session` y `tests`, que son del repo por diseño).
 - `setup` y `session` nunca fallan la sesión (sale 0, registra fallos).
 - Nada de acciones externas sin el usuario: crear el repo en GitHub, el primer `npm publish`,
-  `npm deprecate` del paquete viejo, actualizar el repo que usa el paquete viejo y configurar claude.ai son pasos del usuario.
+  `npm deprecate` del paquete viejo, actualizar kaname y configurar claude.ai son pasos del usuario.
 
 ## Fuera de alcance
 

@@ -13,7 +13,7 @@
 ## Contexto para quien empieza en limpio
 
 - Este repo es una copia local (con historial) de `../claude-cloud`, **sin remoto**. Crear `github.com/ramon-sg/agent-cloud-kit` es un paso del usuario (Tarea 16).
-- `../claude-cloud` no se toca. No hay migración: el único repo que usa `@ramon-sg/claude-cloud` se actualiza a mano en la Tarea 16.
+- `../claude-cloud` no se toca. No hay migración: el único repo que usa `@ramon-sg/claude-cloud` (y agent-kitchen) es **kaname**, y lo actualiza el usuario a mano. El agente no lo toca.
 - Repos hermanos que el plan toca al final: `../issue-flow` (su hook `SessionStart` ejecuta `/opt/claude-cloud/bin/claude-cloud session` y usa el texto `claude-cloud session` como marca, ver `src/commands/session.ts` y `src/settings-hooks.ts`) y `../agent-kitchen` (pieza `src/pieces/cloud.ts`).
 - Estilo del código: cada constante con nombre y TSDoc, funciones con TSDoc y `@example`, dependencias inyectadas (`Run`, `Capture`, `DockerOps`) para testear sin procesos reales. Sigue el estilo de los archivos vecinos.
 - Comandos: `npm test`, `npm run typecheck`, `npm run build`, e2e `bash test/e2e/run.sh` (necesita Docker).
@@ -336,13 +336,12 @@ Throwaway: no produce código del paquete, produce `docs/cloud-cli.md` con respu
 - [ ] **Step 2:** `npm test` → FAIL. **Step 3:** implementar y actualizar docs (tabla de piezas, agent-guide: archivos `.agents/skills/cloud-ready/`, `docs/agent-cloud.md`, `.claude/cloud-tests.json`; sección "En la nube de Claude": `agent-cloud-kit session`, `prepare`). **Step 4:** PASS.
 - [ ] **Step 5:** Commit en una rama `feat/agent-cloud-kit` de agent-kitchen; no publicar sin el usuario.
 
-### Task 16: Publicación y actualización del repo que usa el paquete viejo (lo hace el usuario; el agente prepara y guía)
+### Task 16: Publicación (lo hace el usuario; el agente prepara y guía)
 
 - [ ] **Step 1:** El usuario crea `github.com/ramon-sg/agent-cloud-kit`; el agente añade el remoto y pushea `main` cuando el usuario lo confirme.
 - [ ] **Step 2:** Primera publicación a mano (README → Releasing): `npm publish --provenance=false` por el usuario; luego trusted publisher en npmjs.com; luego tag `v1.0.0` sin release.
 - [ ] **Step 3:** Publicar en este orden: agent-cloud-kit 1.0.0 → issue-flow → agent-kitchen 0.10.0.
-- [ ] **Step 4:** Preguntar al usuario cuál es el repo que usa `@ramon-sg/claude-cloud` y, con su permiso, actualizarlo a mano en una rama: quitar de `.claude/settings.json` el hook `SessionStart` que llama a `/opt/claude-cloud/bin/claude-cloud`; en `.claude/cloud.json` poner `version: "1.0.0"` y `$schema: "https://unpkg.com/agent-cloud-kit@1.0.0/schema.json"`; correr `npx agent-cloud-kit init` (añade el hook nuevo y la skill). Si usa issue-flow o agent-kitchen, basta con `npx agent-kitchen apply` tras el paso 3.
-- [ ] **Step 5:** El usuario cambia el setup script de ese entorno en claude.ai a `npx -y agent-cloud-kit@1 setup` y, si quiere, `npm deprecate @ramon-sg/claude-cloud "Moved to agent-cloud-kit"`.
+- [ ] **Step 4:** Recordar al usuario lo que queda de su lado: actualizar **kaname** a mano (con `npx agent-kitchen apply` una vez publicado agent-kitchen 0.10.0, más quitar el hook viejo de `claude-cloud` si queda), cambiar el setup script de su entorno en claude.ai a `npx -y agent-cloud-kit@1 setup` y, si quiere, `npm deprecate @ramon-sg/claude-cloud "Moved to agent-cloud-kit"`.
 
 ---
 
