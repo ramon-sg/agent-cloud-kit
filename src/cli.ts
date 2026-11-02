@@ -15,6 +15,7 @@ import type { DockerOps } from "./docker.ts";
 import { init } from "./init.ts";
 import { findRepos, packageBin, planSetup, relaunch } from "./launcher.ts";
 import type { SetupPlanItem } from "./launcher.ts";
+import { MANUAL_FILE, writeManual } from "./manual.ts";
 import { captureProcess, runProcess } from "./run.ts";
 import type { Capture, Run } from "./run.ts";
 import { session } from "./session.ts";
@@ -35,6 +36,7 @@ Commands:
   init                   create .claude/cloud.json and register the SessionStart hook
   test [--level minimum|full] [--record]
                          run the tests of .claude/cloud.json (default level: full); --record saves the result
+  manual                 write docs/agent-cloud.md from .claude/cloud.json and the last test record
 
 Options:
   --help                 show this help
@@ -274,6 +276,23 @@ function initCommand(deps: CliDeps): number {
   return result.ok ? EXIT_OK : EXIT_FAIL;
 }
 
+/**
+ * Runs `manual`: writes `docs/agent-cloud.md` for the session repo.
+ *
+ * @param deps - CLI dependencies.
+ * @returns 0 on success, 1 when there is no usable config.
+ */
+function manualCommand(deps: CliDeps): number {
+  try {
+    writeManual(sessionRepo(deps), deps.packageVersion);
+  } catch (err) {
+    deps.print(`${OUTPUT_PREFIX}${message(err)}`);
+    return EXIT_FAIL;
+  }
+  deps.print(`${OUTPUT_PREFIX}wrote ${MANUAL_FILE}`);
+  return EXIT_OK;
+}
+
 /** Test levels `test --level` accepts. */
 const TEST_LEVELS: readonly TestLevel[] = ["minimum", "full"];
 
@@ -341,6 +360,7 @@ export async function main(argv: string[], deps: CliDeps): Promise<number> {
   if (command === "doctor") return doctorCommand(deps);
   if (command === "init") return initCommand(deps);
   if (command === "test") return testCommand(rest, deps);
+  if (command === "manual") return manualCommand(deps);
   if (command === "--version") {
     deps.print(deps.packageVersion);
     return EXIT_OK;
