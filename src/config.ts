@@ -22,6 +22,8 @@ export const CONFIG_KEYS = [
   "session",
   "requiredEnv",
   "notes",
+  "domains",
+  "tests",
 ] as const;
 
 /** Keys accepted inside the `docker` object. */
@@ -29,6 +31,12 @@ const DOCKER_KEYS = ["pull"] as const;
 
 /** Keys that hold a list of strings. */
 const LIST_KEYS = ["aptRepos", "apt", "setup", "session", "requiredEnv"] as const;
+
+/** Keys accepted inside the `tests` object. */
+const TESTS_KEYS = ["minimum", "full"] as const;
+
+/** A DNS host name: dot-separated labels, no scheme, port or path. */
+const HOST_NAME = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/i;
 
 /** Value of `docker.pull` that asks for image auto-detection. */
 const PULL_AUTO = "auto";
@@ -43,6 +51,10 @@ export interface CloudConfig {
   session: string[];
   requiredEnv: string[];
   notes?: string;
+  /** Extra hosts the cloud environment must allow. */
+  domains: string[];
+  /** Shell commands for each test level. */
+  tests: { minimum?: string; full?: string };
 }
 
 /** Result of reading a config: errors never throw, they are collected. */
@@ -123,6 +135,52 @@ function parseList(raw: Record<string, unknown>, key: string, errors: string[]):
 }
 
 /**
+ * Validates `domains`, dropping (and reporting) every entry that is not a plain host name.
+ *
+ * @param value - Raw `domains` value, possibly undefined.
+ * @param errors - Collector that receives any problem found.
+ * @returns The valid hosts.
+ * @example
+ * parseDomains(["api.example.com", "https://x"], errors); // ["api.example.com"], one error
+ */
+function parseDomains(value: unknown, errors: string[]): string[] {
+  if (value === undefined) return [];
+  if (!isStringList(value)) {
+    errors.push(fail('"domains" must be an array of strings'));
+    return [];
+  }
+  return value.filter((host) => {
+    const valid = HOST_NAME.test(host);
+    if (!valid) errors.push(fail(`"domains" has an invalid host: ${JSON.stringify(host)}`));
+    return valid;
+  });
+}
+
+/**
+ * Validates `tests`, keeping only the string commands of known levels.
+ *
+ * @param value - Raw `tests` value, possibly undefined.
+ * @param errors - Collector that receives any problem found.
+ * @returns The valid test commands.
+ * @example
+ * parseTests({ minimum: "npm test" }, errors); // { minimum: "npm test" }
+ */
+function parseTests(value: unknown, errors: string[]): CloudConfig["tests"] {
+  if (value === undefined) return {};
+  if (!isRecord(value)) {
+    errors.push(fail('"tests" must be an object'));
+    return {};
+  }
+  const tests: CloudConfig["tests"] = {};
+  for (const [key, command] of Object.entries(value)) {
+    if (!(TESTS_KEYS as readonly string[]).includes(key)) errors.push(fail(`unknown field "tests.${key}"`));
+    else if (typeof command !== "string") errors.push(fail(`"tests.${key}" must be a string`));
+    else tests[key as (typeof TESTS_KEYS)[number]] = command;
+  }
+  return tests;
+}
+
+/**
  * Validates the parsed object and builds a normalized config.
  *
  * @param raw - Parsed JSON object.
@@ -148,6 +206,8 @@ function parseConfig(raw: Record<string, unknown>, errors: string[]): CloudConfi
     setup: lists.setup ?? [],
     session: lists.session ?? [],
     requiredEnv: lists.requiredEnv ?? [],
+    domains: parseDomains(raw.domains, errors),
+    tests: parseTests(raw.tests, errors),
   };
   if (typeof raw.notes === "string") config.notes = raw.notes;
   else if (raw.notes !== undefined) errors.push(fail('"notes" must be a string'));

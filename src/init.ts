@@ -98,6 +98,8 @@ function scaffoldConfig(repo: string, packageVersion: string): string {
     setup: [],
     session: [],
     requiredEnv: [],
+    domains: [],
+    tests: {},
   });
   return `created ${CONFIG_FILE}`;
 }

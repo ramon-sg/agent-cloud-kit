@@ -64,6 +64,16 @@ test("reports each domain as ok or blocked and fails when any is blocked", async
   ]);
 });
 
+test("probes the configured domains after the fixed ones, skipping duplicates", async () => {
+  writeFileSync(join(repo, ".claude/cloud.json"), JSON.stringify({ version: "1.0.0", domains: ["api.example.com", "pypi.org"] }));
+  const { lines } = await doctor(repo, ctx());
+  assert.ok(probes.some((a) => a.at(-1) === "https://api.example.com/"));
+  assert.ok(lines.includes("agent-cloud-kit: network api.example.com: ok"), lines.join("\n"));
+  assert.equal(probes.filter((a) => a.at(-1) === "https://pypi.org/").length, 1);
+  const net = lines.filter((l) => l.includes("network "));
+  assert.ok(net.findIndex((l) => l.includes("api.example.com")) > net.findIndex((l) => l.includes("api.github.com")));
+});
+
 test("invalid and unresolved versions are failed lines, not exceptions", async () => {
   writeFileSync(join(repo, ".claude/cloud.json"), JSON.stringify({ version: "1.0.0" }));
   writeFileSync(join(repo, ".nvmrc"), "lts/iron\n");

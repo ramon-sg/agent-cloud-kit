@@ -58,6 +58,22 @@
       "default": [],
       "description": "Environment variables that must be set; a warning is shown when missing."
     },
+    "domains": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)+$" },
+      "default": [],
+      "description": "Extra hosts the cloud environment must allow; doctor probes them and the manual lists them."
+    },
+    "tests": {
+      "type": "object",
+      "additionalProperties": false,
+      "default": {},
+      "properties": {
+        "minimum": { "type": "string", "description": "Shell command for the minimum test level." },
+        "full": { "type": "string", "description": "Shell command for the full test level." }
+      },
+      "description": "Shell commands for each test level."
+    },
     "notes": {
       "type": "string",
       "description": "Path, relative to the repo, of a text file appended to the session notes."

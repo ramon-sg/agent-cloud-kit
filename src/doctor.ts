@@ -79,6 +79,18 @@ async function checkDomain(host: string, capture: Capture): Promise<Check> {
 }
 
 /**
+ * Lists the hosts to probe: the fixed ones, then the configured ones that are not repeated.
+ *
+ * @param repo - Repo root.
+ * @returns Host names without duplicates.
+ * @example
+ * domainsToProbe("/home/user/app"); // ["registry.npmjs.org", ..., "api.example.com"]
+ */
+function domainsToProbe(repo: string): string[] {
+  return [...new Set([...DOMAINS, ...(readConfig(repo).config?.domains ?? [])])];
+}
+
+/**
  * Checks that every pinned tool has its executable installed; an invalid version or a node
  * version setup never resolved is a failed check, not an exception.
  *
@@ -149,7 +161,7 @@ async function guarded(name: string, fn: () => Check[] | Promise<Check[]>): Prom
  */
 export async function doctor(repo: string, ctx: DoctorContext): Promise<DoctorResult> {
   const checks: Check[] = [];
-  checks.push(...(await guarded("network", async () => Promise.all(DOMAINS.map((host) => checkDomain(host, ctx.capture))))));
+  checks.push(...(await guarded("network", async () => Promise.all(domainsToProbe(repo).map((host) => checkDomain(host, ctx.capture))))));
   checks.push(...(await guarded("tools", () => checkTools(repo, ctx.toolsDir, readState(ctx.toolsDir, repo)))));
   checks.push(
     ...(await guarded("docker", () => {

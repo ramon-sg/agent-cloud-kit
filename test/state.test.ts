@@ -18,6 +18,8 @@ const BASE: CloudConfig = {
   setup: ["make"],
   session: [],
   requiredEnv: [],
+  domains: [],
+  tests: {},
 };
 
 let dir = "";
@@ -41,6 +43,8 @@ test("fingerprint ignores key order", () => {
     apt: ["jq"],
     aptRepos: [],
     version: "1.0.0",
+    domains: [],
+    tests: {},
   };
   assert.equal(
     fingerprint(BASE, { node: "20", bun: "1" }, [], "1.0.0"),
@@ -54,6 +58,11 @@ test("fingerprint changes with apt, versions, images or package version", () => 
   assert.notEqual(base, fingerprint(BASE, { node: "20" }, [], "1.0.0"));
   assert.notEqual(base, fingerprint(BASE, {}, ["img"], "1.0.0"));
   assert.notEqual(base, fingerprint(BASE, {}, [], "1.0.1"));
+});
+
+test("domains and tests do not change the fingerprint", () => {
+  const other: CloudConfig = { ...BASE, domains: ["api.example.com"], tests: { minimum: "a", full: "b" } };
+  assert.equal(fingerprint(BASE, {}, [], "1.0.0"), fingerprint(other, {}, [], "1.0.0"));
 });
 
 test("fingerprint ignores notes, session and requiredEnv", () => {
