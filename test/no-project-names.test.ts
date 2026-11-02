@@ -1,5 +1,5 @@
 /**
- * @file Guards that no project-specific name leaks into the package sources.
+ * @file Guards that no project-specific name leaks into the package sources or the shipped skills.
  */
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 
 const SRC_DIR = new URL("../src", import.meta.url).pathname;
+const SKILLS_DIR = new URL("../skills", import.meta.url).pathname;
 const FORBIDDEN = /abastio/i;
 
 /**
@@ -24,6 +25,11 @@ function listFiles(dir: string): string[] {
 describe("no project names", () => {
   it("keeps src/ free of the forbidden name", () => {
     const offenders = listFiles(SRC_DIR).filter((file) => FORBIDDEN.test(readFileSync(file, "utf8")));
+    assert.deepEqual(offenders, []);
+  });
+
+  it("keeps the shipped skills free of the forbidden name", () => {
+    const offenders = listFiles(SKILLS_DIR).filter((file) => FORBIDDEN.test(readFileSync(file, "utf8")));
     assert.deepEqual(offenders, []);
   });
 });

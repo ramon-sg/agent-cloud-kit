@@ -6,11 +6,10 @@
  */
 import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, symlinkSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
-import { fileURLToPath } from "node:url";
 import { findProxyCa } from "./ca.ts";
 import { readConfig } from "./config.ts";
 import type { CloudConfig } from "./config.ts";
-import { APT_STEP_TIMEOUT_MS, DOCKERD_LOG, DOCKER_PULL_TIMEOUT_MS, PULL_JOBS, SETUP_STEP_TIMEOUT_MS } from "./constants.ts";
+import { APT_STEP_TIMEOUT_MS, DOCKERD_LOG, DOCKER_PULL_TIMEOUT_MS, PULL_JOBS, RUNNING_PACKAGE_ROOT, SETUP_STEP_TIMEOUT_MS } from "./constants.ts";
 import { configImages, readToolVersions } from "./detect.ts";
 import { realDocker } from "./docker.ts";
 import type { DockerOps } from "./docker.ts";
@@ -56,9 +55,6 @@ const CLI_ENTRY = join(DIST_DIR, "cli.js");
 
 /** Mode of the CLI entry point: executable by everyone. */
 const EXECUTABLE_MODE = 0o755;
-
-/** Root of the running package: the folder above `dist/` (or `src/` in tests). */
-const RUNNING_PACKAGE_ROOT = fileURLToPath(new URL("..", import.meta.url));
 
 /** Everything `setupRepo` needs from the outside, so tests can inject fakes. */
 export interface SetupContext {

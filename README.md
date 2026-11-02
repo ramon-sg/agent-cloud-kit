@@ -47,8 +47,8 @@ In the environment form at `https://claude.ai/code`:
    new launcher major is adopted by editing this field on purpose. To force the saved machine to
    be rebuilt, change anything in this field (a comment with the date works).
 
-3. In each repo run `npx agent-cloud-kit init`, then commit `.claude/cloud.json` and
-   `.claude/settings.json`.
+3. In each repo run `npx agent-cloud-kit init`, then commit `.claude/cloud.json`,
+   `.claude/settings.json`, `.agents/skills/cloud-ready` and the `.claude/skills/cloud-ready` link.
 
 Environment changes are read when a session is created: start a new session to test them. A
 resumed session does not run the setup again.
@@ -102,7 +102,7 @@ A Node version that is not exact (`22`, `22.1`, `lts/iron`, `lts/*` or `node`) i
 | `agent-cloud-kit session`        | Runs from the `SessionStart` hook, in seconds and without network (except to complete the clone). Warns when setup did not run, failed steps, or the machine was prepared with another configuration; writes the `PATH` line (the pinned tools, then `/opt/agent-cloud-kit/bin`, so `agent-cloud-kit` itself resolves) to `$CLAUDE_ENV_FILE`; starts Docker; fetches the full history and `origin/<default branch>`; runs the `session` steps. It never fails the session start. |
 | `agent-cloud-kit docker`         | Starts `dockerd` detached and waits up to 60 seconds for it to answer. Exits 1 if it does not, at once when `dockerd` is not installed.                                                                                             |
 | `agent-cloud-kit doctor`         | Checks that the proxy lets the needed hosts through, that the pinned tools are installed, that Docker answers, and the recorded state (fingerprint and each step). Exits 1 if any check fails.                                       |
-| `agent-cloud-kit init`           | Creates `.claude/cloud.json` if missing and adds the `SessionStart` hook to `.claude/settings.json`, keeping the hooks already there. Safe to run again.                                                                           |
+| `agent-cloud-kit init`           | Creates `.claude/cloud.json` if missing, adds the `SessionStart` hook to `.claude/settings.json` (keeping the hooks already there), copies the `cloud-ready` skill to `.agents/skills/cloud-ready` when its version differs, and links it from `.claude/skills/cloud-ready`. Safe to run again.                                                                           |
 
 Environment variables: `AGENT_CLOUD_KIT_DIR` overrides `/opt/agent-cloud-kit` and `AGENT_CLOUD_KIT_HOME`
 overrides `/home/user`; both exist mainly for tests.

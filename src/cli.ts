@@ -8,7 +8,7 @@ import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { readConfig } from "./config.ts";
-import { CONFIG_FILE, DOCKERD_LOG, OUTPUT_PREFIX, homeDir, toolsDir } from "./constants.ts";
+import { CONFIG_FILE, DOCKERD_LOG, OUTPUT_PREFIX, RUNNING_PACKAGE_ROOT, homeDir, toolsDir } from "./constants.ts";
 import { doctor } from "./doctor.ts";
 import { dockerResponds, realDocker } from "./docker.ts";
 import type { DockerOps } from "./docker.ts";
@@ -78,7 +78,7 @@ export interface CliDeps {
   dockerInfo?: () => boolean;
   /** Working directory, used to find the repo when `CLAUDE_PROJECT_DIR` is not set. */
   cwd: string;
-  /** Root of the package that setup copies into the tools dir; the running package when omitted. */
+  /** Root of the package that setup copies into the tools dir and init copies the skill from; the running package when omitted. */
   packageRoot?: string;
 }
 
@@ -261,13 +261,19 @@ async function doctorCommand(deps: CliDeps): Promise<number> {
 }
 
 /**
- * Runs `init` for the session repo.
+ * Runs `init` for the session repo, copying the skill from `deps.packageRoot`.
  *
  * @param deps - CLI dependencies.
- * @returns 0, or 1 when settings.json is not valid JSON.
+ * @returns 0, or 1 when settings.json is not valid JSON or the skill cannot be copied.
  */
 function initCommand(deps: CliDeps): number {
-  const result = init(sessionRepo(deps), deps.packageVersion);
+  let result: ReturnType<typeof init>;
+  try {
+    result = init(sessionRepo(deps), deps.packageVersion, deps.packageRoot ?? RUNNING_PACKAGE_ROOT);
+  } catch (err) {
+    deps.print(`${OUTPUT_PREFIX}${message(err)}`);
+    return EXIT_FAIL;
+  }
   for (const line of result.lines) deps.print(line);
   return result.ok ? EXIT_OK : EXIT_FAIL;
 }

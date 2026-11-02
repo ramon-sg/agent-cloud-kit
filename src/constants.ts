@@ -1,12 +1,16 @@
 /**
  * @file Fixed values shared by the agent-cloud-kit modules, each in a documented constant.
  */
+import { fileURLToPath } from "node:url";
 
 /** Prefix of every line the CLI prints. */
 export const OUTPUT_PREFIX = "agent-cloud-kit: ";
 
 /** Path of the repo config file, relative to the repo root. */
 export const CONFIG_FILE = ".claude/cloud.json";
+
+/** Root of the running package: the folder above `dist/` (or `src/` in tests), which holds `skills/`. */
+export const RUNNING_PACKAGE_ROOT = fileURLToPath(new URL("..", import.meta.url));
 
 /** Name of this package on npm. */
 export const PACKAGE = "agent-cloud-kit";

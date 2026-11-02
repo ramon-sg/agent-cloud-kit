@@ -1,10 +1,11 @@
 /**
- * @file The `init` command: scaffolds `.claude/cloud.json` and registers the SessionStart hook in
- * `.claude/settings.json` without touching anything else.
+ * @file The `init` command: scaffolds `.claude/cloud.json`, registers the SessionStart hook in
+ * `.claude/settings.json` without touching anything else, and installs the `cloud-ready` skill.
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { CONFIG_FILE, OUTPUT_PREFIX, PACKAGE } from "./constants.ts";
+import { installSkill, linkSkill } from "./skill.ts";
 
 /** Path of the Claude Code settings file, relative to the repo root. */
 const SETTINGS_FILE = ".claude/settings.json";
@@ -130,16 +131,22 @@ function registerHook(repo: string): { line: string; ok: boolean } {
 }
 
 /**
- * Sets a repo up for agent-cloud-kit; safe to run again.
+ * Sets a repo up for agent-cloud-kit; safe to run again. It is the only place that copies the
+ * `cloud-ready` skill into the repo (and links it for Claude Code).
  *
  * @param repo - Repo root.
- * @param packageVersion - Version of this package, written into the config.
+ * @param packageVersion - Version of this package, written into the config and the skill.
+ * @param packageRoot - Root of this package, which holds `skills/cloud-ready`.
  * @returns What it did, and whether settings.json could be updated.
+ * @throws When the skill cannot be copied.
  * @example
- * init("/home/user/app", "1.0.0").lines.forEach((l) => console.log(l));
+ * init("/home/user/app", "1.0.0", "/usr/lib/node_modules/agent-cloud-kit").lines.forEach((l) => console.log(l));
  */
-export function init(repo: string, packageVersion: string): InitResult {
+export function init(repo: string, packageVersion: string, packageRoot: string): InitResult {
   const config = scaffoldConfig(repo, packageVersion);
   const hook = registerHook(repo);
-  return { lines: [config, hook.line].map((l) => OUTPUT_PREFIX + l), ok: hook.ok };
+  const skill = installSkill(repo, packageRoot, packageVersion);
+  const link = linkSkill(repo);
+  const lines = [config, hook.line, skill, ...(link ? [link] : [])];
+  return { lines: lines.map((l) => OUTPUT_PREFIX + l), ok: hook.ok };
 }

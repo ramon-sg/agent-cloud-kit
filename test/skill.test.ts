@@ -1,12 +1,12 @@
 /**
- * @file Tests for reading the version of the cloud-ready skill.
+ * @file Tests for reading and installing the version of the cloud-ready skill.
  */
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
-import { SKILL_DIR, skillVersion } from "../src/skill.ts";
+import { SKILL_DIR, installSkill, skillVersion } from "../src/skill.ts";
 
 let repo: string;
 
@@ -30,5 +30,23 @@ test("skillVersion reads metadata.version", () => {
 test("skillVersion ignores a top-level version and a missing file", () => {
   assert.equal(skillVersion(repo), undefined);
   write("---\nname: cloud-ready\nversion: 3.0.0\n---\n");
+  assert.equal(skillVersion(repo), undefined);
+});
+
+test("installSkill writes metadata.version when the packaged skill lacks it", () => {
+  for (const text of ["---\nname: cloud-ready\n---\nbody\n", "---\nname: cloud-ready\nmetadata:\n  author: x\n---\nbody\n"]) {
+    const pkg = mkdtempSync(join(tmpdir(), "cc-skill-pkg-"));
+    mkdirSync(join(pkg, "skills/cloud-ready"), { recursive: true });
+    writeFileSync(join(pkg, "skills/cloud-ready/SKILL.md"), text);
+    rmSync(join(repo, SKILL_DIR), { recursive: true, force: true });
+    installSkill(repo, pkg, "4.5.6");
+    assert.equal(skillVersion(repo), "4.5.6", text);
+    assert.ok(readFileSync(join(repo, SKILL_DIR, "SKILL.md"), "utf8").endsWith("---\nbody\n"));
+    rmSync(pkg, { recursive: true, force: true });
+  }
+});
+
+test("installSkill fails without touching the repo when the package has no skill", () => {
+  assert.throws(() => installSkill(repo, join(repo, "nowhere"), "1.0.0"), /SKILL\.md not found/);
   assert.equal(skillVersion(repo), undefined);
 });
