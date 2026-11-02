@@ -1,4 +1,4 @@
-# @ramon-sg/claude-cloud
+# agent-cloud-kit
 
 A zero-dependency CLI that prepares [Claude Code on the web](https://claude.ai/code) cloud
 sessions. It installs the tool versions a repo pins, starts Docker, completes the partial
@@ -16,7 +16,7 @@ Installing Node and starting Docker takes a few lines of shell. The expensive pa
 platform does not tell you:
 
 - The egress proxy blocks GitHub releases and GitHub's GraphQL API, so tools that download from
-  GitHub fail. `claude-cloud` installs Node from nodejs.org; Bun, Deno, pnpm and Yarn from npm;
+  GitHub fail. `agent-cloud-kit` installs Node from nodejs.org; Bun, Deno, pnpm and Yarn from npm;
   and uv from PyPI.
 - The setup script runs from `/home/user`, not from the repo, and a failure is silent.
 - A setup that takes more than about 5 minutes does not leave a saved machine.
@@ -33,21 +33,21 @@ In the environment form at `https://claude.ai/code`:
 
 1. **Network access:** choose *Custom* and keep **Also include default list of common package
    managers** checked. Add any extra domains your `apt` repos or setup steps need, one per line.
-   Run `claude-cloud doctor` in a session to see which hosts are blocked (it probes with `curl`,
+   Run `agent-cloud-kit doctor` in a session to see which hosts are blocked (it probes with `curl`,
    so it goes through the proxy like the setup does). If the setup never ran, use
-   `npx @ramon-sg/claude-cloud doctor`.
+   `npx agent-cloud-kit doctor`.
 2. **Setup script:** the cloud runs it as root from `/home/user`, before Claude starts:
 
    ```bash
    #!/bin/bash
-   npx -y @ramon-sg/claude-cloud@1 setup
+   npx -y agent-cloud-kit@1 setup
    ```
 
    The `@1` only pins the launcher. Each repo then relaunches the exact version it asks for, so a
    new launcher major is adopted by editing this field on purpose. To force the saved machine to
    be rebuilt, change anything in this field (a comment with the date works).
 
-3. In each repo run `npx @ramon-sg/claude-cloud init`, then commit `.claude/cloud.json` and
+3. In each repo run `npx agent-cloud-kit init`, then commit `.claude/cloud.json` and
    `.claude/settings.json`.
 
 Environment changes are read when a session is created: start a new session to test them. A
@@ -61,7 +61,7 @@ broken file never stops a session.
 
 ```json
 {
-  "$schema": "https://unpkg.com/@ramon-sg/claude-cloud/schema.json",
+  "$schema": "https://unpkg.com/agent-cloud-kit/schema.json",
   "version": "1.0.0",
   "aptRepos": ["https://example.com/setup.deb.sh"],
   "apt": ["direnv", "jq"],
@@ -86,25 +86,25 @@ broken file never stops a session.
 
 Tool versions are deduced, in order, from `.tool-versions`, `mise.toml`, `.nvmrc` and
 `package.json#packageManager`. The default branch comes from `origin/HEAD`. Each tool is installed
-under `/opt/claude-cloud/<tool>-<version>`, so versions coexist and the repos of one environment
+under `/opt/agent-cloud-kit/<tool>-<version>`, so versions coexist and the repos of one environment
 share the folder. A tool with no installer produces a warning and is skipped.
 
 A Node version that is not exact (`22`, `22.1`, `lts/iron`, `lts/*` or `node`) is resolved during
 `setup` to the newest matching release in `https://nodejs.org/dist/index.json` and installed under
-`/opt/claude-cloud/node-<exact version>`. The resolved version is recorded in the machine state, so
+`/opt/agent-cloud-kit/node-<exact version>`. The resolved version is recorded in the machine state, so
 `session` puts the same folder on `PATH`.
 
 ## Commands
 
 | Command                       | What it does                                                                                                                                                                                                                       |
 | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `claude-cloud setup [--repo <path>]` | Runs as root before Claude starts. For every git repo in the home dir (`/home/user`) with a `.claude/cloud.json` (or only `<path>`): installs tools, apt packages and images and copies itself (no npm, no network) to `/opt/claude-cloud/bin/claude-cloud`, then runs the `setup` steps and records the result. Repos without the file are skipped with a notice. It always exits 0: failures are recorded, never fatal. |
-| `claude-cloud session`        | Runs from the `SessionStart` hook, in seconds and without network (except to complete the clone). Warns when setup did not run, failed steps, or the machine was prepared with another configuration; writes the `PATH` line (the pinned tools, then `/opt/claude-cloud/bin`, so `claude-cloud` itself resolves) to `$CLAUDE_ENV_FILE`; starts Docker; fetches the full history and `origin/<default branch>`; runs the `session` steps. It never fails the session start. |
-| `claude-cloud docker`         | Starts `dockerd` detached and waits up to 60 seconds for it to answer. Exits 1 if it does not, at once when `dockerd` is not installed.                                                                                             |
-| `claude-cloud doctor`         | Checks that the proxy lets the needed hosts through, that the pinned tools are installed, that Docker answers, and the recorded state (fingerprint and each step). Exits 1 if any check fails.                                       |
-| `claude-cloud init`           | Creates `.claude/cloud.json` if missing and adds the `SessionStart` hook to `.claude/settings.json`, keeping the hooks already there. Safe to run again.                                                                           |
+| `agent-cloud-kit setup [--repo <path>]` | Runs as root before Claude starts. For every git repo in the home dir (`/home/user`) with a `.claude/cloud.json` (or only `<path>`): installs tools, apt packages and images and copies itself (no npm, no network) to `/opt/agent-cloud-kit/bin/agent-cloud-kit`, then runs the `setup` steps and records the result. Repos without the file are skipped with a notice. It always exits 0: failures are recorded, never fatal. |
+| `agent-cloud-kit session`        | Runs from the `SessionStart` hook, in seconds and without network (except to complete the clone). Warns when setup did not run, failed steps, or the machine was prepared with another configuration; writes the `PATH` line (the pinned tools, then `/opt/agent-cloud-kit/bin`, so `agent-cloud-kit` itself resolves) to `$CLAUDE_ENV_FILE`; starts Docker; fetches the full history and `origin/<default branch>`; runs the `session` steps. It never fails the session start. |
+| `agent-cloud-kit docker`         | Starts `dockerd` detached and waits up to 60 seconds for it to answer. Exits 1 if it does not, at once when `dockerd` is not installed.                                                                                             |
+| `agent-cloud-kit doctor`         | Checks that the proxy lets the needed hosts through, that the pinned tools are installed, that Docker answers, and the recorded state (fingerprint and each step). Exits 1 if any check fails.                                       |
+| `agent-cloud-kit init`           | Creates `.claude/cloud.json` if missing and adds the `SessionStart` hook to `.claude/settings.json`, keeping the hooks already there. Safe to run again.                                                                           |
 
-Environment variables: `CLAUDE_CLOUD_DIR` overrides `/opt/claude-cloud` and `CLAUDE_CLOUD_HOME`
+Environment variables: `AGENT_CLOUD_KIT_DIR` overrides `/opt/agent-cloud-kit` and `AGENT_CLOUD_KIT_HOME`
 overrides `/home/user`; both exist mainly for tests.
 
 ### The `SessionStart` hook
@@ -115,7 +115,7 @@ package that `setup` left on the saved machine, so it needs no network and no `n
 ```json
 {
   "type": "command",
-  "command": "[ \"$CLAUDE_CODE_REMOTE\" = true ] || exit 0; /opt/claude-cloud/bin/claude-cloud session || echo 'claude-cloud: the environment setup did not run; see npx @ramon-sg/claude-cloud doctor'",
+  "command": "[ \"$CLAUDE_CODE_REMOTE\" = true ] || exit 0; /opt/agent-cloud-kit/bin/agent-cloud-kit session || echo 'agent-cloud-kit: the environment setup did not run; see npx agent-cloud-kit doctor'",
   "timeout": 600
 }
 ```
@@ -173,7 +173,7 @@ The first publish of a new package cannot use npm trusted publishing, because tr
 is configured on a package that already exists. Publish the first version by hand:
 
 1. Either run `npm ci && npm run build && npm publish --provenance=false` from a machine logged in
-   to npm (`npm login`) with publish rights on the `@ramon-sg` scope (provenance needs a CI, and
+   to npm (`npm login`) with publish rights on the `agent-cloud-kit` package (provenance needs a CI, and
    `package.json` asks for it), or run the workflow once with an `NPM_TOKEN` secret
    (`NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}` on the publish step).
 2. On npmjs.com, open the package settings and add a trusted publisher: this GitHub repository and

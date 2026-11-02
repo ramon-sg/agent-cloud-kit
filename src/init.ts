@@ -10,7 +10,7 @@ import { CONFIG_FILE, OUTPUT_PREFIX, PACKAGE } from "./constants.ts";
 const SETTINGS_FILE = ".claude/settings.json";
 
 /** Text that marks a SessionStart hook as ours. */
-const HOOK_MARKER = "claude-cloud session";
+const HOOK_MARKER = "agent-cloud-kit session";
 
 /** Timeout of the hook, in seconds. */
 const HOOK_TIMEOUT_SECONDS = 600;
@@ -20,7 +20,7 @@ const JSON_INDENT = 2;
 
 /** Command of the SessionStart hook: does nothing outside cloud sessions. */
 const HOOK_COMMAND =
-  "[ \"$CLAUDE_CODE_REMOTE\" = true ] || exit 0; /opt/claude-cloud/bin/claude-cloud session || echo 'claude-cloud: the environment setup did not run; see npx @ramon-sg/claude-cloud doctor'";
+  "[ \"$CLAUDE_CODE_REMOTE\" = true ] || exit 0; /opt/agent-cloud-kit/bin/agent-cloud-kit session || echo 'agent-cloud-kit: the environment setup did not run; see npx agent-cloud-kit doctor'";
 
 /** The hook `init` registers. */
 const HOOK = { type: "command", command: HOOK_COMMAND, timeout: HOOK_TIMEOUT_SECONDS };
@@ -67,7 +67,7 @@ function writeJson(file: string, value: unknown): void {
 }
 
 /**
- * Tells whether some SessionStart entry already runs `claude-cloud session`.
+ * Tells whether some SessionStart entry already runs `agent-cloud-kit session`.
  *
  * @param entries - The `hooks.SessionStart` array.
  * @returns True when any hook command contains the marker.
@@ -129,7 +129,7 @@ function registerHook(repo: string): { line: string; ok: boolean } {
 }
 
 /**
- * Sets a repo up for claude-cloud; safe to run again.
+ * Sets a repo up for agent-cloud-kit; safe to run again.
  *
  * @param repo - Repo root.
  * @param packageVersion - Version of this package, written into the config.

@@ -1,6 +1,6 @@
 # Test bench: a proxy that blocks GitHub and a root container that can only reach the net through it.
 # `box` sits only on the internal network (no route out); `squid` is on both, so it is the only way out.
-name: claude-cloud-e2e
+name: agent-cloud-kit-e2e
 networks:
   internal:
     internal: true

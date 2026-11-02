@@ -100,7 +100,7 @@ const ctx = (up = true) => ({
 });
 
 /** Where the self install puts the package. */
-const installed = (): string => join(tools, "pkg", "1.0.0", "node_modules", "@ramon-sg", "claude-cloud");
+const installed = (): string => join(tools, "pkg", "1.0.0", "node_modules", "agent-cloud-kit");
 
 const writeConfig = (extra: Record<string, unknown> = {}) =>
   writeFileSync(join(repo, ".claude/cloud.json"), JSON.stringify({ version: "1.0.0", ...extra }));
@@ -132,7 +132,7 @@ test("setup steps run after the tools and the self install, with both on PATH", 
   const recording: Run = async (cmd, args, opts) => {
     if (cmd === "bash" && args[0] === "-c" && args[1]?.startsWith("echo")) {
       envs.push(opts?.env);
-      linkedBeforeSteps ||= existsSync(join(tools, "bin", "claude-cloud"));
+      linkedBeforeSteps ||= existsSync(join(tools, "bin", "agent-cloud-kit"));
     }
     await run(cmd, args, opts);
   };
@@ -158,10 +158,10 @@ test("self install copies the running package without npm and links its binary",
   assert.equal(readFileSync(cli, "utf8"), FAKE_CLI);
   assert.ok(existsSync(join(installed(), "dist", "setup.js")));
   assert.equal(statSync(cli).mode & 0o777, 0o755);
-  const bin = join(tools, "pkg", "1.0.0", "node_modules", ".bin", "claude-cloud");
-  assert.equal(readlinkSync(bin), join("..", "@ramon-sg", "claude-cloud", "dist", "cli.js"));
-  assert.equal(readlinkSync(join(tools, "bin", "claude-cloud")), bin);
-  assert.equal(realpathSync(join(tools, "bin", "claude-cloud")), realpathSync(cli));
+  const bin = join(tools, "pkg", "1.0.0", "node_modules", ".bin", "agent-cloud-kit");
+  assert.equal(readlinkSync(bin), join("..", "agent-cloud-kit", "dist", "cli.js"));
+  assert.equal(readlinkSync(join(tools, "bin", "agent-cloud-kit")), bin);
+  assert.equal(realpathSync(join(tools, "bin", "agent-cloud-kit")), realpathSync(cli));
 });
 
 test("a failing step does not stop the others", async () => {
@@ -201,7 +201,7 @@ test("docker that does not start is one failed step and no pulls", async () => {
   assert.ok(!log.some((l) => l.startsWith("docker pull")));
   const dockerStep = state.steps.find((s) => s.name === "docker");
   assert.equal(dockerStep?.ok, false);
-  assert.equal(dockerStep?.error, "dockerd did not start; see /var/log/claude-cloud-dockerd.log");
+  assert.equal(dockerStep?.error, "dockerd did not start; see /var/log/agent-cloud-kit-dockerd.log");
 });
 
 test("self install skips the copy when that version is already there and replaces the link", async () => {
@@ -210,10 +210,10 @@ test("self install skips the copy when that version is already there and replace
   writeFileSync(join(installed(), "package.json"), JSON.stringify({ version: "1.0.0" }));
   writeFileSync(join(installed(), "dist", "cli.js"), "already here");
   mkdirSync(join(tools, "bin"), { recursive: true });
-  symlinkSync("/old/target", join(tools, "bin", "claude-cloud"));
+  symlinkSync("/old/target", join(tools, "bin", "agent-cloud-kit"));
   await setupRepo(repo, ctx());
   assert.equal(readFileSync(join(installed(), "dist", "cli.js"), "utf8"), "already here");
-  assert.equal(readlinkSync(join(tools, "bin", "claude-cloud")), join(tools, "pkg", "1.0.0", "node_modules", ".bin", "claude-cloud"));
+  assert.equal(readlinkSync(join(tools, "bin", "agent-cloud-kit")), join(tools, "pkg", "1.0.0", "node_modules", ".bin", "agent-cloud-kit"));
 });
 
 test("self install replaces another version's leftovers and refuses a source of another version", async () => {

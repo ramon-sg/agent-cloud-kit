@@ -8,13 +8,13 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
-- `claude-cloud setup [--repo <path>]`: prepares the machine for every repo cloned in the home
+- `agent-cloud-kit setup [--repo <path>]`: prepares the machine for every repo cloned in the home
   directory, relaunching the exact version each repo pins in `.claude/cloud.json`.
-- `claude-cloud session`: reports the state of the machine, wires the pinned tools into the session
+- `agent-cloud-kit session`: reports the state of the machine, wires the pinned tools into the session
   through `$CLAUDE_ENV_FILE`, starts Docker, completes a partial clone and runs the repo's session steps.
-- `claude-cloud docker`, `claude-cloud doctor` and `claude-cloud init`.
+- `agent-cloud-kit docker`, `agent-cloud-kit doctor` and `agent-cloud-kit init`.
 - Tool installers whose sources pass the cloud egress proxy: Node (nodejs.org), Bun, Deno, pnpm and
-  Yarn (npm) and uv (PyPI), installed side by side under `/opt/claude-cloud`.
+  Yarn (npm) and uv (PyPI), installed side by side under `/opt/agent-cloud-kit`.
 - Non-exact Node versions (`22`, `22.1`, `lts/<name>`, `lts/*`, `node`) resolved through the
   Node.js release index and recorded in the machine state.
 - Version detection from `.tool-versions`, `mise.toml`, `.nvmrc` and `package.json#packageManager`;

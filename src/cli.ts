@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * @file Command line entry point of claude-cloud: wires `setup`, `session` and `docker` to their
+ * @file Command line entry point of agent-cloud-kit: wires `setup`, `session` and `docker` to their
  * modules, relaunching or delegating to the version each repo pins.
  */
 import { execFileSync } from "node:child_process";
@@ -23,7 +23,7 @@ import { setupRepo } from "./setup.ts";
 /** Help text shown by `--help`. */
 const HELP = `${OUTPUT_PREFIX}prepares Claude Code cloud sessions.
 
-Usage: claude-cloud <command>
+Usage: agent-cloud-kit <command>
 
 Commands:
   setup [--repo <path>]  prepare the machine for every repo in the home dir (or only <path>)
@@ -41,7 +41,7 @@ Options:
 const PROJECT_DIR_VAR = "CLAUDE_PROJECT_DIR";
 
 /** Environment marker set on a delegated `session`, so it never delegates again. */
-export const DELEGATED_ENV = "CLAUDE_CLOUD_DELEGATED";
+export const DELEGATED_ENV = "AGENT_CLOUD_KIT_DELEGATED";
 
 /** Value of `DELEGATED_ENV` that marks a delegated run. */
 const DELEGATED_VALUE = "1";

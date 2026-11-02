@@ -15,7 +15,7 @@ import type { Run, RunOptions } from "../src/run.ts";
 import type { StepResult } from "../src/steps.ts";
 import { SESSION_STEP_TIMEOUT_MS, session, toolsEnv } from "../src/session.ts";
 
-const NOTE = "claude-cloud: you are in a Claude Code cloud session. There are no open ports or previews: test against localhost. gh pr and gh issue fail (the GitHub proxy blocks GraphQL): use gh api (REST).";
+const NOTE = "agent-cloud-kit: you are in a Claude Code cloud session. There are no open ports or previews: test against localhost. gh pr and gh issue fail (the GitHub proxy blocks GraphQL): use gh api (REST).";
 
 let root: string;
 let repo: string;
@@ -66,7 +66,7 @@ test("no state prints the setup-did-not-run line", async () => {
   writeConfig();
   const lines = await session(repo, ctx());
   assert.equal(lines[0], NOTE);
-  assert.ok(lines.includes("claude-cloud: the environment setup did not run for repo. Set the setup script of the environment in claude.ai to: npx -y @ramon-sg/claude-cloud@1 setup"));
+  assert.ok(lines.includes("agent-cloud-kit: the environment setup did not run for repo. Set the setup script of the environment in claude.ai to: npx -y agent-cloud-kit@1 setup"));
 });
 
 test("config errors are printed and the session continues", async () => {
@@ -79,14 +79,14 @@ test("failed steps are listed", async () => {
   writeConfig();
   record([{ name: "a", ok: false, ms: 1 }, { name: "b", ok: true, ms: 1 }, { name: "c", ok: false, ms: 1 }]);
   const lines = await session(repo, ctx());
-  assert.ok(lines.includes("claude-cloud: setup failed: a, c. Run claude-cloud doctor."));
+  assert.ok(lines.includes("agent-cloud-kit: setup failed: a, c. Run agent-cloud-kit doctor."));
 });
 
 test("different fingerprint asks to rebuild", async () => {
   writeConfig();
   record([], "sha256-other");
   const lines = await session(repo, ctx());
-  assert.ok(lines.includes("claude-cloud: the machine was prepared with another configuration. Edit the setup script field in claude.ai (any change) so it is rebuilt."));
+  assert.ok(lines.includes("agent-cloud-kit: the machine was prepared with another configuration. Edit the setup script field in claude.ai (any change) so it is rebuilt."));
 });
 
 test("matching fingerprint prints no rebuild line", async () => {
@@ -100,13 +100,13 @@ test("slow setup reports minutes and seconds", async () => {
   writeConfig();
   record([{ name: "a", ok: true, ms: 100_000 }, { name: "b", ok: true, ms: 150_000 }]);
   const lines = await session(repo, ctx());
-  assert.ok(lines.includes("claude-cloud: setup took 4m10s, close to the ~5 minute limit."));
+  assert.ok(lines.includes("agent-cloud-kit: setup took 4m10s, close to the ~5 minute limit."));
 });
 
 test("missing env vars are listed by name only", async () => {
   writeConfig({ requiredEnv: ["A", "B"] });
   const lines = await session(repo, ctx({ A: "super-secret-value" }));
-  assert.ok(lines.includes("claude-cloud: missing environment variables: B"));
+  assert.ok(lines.includes("agent-cloud-kit: missing environment variables: B"));
   assert.ok(!lines.join("\n").includes("super-secret-value"));
 });
 
@@ -114,7 +114,7 @@ test("notes inside the repo are printed; escaping paths are skipped", async () =
   writeFileSync(join(repo, "NOTES.md"), "hello notes\n");
   writeFileSync(join(root, "outside.md"), "leak");
   writeConfig({ notes: "NOTES.md" });
-  assert.ok((await session(repo, ctx())).includes("claude-cloud: hello notes"));
+  assert.ok((await session(repo, ctx())).includes("agent-cloud-kit: hello notes"));
   for (const notes of ["../outside.md", join(root, "outside.md")]) {
     writeConfig({ notes });
     assert.ok(!(await session(repo, ctx())).join("\n").includes("leak"));
@@ -151,7 +151,7 @@ test("session steps run in order in the repo and a failure does not stop the nex
   assert.deepEqual(steps.map((c) => c.args), [["-c", "fail one"], ["-c", "echo two"]]);
   assert.equal(steps[0]?.cwd, repo);
   assert.ok(steps[0]?.env?.PATH?.startsWith(`${tools}/node-24.14.1/bin`));
-  assert.ok(lines.includes("claude-cloud: session step failed: fail one"));
+  assert.ok(lines.includes("agent-cloud-kit: session step failed: fail one"));
   assert.ok(!lines.some((l) => l.includes("failed: echo two")));
 });
 
@@ -179,7 +179,7 @@ test("a failing docker start is reported and git sync and session steps still ru
   for (const start of [() => { throw new Error("kaboom"); }, () => "kaboom"]) {
     calls = [];
     const lines = await session(repo, { ...ctx(), docker: { start, ensure: async () => true } });
-    assert.ok(lines.includes("claude-cloud: could not start dockerd: kaboom"));
+    assert.ok(lines.includes("agent-cloud-kit: could not start dockerd: kaboom"));
     assert.ok(calls.some((c) => c.args.includes("main:refs/remotes/origin/main")));
     assert.ok(calls.some((c) => c.cmd === "bash" && c.args[1] === "echo hi"));
   }
@@ -211,7 +211,7 @@ test("notes: symlinks escaping the repo are skipped and dot-prefixed names are a
   assert.ok(!(await session(repo, ctx())).join("\n").includes("leak"));
   writeFileSync(join(repo, "..notes.md"), "dotted");
   writeConfig({ notes: "..notes.md" });
-  assert.ok((await session(repo, ctx())).includes("claude-cloud: dotted"));
+  assert.ok((await session(repo, ctx())).includes("agent-cloud-kit: dotted"));
 });
 
 test("toolsEnv prepends the directories and adds the CA", () => {
@@ -222,7 +222,7 @@ test("toolsEnv prepends the directories and adds the CA", () => {
   assert.equal(toolsEnv([], { PATH: "/usr/bin" }).PATH, "/usr/bin");
 });
 
-test("the PATH line puts claude-cloud's bin dir on PATH even with no pinned tools", async () => {
+test("the PATH line puts agent-cloud-kit's bin dir on PATH even with no pinned tools", async () => {
   writeConfig({ session: ["echo hi"] });
   const envFile = join(root, "env");
   await session(repo, ctx({ CLAUDE_ENV_FILE: envFile, PATH: "/usr/bin" }));
@@ -245,7 +245,7 @@ test("an env file that cannot be written is one line and the session goes on", a
   const envFile = join(root, "a-directory");
   mkdirSync(envFile);
   const lines = await session(repo, ctx({ CLAUDE_ENV_FILE: envFile }));
-  assert.ok(lines.some((l) => l.startsWith(`claude-cloud: could not write CLAUDE_ENV_FILE (${envFile}):`)), lines.join("\n"));
+  assert.ok(lines.some((l) => l.startsWith(`agent-cloud-kit: could not write CLAUDE_ENV_FILE (${envFile}):`)), lines.join("\n"));
   assert.ok(!lines.some((l) => l.includes("session error")));
   assert.ok(calls.some((c) => c.cmd === "bash" && c.args[1] === "echo hi"));
 });
@@ -259,6 +259,6 @@ test("session steps send their output to stderr and have a time limit", async ()
     assert.equal(step.opts?.timeoutMs, SESSION_STEP_TIMEOUT_MS);
   }
   assert.equal(SESSION_STEP_TIMEOUT_MS, 120_000);
-  assert.ok(lines.includes("claude-cloud: session step timed out: hang forever"));
+  assert.ok(lines.includes("agent-cloud-kit: session step timed out: hang forever"));
   assert.ok(steps.some((c) => c.args[1] === "echo next"));
 });

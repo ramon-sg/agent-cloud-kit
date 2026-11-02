@@ -22,14 +22,14 @@ test("creates cloud.json and the hook; a second run changes nothing", () => {
   const first = init(repo, "1.2.3");
   assert.equal(first.ok, true);
   const config = JSON.parse(readFileSync(join(repo, ".claude/cloud.json"), "utf8"));
-  assert.equal(config.$schema, "https://unpkg.com/@ramon-sg/claude-cloud@1.2.3/schema.json");
+  assert.equal(config.$schema, "https://unpkg.com/agent-cloud-kit@1.2.3/schema.json");
   assert.equal(config.version, "1.2.3");
   assert.deepEqual(config.docker, { pull: "auto" });
   assert.ok(readFileSync(join(repo, ".claude/cloud.json"), "utf8").endsWith("}\n"));
   const entry = settings().hooks.SessionStart[0]?.hooks[0];
   assert.equal(entry?.timeout, 600);
   assert.equal(entry?.type, "command");
-  assert.ok(entry?.command.includes("claude-cloud session"));
+  assert.ok(entry?.command.includes("agent-cloud-kit session"));
   const second = init(repo, "1.2.3");
   assert.equal(settings().hooks.SessionStart.length, 1);
   assert.ok(second.lines.length > 0);
@@ -74,6 +74,18 @@ test("settings.json values that are not the expected shape are left untouched", 
     assert.equal(readFileSync(join(repo, ".claude/settings.json"), "utf8"), text);
     const line = result.lines.at(-1) ?? "";
     assert.ok(line.includes("by hand"), line);
-    assert.ok(line.includes("claude-cloud session") && line.includes('"timeout":600'), line);
+    assert.ok(line.includes("agent-cloud-kit session") && line.includes('"timeout":600'), line);
   }
+});
+
+test("a hook that already runs agent-cloud-kit session counts as present", () => {
+  mkdirSync(join(repo, ".claude"));
+  const existing = {
+    hooks: {
+      SessionStart: [{ hooks: [{ type: "command", command: "/opt/agent-cloud-kit/bin/agent-cloud-kit session # issue-flow", timeout: 30 }] }],
+    },
+  };
+  writeFileSync(join(repo, ".claude/settings.json"), JSON.stringify(existing));
+  init(repo, "1.0.0");
+  assert.equal(settings().hooks.SessionStart.length, 1);
 });

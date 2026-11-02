@@ -1,20 +1,18 @@
 {
-  "name": "@ramon-sg/claude-cloud",
+  "name": "agent-cloud-kit",
   "version": "1.0.0",
   "description": "Zero-dependency CLI that prepares Claude Code cloud sessions.",
   "type": "module",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ramon-sg/claude-cloud.git"
+    "url": "git+https://github.com/ramon-sg/agent-cloud-kit.git"
   },
-  "homepage": "https://github.com/ramon-sg/claude-cloud#readme",
+  "homepage": "https://github.com/ramon-sg/agent-cloud-kit#readme",
   "bugs": {
-    "url": "https://github.com/ramon-sg/claude-cloud/issues"
+    "url": "https://github.com/ramon-sg/agent-cloud-kit/issues"
   },
   "keywords": [
-    "claude",
-    "claude-code",
     "cloud",
     "sandbox",
     "setup",
@@ -22,11 +20,12 @@
     "cli"
   ],
   "bin": {
-    "claude-cloud": "dist/cli.js"
+    "agent-cloud-kit": "dist/cli.js"
   },
   "files": [
     "dist",
     "schema.json",
+    "skills",
     "README.md",
     "LICENSE"
   ],

@@ -311,7 +311,7 @@ async function runPhases(repo: string, config: CloudConfig, ctx: SetupContext): 
  * @returns The state; when the config is missing or invalid, a state with one failed `config`
  *   step that is not written. Never rejects.
  * @example
- * const state = await setupRepo("/home/user/app", { toolsDir: "/opt/claude-cloud", run: runProcess, packageVersion: "1.0.0" });
+ * const state = await setupRepo("/home/user/app", { toolsDir: "/opt/agent-cloud-kit", run: runProcess, packageVersion: "1.0.0" });
  */
 export async function setupRepo(repo: string, ctx: SetupContext): Promise<MachineState> {
   const failed = (name: string, error: string): MachineState => ({

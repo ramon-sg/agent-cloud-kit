@@ -52,7 +52,7 @@ const ctx = (docker = true): DoctorContext => ({ capture: fakeCapture, toolsDir:
 test("reports each domain as ok or blocked and fails when any is blocked", async () => {
   writeFileSync(join(repo, ".claude/cloud.json"), JSON.stringify({ version: "1.0.0" }));
   const { lines, ok } = await doctor(repo, ctx());
-  const has = (text: string): boolean => lines.some((l) => l.startsWith("claude-cloud: ") && l.includes(text));
+  const has = (text: string): boolean => lines.some((l) => l.startsWith("agent-cloud-kit: ") && l.includes(text));
   assert.ok(has("registry.npmjs.org: ok"));
   assert.ok(has("registry-1.docker.io: ok"));
   assert.ok(has("api.github.com: blocked"));

@@ -12,7 +12,7 @@ import type { Run } from "./run.ts";
 const PKG_DIR = "pkg";
 
 /** Name of the CLI executable. */
-const BIN_NAME = "claude-cloud";
+const BIN_NAME = "agent-cloud-kit";
 
 /** What setup does with one repo. */
 export interface SetupPlanItem {
@@ -104,7 +104,7 @@ export function relaunch(repo: string, version: string, run: Run, env: NodeJS.Pr
  * @param version - Package version.
  * @returns `<toolsDir>/pkg/<version>`.
  * @example
- * packageDir("/opt/claude-cloud", "1.0.0"); // "/opt/claude-cloud/pkg/1.0.0"
+ * packageDir("/opt/agent-cloud-kit", "1.0.0"); // "/opt/agent-cloud-kit/pkg/1.0.0"
  */
 export function packageDir(toolsDir: string, version: string): string {
   return join(toolsDir, PKG_DIR, version);
@@ -115,9 +115,9 @@ export function packageDir(toolsDir: string, version: string): string {
  *
  * @param toolsDir - Tools directory.
  * @param version - Package version.
- * @returns `<toolsDir>/pkg/<version>/node_modules/.bin/claude-cloud`.
+ * @returns `<toolsDir>/pkg/<version>/node_modules/.bin/agent-cloud-kit`.
  * @example
- * packageBin("/opt/claude-cloud", "1.0.0"); // "/opt/claude-cloud/pkg/1.0.0/node_modules/.bin/claude-cloud"
+ * packageBin("/opt/agent-cloud-kit", "1.0.0"); // "/opt/agent-cloud-kit/pkg/1.0.0/node_modules/.bin/agent-cloud-kit"
  */
 export function packageBin(toolsDir: string, version: string): string {
   return join(packageDir(toolsDir, version), "node_modules", ".bin", BIN_NAME);
@@ -128,9 +128,9 @@ export function packageBin(toolsDir: string, version: string): string {
  *
  * @param toolsDir - Tools directory.
  * @param version - Package version.
- * @returns `<toolsDir>/pkg/<version>/node_modules/@ramon-sg/claude-cloud`.
+ * @returns `<toolsDir>/pkg/<version>/node_modules/agent-cloud-kit`.
  * @example
- * packageInstallDir("/opt/claude-cloud", "1.0.0"); // "/opt/claude-cloud/pkg/1.0.0/node_modules/@ramon-sg/claude-cloud"
+ * packageInstallDir("/opt/agent-cloud-kit", "1.0.0"); // "/opt/agent-cloud-kit/pkg/1.0.0/node_modules/agent-cloud-kit"
  */
 export function packageInstallDir(toolsDir: string, version: string): string {
   return join(packageDir(toolsDir, version), "node_modules", ...PACKAGE.split("/"));
@@ -142,7 +142,7 @@ export function packageInstallDir(toolsDir: string, version: string): string {
  * @param toolsDir - Tools directory.
  * @returns `<toolsDir>/bin`.
  * @example
- * linkDir("/opt/claude-cloud"); // "/opt/claude-cloud/bin"
+ * linkDir("/opt/agent-cloud-kit"); // "/opt/agent-cloud-kit/bin"
  */
 export function linkDir(toolsDir: string): string {
   return join(toolsDir, "bin");
@@ -152,9 +152,9 @@ export function linkDir(toolsDir: string): string {
  * Locates the stable link that the repo hook calls.
  *
  * @param toolsDir - Tools directory.
- * @returns `<toolsDir>/bin/claude-cloud`.
+ * @returns `<toolsDir>/bin/agent-cloud-kit`.
  * @example
- * linkPath("/opt/claude-cloud"); // "/opt/claude-cloud/bin/claude-cloud"
+ * linkPath("/opt/agent-cloud-kit"); // "/opt/agent-cloud-kit/bin/agent-cloud-kit"
  */
 export function linkPath(toolsDir: string): string {
   return join(linkDir(toolsDir), BIN_NAME);

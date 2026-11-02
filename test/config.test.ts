@@ -17,7 +17,7 @@ const tmpDirs: string[] = [];
  * @returns Absolute path of the temporary repo.
  */
 function makeRepo(content?: string): string {
-  const repo = mkdtempSync(join(tmpdir(), "claude-cloud-config-"));
+  const repo = mkdtempSync(join(tmpdir(), "agent-cloud-kit-config-"));
   tmpDirs.push(repo);
   if (content === undefined) return repo;
   mkdirSync(join(repo, ".claude"));

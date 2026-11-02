@@ -20,7 +20,7 @@ export const FAKE_CLI = "#!/usr/bin/env node\nconsole.log('fake');\n";
 export function fakePackage(dir: string, version: string): string {
   const root = join(dir, `fake-package-${version}`);
   mkdirSync(join(root, "dist"), { recursive: true });
-  writeFileSync(join(root, "package.json"), JSON.stringify({ name: "@ramon-sg/claude-cloud", version }));
+  writeFileSync(join(root, "package.json"), JSON.stringify({ name: "agent-cloud-kit", version }));
   writeFileSync(join(root, "dist", "cli.js"), FAKE_CLI, { mode: 0o644 });
   writeFileSync(join(root, "dist", "setup.js"), "export {};\n");
   return root;

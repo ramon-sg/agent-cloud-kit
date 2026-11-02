@@ -71,40 +71,40 @@ const c = JSON.parse(fs.readFileSync(f, 'utf8'));
 c.version = '$VERSION';
 fs.writeFileSync(f, JSON.stringify(c, null, 2));
 \""
-in_box 'CLAUDE_CLOUD_HOME=/work claude-cloud setup' || fail "claude-cloud setup exited non-zero"
+in_box 'AGENT_CLOUD_KIT_HOME=/work agent-cloud-kit setup' || fail "agent-cloud-kit setup exited non-zero"
 
 echo "== assertions"
-expect_output "node" "v24.14.1" '/opt/claude-cloud/node-24.14.1/bin/node -v'
-expect_output "bun" "1.4.2" '/opt/claude-cloud/bun-1.4.2/node_modules/.bin/bun -v'
+expect_output "node" "v24.14.1" '/opt/agent-cloud-kit/node-24.14.1/bin/node -v'
+expect_output "bun" "1.4.2" '/opt/agent-cloud-kit/bun-1.4.2/node_modules/.bin/bun -v'
 in_box 'dpkg -s jq >/dev/null 2>&1 && command -v jq >/dev/null' || fail "jq was not installed"
 echo "ok: jq installed"
 expect_output "setup step output" "built" 'cat /work/fixture/setup-ran.txt'
 expect_output "state has no failed steps" "0 failed of" \
   "node -e \"
-const s = JSON.parse(require('fs').readFileSync('/opt/claude-cloud/state/fixture.json', 'utf8'));
+const s = JSON.parse(require('fs').readFileSync('/opt/agent-cloud-kit/state/fixture.json', 'utf8'));
 const failed = s.steps.filter((x) => !x.ok);
 if (failed.length) { console.log(JSON.stringify(failed)); process.exit(1); }
 console.log('0 failed of');
 \""
-expect_output "self install link" "/opt/claude-cloud/pkg/$VERSION/node_modules/.bin/claude-cloud" 'readlink /opt/claude-cloud/bin/claude-cloud'
-expect_output "self install copy" "$VERSION" "node -p \"require('/opt/claude-cloud/pkg/$VERSION/node_modules/@ramon-sg/claude-cloud/package.json').version\""
-expect_output "installed binary" "$VERSION" '/opt/claude-cloud/bin/claude-cloud --version'
+expect_output "self install link" "/opt/agent-cloud-kit/pkg/$VERSION/node_modules/.bin/agent-cloud-kit" 'readlink /opt/agent-cloud-kit/bin/agent-cloud-kit'
+expect_output "self install copy" "$VERSION" "node -p \"require('/opt/agent-cloud-kit/pkg/$VERSION/node_modules/agent-cloud-kit/package.json').version\""
+expect_output "installed binary" "$VERSION" '/opt/agent-cloud-kit/bin/agent-cloud-kit --version'
 
 echo "== session, through the installed copy, writes the PATH line"
-in_box 'rm -f /tmp/env; npm uninstall -g @ramon-sg/claude-cloud >/dev/null 2>&1; ! command -v claude-cloud' || fail "the global install is still on PATH"
-in_box 'cd /work/fixture && CLAUDE_PROJECT_DIR=/work/fixture CLAUDE_CODE_REMOTE=true CLAUDE_ENV_FILE=/tmp/env /opt/claude-cloud/bin/claude-cloud session >/tmp/session.out 2>/tmp/session.err' || fail "claude-cloud session failed"
-in_box 'grep -q "^export PATH=\"/opt/claude-cloud/node-24.14.1/bin:/opt/claude-cloud/bun-1.4.2/node_modules/.bin:/opt/claude-cloud/bin:\$PATH\"" /tmp/env' \
+in_box 'rm -f /tmp/env; npm uninstall -g agent-cloud-kit >/dev/null 2>&1; ! command -v agent-cloud-kit' || fail "the global install is still on PATH"
+in_box 'cd /work/fixture && CLAUDE_PROJECT_DIR=/work/fixture CLAUDE_CODE_REMOTE=true CLAUDE_ENV_FILE=/tmp/env /opt/agent-cloud-kit/bin/agent-cloud-kit session >/tmp/session.out 2>/tmp/session.err' || fail "agent-cloud-kit session failed"
+in_box 'grep -q "^export PATH=\"/opt/agent-cloud-kit/node-24.14.1/bin:/opt/agent-cloud-kit/bun-1.4.2/node_modules/.bin:/opt/agent-cloud-kit/bin:\$PATH\"" /tmp/env' \
   || fail "wrong PATH line in the env file: $(in_box 'cat /tmp/env /tmp/session.out 2>&1')"
 echo "ok: session wrote the PATH line"
-expect_output "claude-cloud on the session PATH" "/opt/claude-cloud/bin/claude-cloud" '. /tmp/env && command -v claude-cloud'
+expect_output "agent-cloud-kit on the session PATH" "/opt/agent-cloud-kit/bin/agent-cloud-kit" '. /tmp/env && command -v agent-cloud-kit'
 
 echo "== doctor checks the network through the proxy"
-in_box '. /tmp/env && cd /work/fixture && claude-cloud doctor >/tmp/doctor.out 2>&1' || true
+in_box '. /tmp/env && cd /work/fixture && agent-cloud-kit doctor >/tmp/doctor.out 2>&1' || true
 doctor="$(in_box 'cat /tmp/doctor.out')"
 echo "$doctor"
-grep -qx "claude-cloud: network registry.npmjs.org: ok" <<<"$doctor" || fail "doctor did not reach registry.npmjs.org"
-grep -qx "claude-cloud: network api.github.com: blocked" <<<"$doctor" || fail "doctor did not report api.github.com as blocked"
-grep -qx "claude-cloud: tool node 24.14.1: ok" <<<"$doctor" || fail "doctor did not find node"
+grep -qx "agent-cloud-kit: network registry.npmjs.org: ok" <<<"$doctor" || fail "doctor did not reach registry.npmjs.org"
+grep -qx "agent-cloud-kit: network api.github.com: blocked" <<<"$doctor" || fail "doctor did not report api.github.com as blocked"
+grep -qx "agent-cloud-kit: tool node 24.14.1: ok" <<<"$doctor" || fail "doctor did not find node"
 echo "ok: doctor saw npm reachable and GitHub blocked"
 
 echo "PASS: container walkthrough"

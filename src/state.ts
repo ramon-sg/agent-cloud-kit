@@ -83,7 +83,7 @@ export function fingerprint(
  * @param repo - Repo root path.
  * @returns `<toolsDir>/state/<basename(repo)>.json`.
  * @example
- * statePath("/opt/claude-cloud", "/home/user/app"); // "/opt/claude-cloud/state/app.json"
+ * statePath("/opt/agent-cloud-kit", "/home/user/app"); // "/opt/agent-cloud-kit/state/app.json"
  */
 export function statePath(toolsDir: string, repo: string): string {
   return join(toolsDir, STATE_DIR, `${basename(repo)}.json`);
@@ -96,7 +96,7 @@ export function statePath(toolsDir: string, repo: string): string {
  * @param repo - Repo root path.
  * @param state - State to record.
  * @example
- * writeState("/opt/claude-cloud", "/home/user/app", state);
+ * writeState("/opt/agent-cloud-kit", "/home/user/app", state);
  */
 export function writeState(toolsDir: string, repo: string, state: MachineState): void {
   const file = statePath(toolsDir, repo);
@@ -169,7 +169,7 @@ function isMachineState(value: unknown): value is Omit<MachineState, "resolved">
  * @param repo - Repo root path.
  * @returns The state, or undefined when the file is missing, unreadable, invalid or incomplete.
  * @example
- * readState("/opt/claude-cloud", "/home/user/app"); // undefined before the first setup
+ * readState("/opt/agent-cloud-kit", "/home/user/app"); // undefined before the first setup
  */
 export function readState(toolsDir: string, repo: string): MachineState | undefined {
   try {

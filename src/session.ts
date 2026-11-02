@@ -60,14 +60,14 @@ export interface SessionContext {
 
 /**
  * Lists the directories to put first on PATH: the pinned tools' bin dirs, then the folder of the
- * `claude-cloud` link, so `claude-cloud doctor` resolves in the session.
+ * `agent-cloud-kit` link, so `agent-cloud-kit doctor` resolves in the session.
  *
  * @param versions - Requested versions by tool.
  * @param toolsDir - Tools directory.
  * @param resolved - Versions setup installed (`MachineState.resolved`).
  * @returns The directories, tools first.
  * @example
- * pathDirs({ node: "22" }, "/opt/claude-cloud", { node: "22.12.0" }); // ["/opt/claude-cloud/node-22.12.0/bin", "/opt/claude-cloud/bin"]
+ * pathDirs({ node: "22" }, "/opt/agent-cloud-kit", { node: "22.12.0" }); // ["/opt/agent-cloud-kit/node-22.12.0/bin", "/opt/agent-cloud-kit/bin"]
  */
 export function pathDirs(versions: Versions, toolsDir: string, resolved: Versions): string[] {
   return [...toolBinDirs(versions, toolsDir, resolved), linkDir(toolsDir)];
@@ -81,7 +81,7 @@ export function pathDirs(versions: Versions, toolsDir: string, resolved: Version
  * @param ca - Proxy CA path, when found.
  * @returns A new environment.
  * @example
- * toolsEnv(["/opt/claude-cloud/node-24.14.1/bin"], process.env, "/root/.ccr/ca-bundle.crt");
+ * toolsEnv(["/opt/agent-cloud-kit/node-24.14.1/bin"], process.env, "/root/.ccr/ca-bundle.crt");
  */
 export function toolsEnv(dirs: string[], baseEnv: NodeJS.ProcessEnv, ca?: string): NodeJS.ProcessEnv {
   const path = [...dirs, ...(baseEnv.PATH ? [baseEnv.PATH] : [])].join(":");
@@ -132,7 +132,7 @@ function machineWarnings(repo: string, config: CloudConfig, state: MachineState 
   }
   const out: string[] = [];
   const failed = state.steps.filter((s) => !s.ok).map((s) => s.name);
-  if (failed.length) out.push(`setup failed: ${failed.join(", ")}. Run claude-cloud doctor.`);
+  if (failed.length) out.push(`setup failed: ${failed.join(", ")}. Run agent-cloud-kit doctor.`);
   if (expectedFingerprint(repo, config, state) !== state.fingerprint) {
     out.push(
       "the machine was prepared with another configuration. Edit the setup script field in claude.ai (any change) so it is rebuilt.",

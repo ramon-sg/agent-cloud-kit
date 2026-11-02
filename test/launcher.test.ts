@@ -66,6 +66,6 @@ test("relaunch passes the pinned package as a single npx argument", async () => 
   };
   await relaunch("/home/user/app", "1.2.0", run, {});
   assert.deepEqual(calls, [
-    { cmd: "npx", args: ["-y", "@ramon-sg/claude-cloud@1.2.0", "setup", "--repo", "/home/user/app"] },
+    { cmd: "npx", args: ["-y", "agent-cloud-kit@1.2.0", "setup", "--repo", "/home/user/app"] },
   ]);
 });

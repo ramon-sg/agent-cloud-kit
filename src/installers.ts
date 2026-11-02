@@ -237,7 +237,7 @@ export function resolveNodeVersion(requested: string, index: NodeRelease[]): str
  */
 export function curlNodeIndex(run: Run, env: NodeJS.ProcessEnv): NodeIndexFetcher {
   return async () => {
-    const dir = mkdtempSync(join(tmpdir(), "claude-cloud-node-index-"));
+    const dir = mkdtempSync(join(tmpdir(), "agent-cloud-kit-node-index-"));
     try {
       const file = join(dir, NODE_INDEX_FILE);
       await run("curl", ["-fsSL", "--max-time", NODE_INDEX_TIMEOUT_SECONDS, "-o", file, "--", NODE_INDEX_URL], { env });
@@ -380,7 +380,7 @@ function prependPath(dir: string, path: string | undefined): string {
  * @param env - Environment for child processes.
  * @returns One result per tool that needed installing; tools already present are skipped.
  * @example
- * await installTools({ node: "24.14.1" }, "/opt/claude-cloud", runProcess, process.env);
+ * await installTools({ node: "24.14.1" }, "/opt/agent-cloud-kit", runProcess, process.env);
  */
 export async function installTools(
   versions: Versions,
@@ -422,7 +422,7 @@ export async function installTools(
  * @param resolved - Versions setup installed (`MachineState.resolved`); empty when unknown.
  * @returns The bin directories to put on PATH.
  * @example
- * toolBinDirs({ node: "22" }, "/opt/claude-cloud", { node: "22.12.0" }); // ["/opt/claude-cloud/node-22.12.0/bin"]
+ * toolBinDirs({ node: "22" }, "/opt/agent-cloud-kit", { node: "22.12.0" }); // ["/opt/agent-cloud-kit/node-22.12.0/bin"]
  */
 export function toolBinDirs(versions: Versions, toolsDir: string, resolved: Versions = {}): string[] {
   return TOOLS.flatMap((tool) => {
@@ -441,7 +441,7 @@ export function toolBinDirs(versions: Versions, toolsDir: string, resolved: Vers
  * @param resolved - Versions setup installed (`MachineState.resolved`).
  * @returns The executable path, or undefined when the version is invalid or not resolved.
  * @example
- * toolExecutable("node", "24.14.1", "/opt/claude-cloud", {}); // "/opt/claude-cloud/node-24.14.1/bin/node"
+ * toolExecutable("node", "24.14.1", "/opt/agent-cloud-kit", {}); // "/opt/agent-cloud-kit/node-24.14.1/bin/node"
  */
 export function toolExecutable(tool: Tool, requested: string, toolsDir: string, resolved: Versions): string | undefined {
   const version = installedVersion(tool, requested, resolved);
@@ -454,7 +454,7 @@ export function toolExecutable(tool: Tool, requested: string, toolsDir: string, 
  * @param dirs - Directories, in order.
  * @returns An `export PATH=...` line with a literal `$PATH`, or an empty string when there are none.
  * @example
- * pathLine(["/opt/claude-cloud/node-24.14.1/bin"]); // export PATH="/opt/claude-cloud/node-24.14.1/bin:$PATH"
+ * pathLine(["/opt/agent-cloud-kit/node-24.14.1/bin"]); // export PATH="/opt/agent-cloud-kit/node-24.14.1/bin:$PATH"
  */
 export function pathLine(dirs: string[]): string {
   return dirs.length ? `export PATH="${dirs.join(":")}:$PATH"` : "";

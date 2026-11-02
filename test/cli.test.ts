@@ -36,7 +36,7 @@ const run: Run = async (cmd, args, opts) => {
 };
 
 const deps = (up = true): CliDeps => ({
-  env: { CLAUDE_CLOUD_DIR: tools, CLAUDE_CLOUD_HOME: home },
+  env: { AGENT_CLOUD_KIT_DIR: tools, AGENT_CLOUD_KIT_HOME: home },
   run,
   docker: { start: () => undefined, ensure: async () => up },
   packageVersion: "1.0.0",
@@ -66,10 +66,10 @@ test("setup --repo with another version runs anyway and warns, without relaunchi
   const repo = makeRepo("app", { version: "2.0.0", setup: ["echo hi"] });
   const code = await main(["setup", "--repo", repo], deps());
   assert.equal(code, 0);
-  assert.ok(printed.includes("claude-cloud: running 1.0.0 although .claude/cloud.json asks for 2.0.0"));
+  assert.ok(printed.includes("agent-cloud-kit: running 1.0.0 although .claude/cloud.json asks for 2.0.0"));
   assert.ok(!calls.some((c) => c.cmd === "npx"));
   assert.ok(calls.some((c) => c.cmd === "bash" && c.args[1] === "echo hi"));
-  assert.ok(printed.includes(`claude-cloud: setup ${repo}: 2 steps, 0 failed`));
+  assert.ok(printed.includes(`agent-cloud-kit: setup ${repo}: 2 steps, 0 failed`));
 });
 
 test("setup without --repo skips, runs and relaunches in series and exits 0", async () => {
@@ -78,11 +78,11 @@ test("setup without --repo skips, runs and relaunches in series and exits 0", as
   const other = makeRepo("c-other", { version: "1.2.0" });
   const code = await main(["setup"], deps());
   assert.equal(code, 0);
-  assert.ok(printed.includes(`claude-cloud: skipping ${none}: no .claude/cloud.json`));
-  assert.ok(printed.includes(`claude-cloud: setup ${same}: 2 steps, 1 failed (setup: fail)`));
+  assert.ok(printed.includes(`agent-cloud-kit: skipping ${none}: no .claude/cloud.json`));
+  assert.ok(printed.includes(`agent-cloud-kit: setup ${same}: 2 steps, 1 failed (setup: fail)`));
   assert.deepEqual(calls.at(-1), {
     cmd: "npx",
-    args: ["-y", "@ramon-sg/claude-cloud@1.2.0", "setup", "--repo", other],
+    args: ["-y", "agent-cloud-kit@1.2.0", "setup", "--repo", other],
   });
 });
 
@@ -100,11 +100,11 @@ test("session delegates to the installed version the repo asks for", async () =>
   const repo = makeRepo("app", { version: "1.5.0" });
   const bin = join(tools, "pkg", "1.5.0", "node_modules", ".bin");
   mkdirSync(bin, { recursive: true });
-  writeFileSync(join(bin, "claude-cloud"), "");
+  writeFileSync(join(bin, "agent-cloud-kit"), "");
   const code = await main(["session"], { ...deps(), env: { ...deps().env, CLAUDE_PROJECT_DIR: repo } });
   assert.equal(code, 0);
-  assert.deepEqual(calls, [{ cmd: join(bin, "claude-cloud"), args: ["session"] }]);
-  assert.equal(envs[0]?.CLAUDE_CLOUD_DELEGATED, "1");
+  assert.deepEqual(calls, [{ cmd: join(bin, "agent-cloud-kit"), args: ["session"] }]);
+  assert.equal(envs[0]?.AGENT_CLOUD_KIT_DELEGATED, "1");
   assert.deepEqual(printed, []);
 });
 
@@ -112,24 +112,24 @@ test("a delegated session never delegates again", async () => {
   const repo = makeRepo("app", { version: "1.5.0" });
   const bin = join(tools, "pkg", "1.5.0", "node_modules", ".bin");
   mkdirSync(bin, { recursive: true });
-  writeFileSync(join(bin, "claude-cloud"), "");
-  const env = { ...deps().env, CLAUDE_PROJECT_DIR: repo, CLAUDE_CLOUD_DELEGATED: "1" };
+  writeFileSync(join(bin, "agent-cloud-kit"), "");
+  const env = { ...deps().env, CLAUDE_PROJECT_DIR: repo, AGENT_CLOUD_KIT_DELEGATED: "1" };
   assert.equal(await main(["session"], { ...deps(), env }), 0);
-  assert.ok(!calls.some((c) => c.cmd === join(bin, "claude-cloud")));
-  assert.ok(printed[0]?.startsWith("claude-cloud: you are in a Claude Code cloud session"));
+  assert.ok(!calls.some((c) => c.cmd === join(bin, "agent-cloud-kit")));
+  assert.ok(printed[0]?.startsWith("agent-cloud-kit: you are in a Claude Code cloud session"));
 });
 
 test("session runs itself when the asked version is not installed", async () => {
   const repo = makeRepo("app", { version: "1.5.0" });
   const code = await main(["session"], { ...deps(), env: { ...deps().env, CLAUDE_PROJECT_DIR: repo } });
   assert.equal(code, 0);
-  assert.ok(printed[0]?.startsWith("claude-cloud: you are in a Claude Code cloud session"));
+  assert.ok(printed[0]?.startsWith("agent-cloud-kit: you are in a Claude Code cloud session"));
 });
 
 test("docker exits 0 when it responds and 1 with the log path otherwise", async () => {
   assert.equal(await main(["docker"], deps()), 0);
   assert.equal(await main(["docker"], deps(false)), 1);
-  assert.ok(printed.includes("claude-cloud: dockerd did not start; see /var/log/claude-cloud-dockerd.log"));
+  assert.ok(printed.includes("agent-cloud-kit: dockerd did not start; see /var/log/agent-cloud-kit-dockerd.log"));
 });
 
 test("--version prints the package version and unknown commands exit 1", async () => {
@@ -142,14 +142,14 @@ test("setup --repo without a value prints an error and runs nothing", async () =
   makeRepo("app", { version: "1.0.0" });
   assert.equal(await main(["setup", "--repo"], deps()), 0);
   assert.equal(await main(["setup", "--repo", "--other"], deps()), 0);
-  assert.deepEqual(printed, ["claude-cloud: --repo needs a path", "claude-cloud: --repo needs a path"]);
+  assert.deepEqual(printed, ["agent-cloud-kit: --repo needs a path", "agent-cloud-kit: --repo needs a path"]);
   assert.deepEqual(calls, []);
 });
 
 test("setup --repo resolves a relative path against the cwd", async () => {
   makeRepo("app", { version: "1.0.0" });
   assert.equal(await main(["setup", "--repo", "home/app"], deps()), 0);
-  assert.ok(printed.includes(`claude-cloud: setup ${join(home, "app")}: 1 steps, 0 failed`));
+  assert.ok(printed.includes(`agent-cloud-kit: setup ${join(home, "app")}: 1 steps, 0 failed`));
 });
 
 test("a repo that throws does not stop the next ones", async () => {
@@ -160,14 +160,14 @@ test("a repo that throws does not stop the next ones", async () => {
     printed.push(line);
   };
   assert.equal(await main(["setup"], { ...deps(), print: throwing }), 0);
-  assert.ok(printed.includes(`claude-cloud: setup error for ${first}: boom`));
-  assert.deepEqual(calls.at(-1), { cmd: "npx", args: ["-y", "@ramon-sg/claude-cloud@1.2.0", "setup", "--repo", second] });
+  assert.ok(printed.includes(`agent-cloud-kit: setup error for ${first}: boom`));
+  assert.deepEqual(calls.at(-1), { cmd: "npx", args: ["-y", "agent-cloud-kit@1.2.0", "setup", "--repo", second] });
 });
 
 test("init writes the config and hook, doctor exits 1 when a check fails", async () => {
   const repo = join(home, "fresh");
   mkdirSync(join(repo, ".git"), { recursive: true });
-  const base = { ...deps(), env: { CLAUDE_CLOUD_DIR: tools, CLAUDE_CLOUD_HOME: home, CLAUDE_PROJECT_DIR: repo } };
+  const base = { ...deps(), env: { AGENT_CLOUD_KIT_DIR: tools, AGENT_CLOUD_KIT_HOME: home, CLAUDE_PROJECT_DIR: repo } };
   assert.equal(await main(["init"], base), 0);
   assert.equal(await main(["doctor"], { ...base, capture: async () => "403", dockerInfo: () => true }), 1);
   assert.equal(await main(["doctor"], { ...base, capture: async () => "200", dockerInfo: () => true }), 1);
