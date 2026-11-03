@@ -36,7 +36,7 @@ function setupScript(packageVersion: string): string {
 }
 
 /** Note at the top: the document grows when the skill finds something new. */
-const UPDATES_NOTE = `> 🔄 Se actualiza solo cuando la skill \`cloud-ready\` detecta un dominio o una variable nueva. Si cambia, aplícalo en claude.ai y corre \`npx ${PACKAGE} verify\`.`;
+const UPDATES_NOTE = `> Se actualiza solo cuando la skill \`cloud-ready\` detecta un dominio o una variable nueva. Si cambia, aplícalo en claude.ai y corre \`npx ${PACKAGE} verify\`.`;
 
 /**
  * Extracts the host of an apt repo URL.
@@ -75,20 +75,20 @@ function allowedHosts(config: CloudConfig): string[] {
  * @param packageVersion - Version of the running package, for the setup script.
  * @returns The section, without a trailing newline.
  * @example
- * renderEnvironmentSection(config, "1.0.0").startsWith("## ⚙️ Configurar el entorno en claude.ai"); // true
+ * renderEnvironmentSection(config, "1.0.0").startsWith("## Configurar el entorno en claude.ai"); // true
  */
 export function renderEnvironmentSection(config: CloudConfig, packageVersion: string): string {
   const hosts = allowedHosts(config);
   const code = (items: string[]): string => items.map((item) => `\`${item}\``).join(", ");
   const lines = [
-    "## ⚙️ Configurar el entorno en claude.ai",
+    "## Configurar el entorno en claude.ai",
     "",
     "Elige el entorno con `/remote-env` y edítalo en claude.ai/code:",
     "",
-    `- 🌐 **Network access:** Custom + ✅ "Also include default list of common package managers". Dominios extra: ${hosts.length ? code(hosts) : "ninguno"}.`,
-    `- 🔑 **Variables:** ${config.requiredEnv.length ? `${code(config.requiredEnv)} (solo los nombres; los valores los pones tú)` : "ninguna"}.`,
-    "- 🐙 **Claude GitHub App:** instalado en el repo, o la sesión no puede pushear.",
-    "- 📜 **Setup script:**",
+    `- **Network access:** Custom y marca "Also include default list of common package managers". Dominios extra: ${hosts.length ? code(hosts) : "ninguno"}.`,
+    `- **Variables:** ${config.requiredEnv.length ? `${code(config.requiredEnv)} (solo los nombres; los valores los pones tú)` : "ninguna"}.`,
+    "- **Claude GitHub App:** instalado en el repo, o la sesión no puede pushear.",
+    "- **Setup script:**",
     "",
     "```bash",
     setupScript(packageVersion),
@@ -100,7 +100,7 @@ export function renderEnvironmentSection(config: CloudConfig, packageVersion: st
 
 /** The "how to verify" section, one line. */
 const VERIFY_SECTION = [
-  "## ✅ Verificar",
+  "## Verificar",
   "",
   `Corre \`npx ${PACKAGE} verify\` desde la rama subida: abre una sesión en la nube que revisa \`${PACKAGE} doctor\`, las dependencias, las versiones y las variables, y lo reporta en el PR.`,
 ].join("\n");
@@ -145,11 +145,11 @@ export function renderManual(input: { config: CloudConfig; packageVersion: strin
   const parts = [
     BEGIN,
     `<!-- Generado por ${PACKAGE} ${input.packageVersion}. No edites entre las marcas. -->`,
-    "# ☁️ Claude Code en la nube",
+    "# Claude Code en la nube",
     UPDATES_NOTE,
     renderEnvironmentSection(input.config, input.packageVersion),
     VERIFY_SECTION,
-    `## 🧪 Qué corre en la nube\n\n${notes?.trim() ? notes.trim() : "Nada anotado."}`,
+    `## Qué corre en la nube\n\n${notes?.trim() ? notes.trim() : "Nada anotado."}`,
     END,
   ];
   return parts.join("\n\n");

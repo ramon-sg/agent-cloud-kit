@@ -71,8 +71,8 @@ No le pidas al usuario una lista de variables secretas ni de dominios: anota en 
    comprueba ni crees scripts de tests nuevos sin aprobación.
 7. **Escribe el archivo de `notes`:** qué correr en la nube (el comando tal como lo corre el
    repo, lo que hay que levantar antes, cuánto tarda y si va en segundo plano), qué no y por qué.
-   Va dentro de `docs/agent-cloud.md`, así que sé breve: una viñeta por cosa, con su emoji, sin
-   párrafos. Por ejemplo:
+   Va dentro de `docs/agent-cloud.md`, así que sé breve: una viñeta por cosa, marcada con ✅ (corre), ⏳ (hay que levantar algo
+   antes) o ❌ (no corre), sin párrafos. Por ejemplo:
 
    ```markdown
    - ✅ `npm test` (~1 min)
@@ -80,7 +80,7 @@ No le pidas al usuario una lista de variables secretas ni de dominios: anota en 
    - ❌ `npm run test:e2e:prod`: pega a una API externa que el entorno no permite
    ```
 
-   Sin tests: `- ℹ️ El repo no tiene tests; en la nube solo se prepara la máquina.`
+   Sin tests: `- El repo no tiene tests; en la nube solo se prepara la máquina.`
 
 8. **Si existe `.agents/skills/test-audit/project.md`:** escribe o actualiza su sección "Nube"
    con el mismo resumen; no toques el resto del archivo.

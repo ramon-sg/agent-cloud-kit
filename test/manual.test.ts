@@ -42,7 +42,7 @@ test("renders domains from config and apt repos, sorted and unique", () => {
 test("renders the exact setup script", () => {
   const out = renderEnvironmentSection(base, "1.2.0");
   assert.ok(out.includes("```bash\n#!/bin/bash\nnpx -y agent-cloud-kit@1 setup\n```"));
-  assert.ok(out.startsWith("## ⚙️ Configurar el entorno en claude.ai"));
+  assert.ok(out.startsWith("## Configurar el entorno en claude.ai"));
   assert.ok(out.includes("Also include default list of common package managers"));
   assert.ok(out.includes("/remote-env"));
   assert.ok(!out.includes("por defecto de tu cuenta"));
@@ -51,10 +51,10 @@ test("renders the exact setup script", () => {
 
 test("lists requiredEnv names with the warnings", () => {
   const out = renderManual({ config: { ...base, requiredEnv: ["API_TOKEN", "DB_URL"] }, packageVersion: "1.2.3" });
-  assert.ok(out.includes("🔑 **Variables:** `API_TOKEN`, `DB_URL` (solo los nombres; los valores los pones tú)."));
+  assert.ok(out.includes("**Variables:** `API_TOKEN`, `DB_URL` (solo los nombres; los valores los pones tú)."));
   assert.ok(out.includes("Quien use el entorno puede leer las variables"));
   assert.ok(out.includes("no llegan al setup script"));
-  assert.ok(renderManual({ config: base, packageVersion: "1.2.3" }).includes("🔑 **Variables:** ninguna."));
+  assert.ok(renderManual({ config: base, packageVersion: "1.2.3" }).includes("**Variables:** ninguna."));
   assert.ok(!renderManual({ config: base, packageVersion: "1.2.3" }).includes("⚠️"));
 });
 
@@ -87,10 +87,10 @@ test("the manual has no test sections", () => {
 
 test("the manual tells how to verify the environment", () => {
   const out = renderManual({ config: base, packageVersion: "1.2.3" });
-  assert.ok(out.includes("## ✅ Verificar"));
+  assert.ok(out.includes("## Verificar"));
   assert.ok(out.includes("npx agent-cloud-kit verify"));
   assert.ok(out.includes("agent-cloud-kit doctor"));
-  assert.ok(out.includes("## 🧪 Qué corre en la nube"));
+  assert.ok(out.includes("## Qué corre en la nube"));
   assert.ok(out.includes("Nada anotado."));
   assert.ok(renderManual({ config: { ...base, notes: "No hay GPU." }, packageVersion: "1.2.3" }).includes("No hay GPU."));
 });
@@ -150,7 +150,7 @@ test("manual command prints the result and exits 1 without a config", async () =
 
 test("the manual says it is updated when the skill finds a new domain or variable", () => {
   const out = renderManual({ config: base, packageVersion: "1.0.0" });
-  assert.match(out, /🔄 Se actualiza solo cuando la skill `cloud-ready` detecta un dominio o una variable nueva/);
+  assert.match(out, /Se actualiza solo cuando la skill `cloud-ready` detecta un dominio o una variable nueva/);
 });
 
 test("a prerelease gets the exact version in the setup script; a major range would not match it", () => {

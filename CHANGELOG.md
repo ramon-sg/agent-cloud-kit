@@ -4,6 +4,13 @@ All notable changes to this project are documented in this file. The format foll
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 1.0.0-rc.6
+
+### Changed
+
+- `docs/agent-cloud.md` keeps emoji only where they mean something: ⚠️ on the variables
+  warning and ✅, ⏳ or ❌ on each note of "Qué corre en la nube". Headings and bullets have none.
+
 ## 1.0.0-rc.5
 
 ### Changed
