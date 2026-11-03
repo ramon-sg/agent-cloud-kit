@@ -4,6 +4,16 @@ All notable changes to this project are documented in this file. The format foll
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 1.0.0-rc.4
+
+### Changed
+
+- `prepare` and `verify` show each line with an icon and a color in a terminal (✔ done,
+  ● already there, ▲ warning, ✖ error) and keep the `agent-cloud-kit:` prefix otherwise.
+- New progress lines: the worktree created and the branch pushed.
+- The "Configurar el entorno en claude.ai" section is styled for the terminal instead of raw
+  Markdown, and the current-branch mode ends with numbered next steps.
+
 ## 1.0.0-rc.3
 
 ### Changed

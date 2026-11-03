@@ -73,6 +73,18 @@ export function enterLine(color: boolean): string {
   return `   ${paint(color, "1;32", "⏎ Enter")} abre Claude Code ${paint(color, "2", "· Ctrl+C cancela")} `;
 }
 
+/**
+ * The line asked while the user configures the environment in claude.ai.
+ *
+ * @param color - Whether to use ANSI colors.
+ * @returns The text.
+ * @example
+ * continueLine(false); // "\n   ⏎ Enter cuando hayas configurado el entorno en claude.ai · abre la sesión cloud que lo verifica "
+ */
+export function continueLine(color: boolean): string {
+  return `\n   ${paint(color, "1;32", "⏎ Enter")} cuando hayas configurado el entorno en claude.ai ${paint(color, "2", "· abre la sesión cloud que lo verifica")} `;
+}
+
 /** Config file claude-repo-guard installs; the free mode is used only when it is there. */
 const GUARD_CONFIG = ".claude/repo-guard.config.json";
 

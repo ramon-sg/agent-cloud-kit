@@ -8,7 +8,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync,
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
-import { enterLine } from "../src/prepare/banner.ts";
+import { continueLine, enterLine } from "../src/prepare/banner.ts";
 import { InterruptedError, branchDay, prepare, verifyBranch } from "../src/prepare/index.ts";
 import type { PrepareDeps } from "../src/prepare/index.ts";
 import { captureProcess } from "../src/run.ts";
@@ -174,7 +174,7 @@ test("runs the steps in order with the expected argv", async () => {
   assert.equal(cloud?.cwd, worktree);
   assert.equal(calls.find((c) => c.args[0] === "push")?.cwd, worktree);
   assert.equal(asked.length, 0);
-  assert.deepEqual(waited, [enterLine(false), "Configura el entorno en claude.ai y luego presiona Enter "]);
+  assert.deepEqual(waited, [enterLine(false), continueLine(false)]);
   const out = printed.join("\n");
   assert.match(out, /## Configurar el entorno en claude\.ai/);
   assert.match(out, /API_TOKEN/);
@@ -192,7 +192,7 @@ test("a failing local agent keeps the worktree and says how to resume", async ()
   assert.equal(code, 1);
   assert.ok(existsSync(worktree));
   assert.equal(git(worktree, ["rev-parse", "--abbrev-ref", "HEAD"]), BRANCH);
-  assert.ok(printed.includes(`el agente local se detuvo; el worktree está en ${worktree}; corre npx agent-cloud-kit prepare --resume ahí para continuar`));
+  assert.ok(printed.includes(`agent-cloud-kit: el agente local se detuvo; el worktree está en ${worktree}; corre npx agent-cloud-kit prepare --resume ahí para continuar`));
   assert.ok(!argvs().some((a) => a.startsWith("git commit") || a.startsWith("git push") || a.startsWith("claude --cloud")));
 });
 
@@ -201,7 +201,7 @@ test("an agent that exits 0 without the notes file: prepare says why it stopped 
   const code = await prepare(repo, deps());
   assert.equal(code, 1);
   const why = printed.indexOf("agent-cloud-kit: configure no terminó: no existe el archivo de notas .claude/cloud-notes.md");
-  const resume = printed.indexOf(`prepare se detuvo; el worktree está en ${worktree}; corre npx agent-cloud-kit prepare --resume ahí para continuar`);
+  const resume = printed.indexOf(`agent-cloud-kit: prepare se detuvo; el worktree está en ${worktree}; corre npx agent-cloud-kit prepare --resume ahí para continuar`);
   assert.ok(why >= 0 && resume > why, printed.join("\n"));
   assert.ok(!argvs().some((a) => a.startsWith("git commit")));
 });
@@ -214,7 +214,7 @@ test("an agent that exits 0 with an invalid config: prepare prints the config er
   };
   assert.equal(await prepare(repo, deps()), 1);
   assert.ok(printed.some((l) => l.startsWith("agent-cloud-kit: configure no terminó: ") && l.includes("https://bad")), printed.join("\n"));
-  assert.ok(printed.includes(`prepare se detuvo; el worktree está en ${worktree}; corre npx agent-cloud-kit prepare --resume ahí para continuar`));
+  assert.ok(printed.includes(`agent-cloud-kit: prepare se detuvo; el worktree está en ${worktree}; corre npx agent-cloud-kit prepare --resume ahí para continuar`));
 });
 
 test("before Claude opens, prepare shows what will happen and waits for Enter", async () => {
@@ -238,7 +238,7 @@ test("Ctrl+C at the Enter line before Claude keeps the worktree and opens nothin
   };
   assert.equal(await prepare(repo, deps({ waitEnter })), 130);
   assert.ok(!calls.some((c) => c.cmd === "claude" && c.args[0] !== "--help"));
-  assert.ok(printed.some((l) => l.startsWith("interrumpido; el worktree está en ")));
+  assert.ok(printed.some((l) => l.startsWith("agent-cloud-kit: interrumpido; el worktree está en ")));
 });
 
 test("with claude-repo-guard's claude:free script, Claude opens through it", async () => {
@@ -388,7 +388,7 @@ test("Ctrl+C at a question after the worktree exists keeps it and says how to re
   assert.equal(code, 130);
   assert.ok(existsSync(worktree));
   assert.equal(git(worktree, ["rev-parse", "--abbrev-ref", "HEAD"]), BRANCH);
-  assert.ok(printed.includes(`interrumpido; el worktree está en ${worktree}; corre npx agent-cloud-kit prepare --resume ahí para continuar`));
+  assert.ok(printed.includes(`agent-cloud-kit: interrumpido; el worktree está en ${worktree}; corre npx agent-cloud-kit prepare --resume ahí para continuar`));
   assert.ok(!argvs().some((a) => a.startsWith("git commit") || a.startsWith("git push")));
 });
 
@@ -397,7 +397,7 @@ test("Ctrl+C while waiting for Enter keeps the pushed worktree and says how to r
     throw new InterruptedError();
   };
   assert.equal(await prepare(repo, deps({ waitEnter })), 130);
-  assert.ok(printed.includes(`interrumpido; el worktree está en ${worktree}; corre npx agent-cloud-kit prepare --resume ahí para continuar`));
+  assert.ok(printed.includes(`agent-cloud-kit: interrumpido; el worktree está en ${worktree}; corre npx agent-cloud-kit prepare --resume ahí para continuar`));
   assert.ok(!argvs().some((a) => a.startsWith("claude --cloud")));
 });
 
@@ -416,7 +416,7 @@ test("a Ctrl+C while a child runs prints the resume line through onInterrupt, wh
     return run(cmd, args, opts);
   };
   assert.equal(await prepare(repo, deps({ onInterrupt, run: pushRun })), 0, printed.join("\n"));
-  assert.ok(printed.includes(`interrumpido; el worktree está en ${worktree}; corre npx agent-cloud-kit prepare --resume ahí para continuar`));
+  assert.ok(printed.includes(`agent-cloud-kit: interrumpido; el worktree está en ${worktree}; corre npx agent-cloud-kit prepare --resume ahí para continuar`));
   assert.equal(removed, true);
 });
 
@@ -443,7 +443,7 @@ test("a rename staged by the agent is listed with both paths and unstaged on no"
   };
   includeAnswer = "n";
   assert.equal(await prepare(repo, deps()), 0, printed.join("\n"));
-  assert.ok(printed.includes("  DOCS.md") && printed.includes("  README.md"));
+  assert.ok(printed.includes("    DOCS.md") && printed.includes("    README.md"));
   assert.ok(argvs().includes("git reset -q -- DOCS.md README.md"));
   assert.ok(!committed().includes("README.md") && !committed().includes("DOCS.md"));
   assert.ok(existsSync(join(worktree, "DOCS.md")));
@@ -462,7 +462,7 @@ test("a Ctrl+C inside the interactive claude does not end prepare", async () => 
   };
   assert.equal(await prepare(repo, deps({ onInterrupt, run: claudeRun })), 0, printed.join("\n"));
   assert.deepEqual(results, [false, false]);
-  assert.ok(!printed.some((l) => l.startsWith("interrumpido")));
+  assert.ok(!printed.some((l) => l.startsWith("agent-cloud-kit: interrumpido")));
   assert.equal(handler?.(), true);
 });
 
@@ -476,8 +476,8 @@ test("a Ctrl+C inside an agent that then stops still leads to the notes check", 
     assert.equal(handler?.(), false);
   };
   assert.equal(await prepare(repo, deps({ onInterrupt })), 1);
-  assert.ok(printed.includes(`prepare se detuvo; el worktree está en ${worktree}; corre npx agent-cloud-kit prepare --resume ahí para continuar`));
-  assert.ok(!printed.some((l) => l.startsWith("interrumpido")));
+  assert.ok(printed.includes(`agent-cloud-kit: prepare se detuvo; el worktree está en ${worktree}; corre npx agent-cloud-kit prepare --resume ahí para continuar`));
+  assert.ok(!printed.some((l) => l.startsWith("agent-cloud-kit: interrumpido")));
 });
 
 test("the place menu offers a new PR (default) and the current branch", async () => {
@@ -516,7 +516,7 @@ test("the current branch: prepares the checkout without committing, pushing or a
   assert.equal(configure?.cwd, repo);
   assert.ok(!calls.some((c) => c.args[0] === "commit" || c.args[0] === "push" || c.args[0] === "--cloud" || c.cmd === "gh"));
   assert.deepEqual(waited, [enterLine(false)]);
-  assert.match(printed.join("\n"), /listo, sin commit\..*npx agent-cloud-kit verify/);
+  assert.match(printed.join("\n"), /Listo, sin commit\. 1\) Revisa los cambios con git diff;.*4\) Corre npx agent-cloud-kit verify/);
 });
 
 test("--here skips the menu", async () => {
