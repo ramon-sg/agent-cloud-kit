@@ -60,7 +60,7 @@ test("knowledge.md is a table with a status column and at least 12 rows", () => 
   const rows = lines.filter((l) => /^\| /.test(l) && !l.startsWith("| Hecho") && !/^\|[\s|:-]+\|$/.test(l));
   assert.ok(rows.length >= 12, `${rows.length} rows`);
   for (const row of rows) assert.match(row, /\| (verificado|por verificar)[^|]*\|/, row);
-  assert.ok(rows.some((r) => r.includes("verificado (prueba en la nube, 2026-11-02)")));
+  assert.ok(rows.some((r) => /\| verificado \|[^|]*prueba en la nube, 2026-11-02/i.test(r)));
   assert.ok(rows.some((r) => r.includes("/ccr/ready_for_review") && r.includes("| por verificar |")));
 });
 
