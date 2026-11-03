@@ -65,6 +65,9 @@ No le pidas al usuario una lista de variables secretas ni de dominios: anota en 
       o una rama por `CLAUDE_CODE_REMOTE` en un script existente.
    3. Si nada de eso alcanza, déjalo fuera de la nube y explica por qué.
 
+   Una app gráfica (Electron, Expo, React Native) no se descarta entera por no tener pantalla:
+   mira "Electron" y "Expo y React Native" en `reference/compat.md` y propone lo que sí corre.
+
    Muestra cada propuesta con el cambio exacto (archivo y contenido).
 6. **Pregunta y aplica solo lo aprobado.** Un cambio fuera de la config (scripts, compose,
    configuración de tests) necesita un sí explícito del usuario. Nunca cambies lo que un test
@@ -75,7 +78,7 @@ No le pidas al usuario una lista de variables secretas ni de dominios: anota en 
    antes) o ❌ (no corre), sin párrafos. Por ejemplo:
 
    ```markdown
-   - ✅ `npm test` (~1 min)
+   - ✅ `npm test` (~1 min), el mismo comando que en local y en la CI
    - ⏳ Antes de `npm run test:db`: `docker compose up -d db` (~3 min, en segundo plano)
    - ❌ `npm run test:e2e:prod`: pega a una API externa que el entorno no permite
    ```
@@ -88,9 +91,22 @@ No le pidas al usuario una lista de variables secretas ni de dominios: anota en 
    claude.ai" de `docs/agent-cloud.md` (setup script, dominios, variables). Dile que ese
    documento se irá actualizando: si la skill, en local o en la nube, detecta que hace falta un
    dominio o una variable nueva, lo agrega ahí y se lo dice.
-10. **No hagas commit:** `agent-cloud-kit prepare` lo hace al salir. Si te invocaron fuera de
+10. **Resume lo que hiciste**, corto y siempre con estas líneas:
+
+    ```
+    Tests en la nube:  <comando>, el mismo que en local y en la CI (o qué variante y por qué)
+    Adaptaciones:      <qué cambió en la preparación (apt, dominios, setup), o "ninguna">
+    Tests y scripts:   <"no se tocaron", o cada archivo cambiado con tu aprobación>
+    Fuera de la nube:  <qué no corre y por qué, o "nada">
+    Archivos:          <los que creaste o cambiaste>
+    ```
+
+    Y termina con: "Si agregas tests (p. ej. de Electron) o cambias cómo se corren, vuelve a
+    correr `npx agent-cloud-kit prepare`: adapto lo nuevo a la nube y actualizo
+    `docs/agent-cloud.md`."
+11. **No hagas commit:** `agent-cloud-kit prepare` lo hace al salir. Si te invocaron fuera de
     `prepare`, pregunta al usuario.
-11. **Termina diciéndole al usuario que salga:** dile al usuario, con estas palabras o parecidas,
+12. **Termina diciéndole al usuario que salga:** dile al usuario, con estas palabras o parecidas,
     "configure terminó: sal de claude con `/exit` y `prepare` sigue". Si te
     invocaron fuera de `prepare`, omite este paso.
 

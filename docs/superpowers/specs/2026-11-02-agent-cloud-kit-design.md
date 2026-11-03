@@ -39,7 +39,7 @@ paquete debe juntarlo y hacerlo crecer.
 
 - **No se imponen tests.** Sin campo de tests en la config, sin niveles, sin comando `test`.
   Qué correr en la nube lo decide el usuario con la skill en `configure` y queda escrito en el
-  archivo de `notes` (texto libre, como `.claude/cloud-notes.md` en Abastio).
+  archivo de `notes` (texto libre, p. ej. `.claude/cloud-notes.md`).
 - **Adaptar antes que bifurcar.** Para que un test del repo corra en la nube, primero se
   adapta la preparación (`setup`, `session`, `domains`, `requiredEnv`); solo si eso no basta se
   propone una variante para la nube (un script aparte, p. ej. `cloud:services`, o una rama por

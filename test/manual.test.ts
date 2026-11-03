@@ -160,5 +160,12 @@ test("a prerelease gets the exact version in the setup script; a major range wou
 
 test("the manual is short", () => {
   const out = renderManual({ config: { ...base, requiredEnv: ["A"], domains: ["a.com"] }, packageVersion: "1.2.3" });
-  assert.ok(out.split("\n").length <= 35, `${out.split("\n").length} lines`);
+  assert.ok(out.split("\n").length <= 40, `${out.split("\n").length} lines`);
+});
+
+test("the manual says to run prepare again when the tests change", () => {
+  const out = renderManual({ config: base, packageVersion: "1.2.3" });
+  assert.ok(out.includes("## Si cambian los tests"));
+  assert.ok(out.includes("corre `npx agent-cloud-kit prepare`"));
+  assert.ok(out.indexOf("## Si cambian los tests") < out.indexOf("<!-- agent-cloud-kit:end -->"));
 });

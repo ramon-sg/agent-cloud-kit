@@ -4,6 +4,22 @@ De menos a más invasivo. Prueba cada nivel antes de pasar al siguiente, y prop�
 cambio exacto: en `configure` se aplica solo lo aprobado; en `verify` solo se tocan los archivos
 de la preparación y el resto queda propuesto en el PR.
 
+## Principios
+
+- **Los tests no se cambian.** En la nube corre el mismo comando que en local y en la CI, y
+  comprueba lo mismo. Si la suite entera tarda, se corre entera igual (en segundo plano).
+- **Lo distinto va en lo que prepara o lanza**, nunca en lo que el test comprueba: el setup,
+  los servicios, las imágenes de Docker, cómo se abre la app.
+- **Un arreglo que sirve en todas partes se hace sin condición.** Por ejemplo, `127.0.0.1` en
+  vez de `localhost` (en la nube no hay IPv6): se cambia para todos, no solo para la nube.
+- **Detecta la capacidad antes que el lugar.** Sin pantalla (`DISPLAY` vacío), `xvfb-run`; eso
+  sirve también en una CI de Linux. `CLAUDE_CODE_REMOTE=true` queda para lo que solo pasa en
+  la nube: la CA del proxy en un `docker build`, Docker apagado al empezar.
+- **Un script solo para la nube se niega a correr fuera de ella**, con un mensaje que diga qué
+  usar en local (p. ej. `cloud:services`: "solo corre en la nube; en local, `npm run dev`").
+- **Los tests no dependen de los scripts de desarrollo.** Si los tests levantan su propio
+  Docker, no necesitan `cloud:services`; ese script es para desarrollar en la sesión.
+
 ## 1. Adaptar la preparación
 
 Todo va en `.claude/cloud.json`; no toca código ni tests.
@@ -13,10 +29,13 @@ Todo va en `.claude/cloud.json`; no toca código ni tests.
 | Dependencias de npm, pnpm, Yarn o Bun | En `setup`, con el lockfile congelado: `npm ci`, `pnpm install --frozen-lockfile`, `yarn install --immutable`, `bun install --frozen-lockfile`. Node y el gestor fijados los instala el paquete. |
 | Servicios de Docker compose (base de datos, cola) | `docker.pull: "auto"` baja las imágenes en el setup. Levántalos en el comando que corre los tests (`agent-cloud-kit docker && docker compose up -d --wait db`) o, si son rápidos, en `session` (2 min como máximo) con ese mismo comando. `agent-cloud-kit session` arranca `dockerd` en segundo plano sin esperar a que responda; `agent-cloud-kit docker` lo arranca si hace falta y espera hasta 60 s a que `docker info` responda (sale con error si no). Para comprobarlo a mano: `docker info`. |
 | Testcontainers | Necesita Docker respondiendo: corre `agent-cloud-kit docker` antes de los tests (`agent-cloud-kit session` lo arranca pero no espera) y que la imagen esté en el setup: lístala en `docker.pull` si no está en un compose. Si construye imágenes, el CA del proxy entra con `CLOUD_PROXY_CA` como secreto. |
+| `docker build` dentro de los tests o del e2e | El build no confía en la CA del proxy (`SELF_SIGNED_CERT_IN_CHAIN` al instalar dependencias en la imagen). Solo con `CLAUDE_CODE_REMOTE=true`, pasa la CA como secreto: `docker buildx build --secret id=proxy_ca,src="$CLOUD_PROXY_CA" …`, y en el `Dockerfile` móntala en el paso que instala (`RUN --mount=type=secret,id=proxy_ca …` con `NODE_EXTRA_CA_CERTS`). Es un cambio de script: necesita aprobación. |
 | Playwright | Los navegadores de la versión del repo en `setup` (`npx playwright install --with-deps chromium`); suma tiempo al setup (límite ~5 min) y puede pedir `domains` (`cdn.playwright.dev`, `playwright.download.prss.microsoft.com`). La imagen ya trae navegadores en `/opt/pw-browsers`: si la versión coincide, alcanza con eso. Corre contra el servidor local de la sesión. |
 | `localhost` en URLs de tests o servicios | No hay IPv6: si algo resuelve `localhost` a `::1` y falla, usa `127.0.0.1` (en la config del test, por variable de entorno si el repo lo permite). |
 | Variables secretas (API keys de prueba) | Nombres en `requiredEnv`; el usuario pone los valores en el entorno de claude.ai. Recuerda que las lee cualquiera que use el entorno. |
 | Hosts externos que el setup o los tests necesitan | En `domains`; el manual los lista para la red del entorno. |
+| Electron | Ver "Electron", abajo: el binario necesita un mirror y la app, Xvfb. |
+| Expo o React Native | Ver "Expo y React Native", abajo: casi todo menos el simulador corre. |
 | Corridas largas (más de 2 min) | En segundo plano con la salida a un log, o `BASH_DEFAULT_TIMEOUT_MS` y `BASH_MAX_TIMEOUT_MS` en las variables del entorno. Anota en `notes` cuánto tardan. |
 
 ## 2. Bifurcar una variante para la nube
@@ -37,7 +56,42 @@ Déjalo fuera y anótalo en `notes` con el porqué:
 - APIs externas que el entorno no permite o que no deben recibir tráfico de pruebas.
 - Secretos que el entorno no tiene (o que no deben estar en un entorno compartido).
 - Lo que necesita abrir puertos hacia fuera o una vista previa (no existen).
+- iOS (simulador o build local): necesita macOS. El emulador de Android, salvo que haya `/dev/kvm`.
+
+Antes de dejar fuera una app gráfica (Electron, Expo, un navegador), mira las secciones de abajo:
+casi siempre hay algo que sí corre, y eso va en `notes` con ✅.
 - Recursos de dominios externos cargados por Playwright (bug abierto, ver `knowledge.md`).
+
+## Electron
+
+Sin pantalla, pero con Xvfb corre. Cada paso se prueba en `verify`; los hechos están en
+`knowledge.md` ("Apps de escritorio y móviles"), casi todos por verificar.
+
+1. **El binario:** la instalación lo baja de releases de GitHub y el proxy lo bloquea. En
+   `setup`, antes de instalar, `export ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/`
+   y `npmmirror.com` y `cdn.npmmirror.com` en `domains`. Si el repo instala Electron aparte
+   (p. ej. un script `install-electron`), ese paso necesita la misma variable.
+2. **La pantalla:** en `apt`, `xvfb` y las librerías de Chromium (`libnss3`, `libgtk-3-0`,
+   `libgbm1`, `libasound2t64`, `libxss1`, `libatk-bridge2.0-0`).
+3. **Correrlo:** `xvfb-run -a <comando de Electron> --no-sandbox`. Para ver que arranca: que el
+   proceso siga vivo unos segundos sin errores, o una captura (`import -window root` de
+   ImageMagick, o Playwright).
+4. **Tests e2e:** Playwright con `_electron.launch({ args: [".", "--no-sandbox"] })` bajo
+   `xvfb-run`. Si el repo no los tiene, no los crees: propónlos.
+
+Si `--no-sandbox` o el mirror requieren cambiar un script del repo, es una variante para la nube
+(nivel 2) y necesita aprobación.
+
+## Expo y React Native
+
+| Qué | En la nube |
+| --- | --- |
+| Tests de componentes (`jest-expo`, Testing Library) | Corren tal cual. |
+| `npx expo-doctor`, `npx expo prebuild --no-install`, `npx expo export --platform android` (o `ios`) | Corren: comprueban la config y que Metro compila el bundle, sin simulador. Con `EXPO_OFFLINE=1` si no hay red a `api.expo.dev`. |
+| Expo web (`react-native-web`) | `npx expo export --platform web` y Playwright contra el resultado servido en `127.0.0.1`, o `npx expo start --web`. Los módulos solo de iOS pueden romper la versión web: anótalo. |
+| Build de Android | Necesita el Android SDK en `setup` (`dl.google.com` en `domains`); suele pasar los ~5 min. Mejor fuera, o en EAS. |
+| Emulador de Android | Solo con `/dev/kvm` (`ls /dev/kvm`); si no está, fuera. |
+| iOS (simulador, `expo run:ios`, build) | Fuera: necesita macOS. Alternativa: build remoto en EAS con `EXPO_TOKEN`. |
 
 ## Ejemplo: vitest, Postgres en compose y Playwright
 

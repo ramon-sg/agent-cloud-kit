@@ -98,6 +98,13 @@ export function renderEnvironmentSection(config: CloudConfig, packageVersion: st
   return lines.join("\n");
 }
 
+/** What to do when the tests change, one line. */
+const TESTS_CHANGE_SECTION = [
+  "## Si cambian los tests",
+  "",
+  `Si agregas tests (p. ej. de Electron) o cambias cómo se corren, corre \`npx ${PACKAGE} prepare\`: la skill \`cloud-ready\` los adapta a la nube sin cambiar lo que comprueban y actualiza este documento.`,
+].join("\n");
+
 /** The "how to verify" section, one line. */
 const VERIFY_SECTION = [
   "## Verificar",
@@ -150,6 +157,7 @@ export function renderManual(input: { config: CloudConfig; packageVersion: strin
     renderEnvironmentSection(input.config, input.packageVersion),
     VERIFY_SECTION,
     `## Qué corre en la nube\n\n${notes?.trim() ? notes.trim() : "Nada anotado."}`,
+    TESTS_CHANGE_SECTION,
     END,
   ];
   return parts.join("\n\n");
