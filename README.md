@@ -35,17 +35,23 @@ platform does not tell you:
 ## The flow
 
 1. **Install your agent tooling** with agent-kitchen (config, hook and skill arrive in the repo).
-2. **Run `npx agent-cloud-kit prepare`** in a local terminal. It asks nothing up front: it
-   creates a worktree on a dated branch, runs `init`, and opens
-   Claude locally with the `cloud-ready` skill so it can write the cloud preparation with you. Then
-   it writes the manual, commits, pushes and opens a draft PR.
+2. **Run `npx agent-cloud-kit prepare`** in a local terminal. It asks where to work, with the
+   same menu as agent-kitchen (`--pr` or `--here` skip it):
+   - **En un PR nuevo** (default): creates a worktree on a dated branch from `origin`, so your
+     branch and uncommitted files are untouched; runs `init`, opens Claude locally with the
+     `cloud-ready` skill so it can write the cloud preparation with you, then writes the manual,
+     commits, pushes and opens a draft PR.
+   - **En la rama actual, sin commit:** does the same in your checkout and stops there; you review
+     with `git diff`, commit, push, and then run `npx agent-cloud-kit verify`.
 3. **Configure the environment in claude.ai** following `docs/agent-cloud.md`, which `prepare`
    generated from your `.claude/cloud.json`. The document keeps growing: when the skill, locally
    or in the cloud, finds that a domain or an environment variable is missing, it adds it to
    `.claude/cloud.json`, regenerates the document and tells you in the session what to add in
    claude.ai.
-4. **Verification in the cloud:** `prepare` launches `claude --cloud` on that branch, so a real
-   cloud session runs `cloud-ready verify`, fixes what fails and reports in the PR.
+4. **Verification in the cloud:** `prepare` (new PR) or `verify` (current branch, once pushed)
+   launches `claude --cloud` on that branch, so a real cloud session runs `cloud-ready verify`,
+   fixes what fails and reports in the PR. Run `npx agent-cloud-kit verify` again whenever you
+   change the environment.
 
 `claude --cloud` uses the environment chosen with `/remote-env` in `claude`, and the Claude GitHub
 App must be installed on the repo (without it the session cannot push). Inside the cloud, `gh api`
@@ -145,7 +151,8 @@ A Node version that is not exact (`22`, `22.1`, `lts/iron`, `lts/*` or `node`) i
 | `agent-cloud-kit doctor`         | Checks that the proxy lets the needed hosts through, that the pinned tools are installed, that Docker answers, and the recorded state (fingerprint and each step). Exits 1 if any check fails.                                       |
 | `agent-cloud-kit init`           | Creates `.claude/cloud.json` if missing, adds the `SessionStart` hook to `.claude/settings.json` (keeping the hooks already there), copies the `cloud-ready` skill to `.agents/skills/cloud-ready` when its version differs, and links it from `.claude/skills/cloud-ready`. Safe to run again.                                                                           |
 | `agent-cloud-kit manual`         | Writes `docs/agent-cloud.md` from `.claude/cloud.json`, deterministically: the exact setup script (`agent-cloud-kit@<major>`, or the exact version for a release candidate), domains, variable names, how to verify the environment. |
-| `agent-cloud-kit prepare [--resume]` | Local only, needs an interactive terminal: sets the repo up for the cloud on a new branch in a worktree, opens the PR and verifies it in a real cloud session (see "The flow"). `--resume` continues in the existing worktree. |
+| `agent-cloud-kit prepare [--pr\|--here\|--resume]` | Local only, needs an interactive terminal: sets the repo up for the cloud, in a new PR or in the current branch without committing (asks when no option is given; see "The flow"). `--resume` continues in the existing worktree. |
+| `agent-cloud-kit verify`         | Local only, needs an interactive terminal: launches a cloud session that runs `cloud-ready verify` on the current branch, which must be prepared and pushed. |
 
 Environment variables: `AGENT_CLOUD_KIT_DIR` overrides `/opt/agent-cloud-kit` and `AGENT_CLOUD_KIT_HOME`
 overrides `/home/user`; both exist mainly for tests.

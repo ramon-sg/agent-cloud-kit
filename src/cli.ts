@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * @file Command line entry point of agent-cloud-kit: wires `setup`, `session`, `docker`, `doctor`,
- * `init`, `manual` and `prepare` to their modules, relaunching or delegating to the version each
+ * `init`, `manual`, `prepare` and `verify` to their modules, relaunching or delegating to the version each
  * repo pins.
  */
 import { execFileSync } from "node:child_process";
@@ -18,11 +18,13 @@ import { init } from "./init.ts";
 import { findRepos, packageBin, planSetup, relaunch } from "./launcher.ts";
 import type { SetupPlanItem } from "./launcher.ts";
 import { MANUAL_FILE, writeManual } from "./manual.ts";
-import { EXIT_INTERRUPTED, InterruptedError, branchDay, prepare } from "./prepare/index.ts";
-import type { InterruptHandler } from "./prepare/index.ts";
+import { EXIT_INTERRUPTED, InterruptedError, branchDay, prepare, verifyBranch } from "./prepare/index.ts";
+import type { InterruptHandler, Place, PrepareDeps } from "./prepare/index.ts";
 import type { Ask } from "./prepare/questions.ts";
 import { captureProcess, runProcess } from "./run.ts";
 import type { Capture, Run } from "./run.ts";
+import { chooseTerminal } from "./select.ts";
+import type { Choose } from "./select.ts";
 import { session } from "./session.ts";
 import { setupRepo } from "./setup.ts";
 
@@ -38,7 +40,10 @@ Comandos:
   doctor                 revisa los dominios permitidos, las herramientas, Docker y el estado de la máquina
   init                   crea .claude/cloud.json y registra el hook SessionStart
   manual                 escribe docs/agent-cloud.md a partir de .claude/cloud.json
-  prepare [--resume]     corre en local: deja el repo listo para la nube en una rama nueva y lo verifica en una sesión cloud
+  prepare [--pr|--here|--resume]
+                         corre en local: deja el repo listo para la nube, en un PR nuevo (--pr) o en la
+                         rama actual sin commit (--here); sin opción, pregunta dónde
+  verify                 corre en local: lanza una sesión cloud que verifica la rama actual (ya subida)
 
 Opciones:
   --help                 muestra esta ayuda
@@ -62,6 +67,12 @@ const GIT_TIMEOUT_MS = 10_000;
 
 /** Option of `prepare` that continues in an existing prepare worktree. */
 const RESUME_OPTION = "--resume";
+
+/** Option of `prepare`: work in a new worktree that ends in a PR, without asking. */
+const PR_OPTION = "--pr";
+
+/** Option of `prepare`: work in the current checkout, without committing and without asking. */
+const HERE_OPTION = "--here";
 
 /** Exit code for success. */
 const EXIT_OK = 0;
@@ -91,6 +102,8 @@ export interface CliDeps {
   packageRoot?: string;
   /** Asks one question for `prepare`; reads stdin when omitted. */
   ask?: Ask;
+  /** Shows a menu for `prepare`; uses the terminal when omitted. */
+  choose?: Choose;
   /** Waits for Enter for `prepare`; reads stdin when omitted. */
   waitEnter?: (text: string) => Promise<void>;
   /** Whether stdin and stdout are terminals; taken from the process when omitted. */
@@ -375,27 +388,55 @@ async function waitTerminal(text: string): Promise<void> {
  * @returns 0 when the cloud session was started, 130 after Ctrl+C, 1 otherwise.
  */
 async function prepareCommand(args: string[], deps: CliDeps): Promise<number> {
-  const unknown = args.filter((arg) => arg !== RESUME_OPTION);
+  const known = [RESUME_OPTION, PR_OPTION, HERE_OPTION];
+  const unknown = args.filter((arg) => !known.includes(arg));
   if (unknown.length) {
     deps.print(`${OUTPUT_PREFIX}opción desconocida para prepare: ${unknown.join(" ")}`);
     return EXIT_FAIL;
   }
-  return prepare(
-    deps.cwd,
-    {
-      run: deps.run,
-      capture: deps.capture ?? captureProcess,
-      ask: deps.ask ?? askTerminal,
-      waitEnter: deps.waitEnter ?? waitTerminal,
-      print: deps.print,
-      packageVersion: deps.packageVersion,
-      packageRoot: deps.packageRoot ?? RUNNING_PACKAGE_ROOT,
-      today: deps.today ?? branchDay(new Date()),
-      isTty: deps.isTty ?? (process.stdin.isTTY === true && process.stdout.isTTY === true),
-      onInterrupt: deps.onInterrupt ?? onProcessInterrupt,
-    },
-    { resume: args.includes(RESUME_OPTION) },
-  );
+  if (args.filter((arg) => known.includes(arg)).length > 1) {
+    deps.print(`${OUTPUT_PREFIX}usa solo una de ${known.join(", ")}`);
+    return EXIT_FAIL;
+  }
+  const place: Place | undefined = args.includes(PR_OPTION) ? "pr" : args.includes(HERE_OPTION) ? "here" : undefined;
+  return prepare(deps.cwd, prepareDeps(deps), { resume: args.includes(RESUME_OPTION), place });
+}
+
+/**
+ * Runs `verify`: launches the cloud verification of the current branch.
+ *
+ * @param args - Arguments after `verify` (none allowed).
+ * @param deps - CLI dependencies.
+ * @returns 0 when the cloud session was started, 1 otherwise.
+ */
+async function verifyCommand(args: string[], deps: CliDeps): Promise<number> {
+  if (args.length) {
+    deps.print(`${OUTPUT_PREFIX}opción desconocida para verify: ${args.join(" ")}`);
+    return EXIT_FAIL;
+  }
+  return verifyBranch(deps.cwd, prepareDeps(deps));
+}
+
+/**
+ * Builds the dependencies of `prepare` and `verify` from the CLI ones, with terminal defaults.
+ *
+ * @param deps - CLI dependencies.
+ * @returns The dependencies.
+ */
+function prepareDeps(deps: CliDeps): PrepareDeps {
+  return {
+    run: deps.run,
+    capture: deps.capture ?? captureProcess,
+    ask: deps.ask ?? askTerminal,
+    choose: deps.choose ?? chooseTerminal,
+    waitEnter: deps.waitEnter ?? waitTerminal,
+    print: deps.print,
+    packageVersion: deps.packageVersion,
+    packageRoot: deps.packageRoot ?? RUNNING_PACKAGE_ROOT,
+    today: deps.today ?? branchDay(new Date()),
+    isTty: deps.isTty ?? (process.stdin.isTTY === true && process.stdout.isTTY === true),
+    onInterrupt: deps.onInterrupt ?? onProcessInterrupt,
+  };
 }
 
 /**
@@ -416,6 +457,7 @@ export async function main(argv: string[], deps: CliDeps): Promise<number> {
   if (command === "init") return initCommand(deps);
   if (command === "manual") return manualCommand(deps);
   if (command === "prepare") return prepareCommand(rest, deps);
+  if (command === "verify") return verifyCommand(rest, deps);
   if (command === "--version") {
     deps.print(deps.packageVersion);
     return EXIT_OK;

@@ -10,6 +10,13 @@ All notable changes to this project are documented in this file. The format foll
 
 - Every message, question and help text of the CLI is in Spanish.
 - `prepare` no longer requires a clean working tree: it works in a new worktree from origin.
+- `prepare` asks where to work with agent-kitchen's menu (arrow keys): in a new PR (default) or
+  in the current branch without committing. `--pr` and `--here` skip the menu.
+
+### Added
+
+- `agent-cloud-kit verify`: launches the cloud verification of the current branch once it is
+  prepared and pushed; also used to verify again after changing the environment.
 
 ## 1.0.0-rc.1
 

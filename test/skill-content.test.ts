@@ -90,7 +90,7 @@ test("new domains and variables go to the config and the manual, and the user is
   const skill = read("SKILL.md");
   const section = skill.slice(skill.indexOf("## Dominios y variables nuevos"), skill.indexOf("## Hallazgos"));
   assert.ok(section.length > 0, "no section for new domains and variables");
-  for (const text of ["`domains`", "`requiredEnv`", "agent-cloud-kit manual", "Díselo al usuario en la sesión", "/cloud-ready verify"]) {
+  for (const text of ["`domains`", "`requiredEnv`", "agent-cloud-kit manual", "Díselo al usuario en la sesión", "npx agent-cloud-kit verify"]) {
     assert.ok(section.includes(text), `section lacks ${text}`);
   }
   assert.equal(skill.includes("[respuestas]"), false);

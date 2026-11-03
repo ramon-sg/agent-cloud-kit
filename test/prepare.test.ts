@@ -8,7 +8,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync,
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
-import { InterruptedError, branchDay, prepare } from "../src/prepare/index.ts";
+import { InterruptedError, branchDay, prepare, verifyBranch } from "../src/prepare/index.ts";
 import type { PrepareDeps } from "../src/prepare/index.ts";
 import { captureProcess } from "../src/run.ts";
 import type { Capture, Run } from "../src/run.ts";
@@ -125,6 +125,7 @@ const capture: Capture = async (cmd, args, opts) => {
 const deps = (overrides: Partial<PrepareDeps> = {}): PrepareDeps => ({
   run,
   capture,
+  choose: async (_message, _choices, initial) => initial,
   ask: async (question, suggestion) => {
     asked.push(question);
     return question.startsWith("¿Incluir estos cambios") ? includeAnswer : suggestion;
@@ -449,4 +450,102 @@ test("a Ctrl+C inside an agent that then stops still leads to the notes check", 
   assert.equal(await prepare(repo, deps({ onInterrupt })), 1);
   assert.ok(printed.includes(`prepare se detuvo; el worktree está en ${worktree}; corre npx agent-cloud-kit prepare --resume ahí para continuar`));
   assert.ok(!printed.some((l) => l.startsWith("interrumpido")));
+});
+
+test("the place menu offers a new PR (default) and the current branch", async () => {
+  let shown: { message: string; values: string[]; initial: string } | undefined;
+  const choose: PrepareDeps["choose"] = async (message, choices, initial) => {
+    shown = { message, values: choices.map((c) => c.value), initial };
+    return initial;
+  };
+  assert.equal(await prepare(repo, deps({ choose })), 0, printed.join("\n"));
+  assert.deepEqual(shown, { message: "¿Dónde preparo el repo?", values: ["pr", "here"], initial: "pr" });
+});
+
+test("cancelling the place menu changes nothing", async () => {
+  const choose: PrepareDeps["choose"] = async () => null;
+  assert.equal(await prepare(repo, deps({ choose })), 1);
+  assert.ok(printed.includes("agent-cloud-kit: no se cambió nada"));
+  assert.ok(!existsSync(worktree));
+  assert.ok(!existsSync(join(repo, ".claude/cloud.json")));
+});
+
+test("a dirty working tree does not matter for a new PR", async () => {
+  writeFileSync(join(repo, "wip.txt"), "x\n");
+  assert.equal(await prepare(repo, deps()), 0, printed.join("\n"));
+  assert.ok(existsSync(join(repo, "wip.txt")));
+});
+
+test("the current branch: prepares the checkout without committing, pushing or a cloud session", async () => {
+  writeFileSync(join(repo, "wip.txt"), "x\n");
+  const head = git(repo, ["rev-parse", "HEAD"]);
+  const code = await prepare(repo, deps({ choose: async <T extends string>() => "here" as T }));
+  assert.equal(code, 0, printed.join("\n"));
+  assert.ok(!existsSync(worktree));
+  assert.equal(git(repo, ["rev-parse", "HEAD"]), head);
+  for (const file of [".claude/cloud.json", ".claude/cloud-notes.md", "docs/agent-cloud.md"]) assert.ok(existsSync(join(repo, file)), file);
+  const configure = calls.find((c) => c.cmd === "claude" && c.args[0] === "/cloud-ready configure");
+  assert.equal(configure?.cwd, repo);
+  assert.ok(!calls.some((c) => c.args[0] === "commit" || c.args[0] === "push" || c.args[0] === "--cloud" || c.cmd === "gh"));
+  assert.deepEqual(waited, []);
+  assert.match(printed.join("\n"), /listo, sin commit\..*npx agent-cloud-kit verify/);
+});
+
+test("--here skips the menu", async () => {
+  const choose: PrepareDeps["choose"] = async () => {
+    throw new Error("menu shown");
+  };
+  assert.equal(await prepare(repo, deps({ choose }), { place: "here" }), 0, printed.join("\n"));
+  assert.ok(!existsSync(worktree));
+});
+
+test("the current branch: an unfinished configure says how to continue", async () => {
+  agent = () => {};
+  assert.equal(await prepare(repo, deps(), { place: "here" }), 1);
+  assert.ok(printed.some((l) => l.startsWith("agent-cloud-kit: configure no terminó: ")));
+});
+
+/**
+ * Leaves the repo prepared on main, committed and pushed to the bare origin.
+ */
+async function preparedAndPushed(): Promise<void> {
+  assert.equal(await prepare(repo, deps(), { place: "here" }), 0, printed.join("\n"));
+  git(repo, ["add", "-A"]);
+  git(repo, ["commit", "-q", "-m", "chore: nube"]);
+  git(repo, ["push", "-q", "origin", "main"]);
+  calls = [];
+  printed = [];
+}
+
+test("verify launches the cloud session on the pushed current branch", async () => {
+  await preparedAndPushed();
+  existingPr = "9";
+  assert.equal(await verifyBranch(repo, deps()), 0, printed.join("\n"));
+  const cloud = calls.find((c) => c.cmd === "claude" && c.args[0] === "--cloud");
+  assert.equal(cloud?.args[1], "/cloud-ready verify\n\n- Rama de prepare: main\n- PR: #9");
+  assert.equal(cloud?.cwd, repo);
+  assert.ok(printed.includes("agent-cloud-kit: la sesión cloud avisará con un push a main y un comentario en el PR"));
+});
+
+test("verify refuses a branch with commits not pushed", async () => {
+  await preparedAndPushed();
+  git(repo, ["commit", "-q", "--allow-empty", "-m", "local"]);
+  assert.equal(await verifyBranch(repo, deps()), 1);
+  assert.ok(printed.some((l) => l.includes("no está subida o tiene commits sin subir")));
+  assert.ok(!calls.some((c) => c.args[0] === "--cloud"));
+});
+
+test("verify refuses uncommitted changes in the preparation, but not elsewhere", async () => {
+  await preparedAndPushed();
+  writeFileSync(join(repo, "wip.txt"), "x\n");
+  assert.equal(await verifyBranch(repo, deps()), 0, printed.join("\n"));
+  writeFileSync(join(repo, ".claude/cloud-notes.md"), "Otra cosa.\n");
+  printed = [];
+  assert.equal(await verifyBranch(repo, deps()), 1);
+  assert.ok(printed.some((l) => l.includes("hay cambios sin commit en la preparación")));
+});
+
+test("verify in an unprepared repo points to prepare", async () => {
+  assert.equal(await verifyBranch(repo, deps()), 1);
+  assert.ok(printed.some((l) => l.includes("el repo no está preparado") && l.includes("npx agent-cloud-kit prepare")));
 });

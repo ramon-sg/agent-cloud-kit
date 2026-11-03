@@ -181,9 +181,21 @@ test("help lists doctor and init", async () => {
   assert.ok(printed.join("\n").includes("init"));
 });
 
-test("help lists prepare --resume", async () => {
+test("help lists prepare with its options and verify", async () => {
   await main(["--help"], deps());
-  assert.ok(printed.join("\n").includes("prepare [--resume]"));
+  const help = printed.join("\n");
+  assert.ok(help.includes("prepare [--pr|--here|--resume]"));
+  assert.match(help, /^ {2}verify {2,}/m);
+});
+
+test("prepare takes only one of --pr, --here and --resume", async () => {
+  assert.equal(await main(["prepare", "--pr", "--here"], deps()), 1);
+  assert.ok(printed.includes("agent-cloud-kit: usa solo una de --resume, --pr, --here"));
+});
+
+test("verify takes no options", async () => {
+  assert.equal(await main(["verify", "--x"], deps()), 1);
+  assert.ok(printed.includes("agent-cloud-kit: opción desconocida para verify: --x"));
 });
 
 test("prepare runs preflight and exits 1 without a terminal", async () => {

@@ -45,7 +45,7 @@ const HOW_IT_WORKS = [
   "4. Una sesión en la nube verifica que el entorno quedó bien.",
   "5. El PR guarda el resultado.",
   "",
-  "Este documento se va actualizando. Cuando la skill `cloud-ready`, en local o en la nube, detecta que hace falta un dominio o una variable de entorno nueva, la agrega a `.claude/cloud.json`, regenera este archivo y te lo dice en la sesión. Cuando cambie la sección \"Configurar el entorno en claude.ai\", aplica lo nuevo en claude.ai y abre una sesión nueva.",
+  "Este documento se va actualizando. Cuando la skill `cloud-ready`, en local o en la nube, detecta que hace falta un dominio o una variable de entorno nueva, la agrega a `.claude/cloud.json`, regenera este archivo y te lo dice en la sesión. Cuando cambie la sección \"Configurar el entorno en claude.ai\", aplica lo nuevo en claude.ai y vuelve a verificar con `npx agent-cloud-kit verify` desde la rama.",
 ].join("\n");
 
 /**

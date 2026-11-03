@@ -88,7 +88,7 @@ No le pidas al usuario una lista de variables secretas ni de dominios: anota en 
 10. **No hagas commit:** `agent-cloud-kit prepare` lo hace al salir. Si te invocaron fuera de
     `prepare`, pregunta al usuario.
 11. **Termina diciéndole al usuario que salga:** dile al usuario, con estas palabras o parecidas,
-    "configure terminó: sal de claude con `/exit` y `prepare` sigue (commit, push y PR)". Si te
+    "configure terminó: sal de claude con `/exit` y `prepare` sigue". Si te
     invocaron fuera de `prepare`, omite este paso.
 
 ## `verify` (en la nube)
@@ -174,7 +174,8 @@ inicio de la sesión la marca como faltante, o el error nombra una variable vac�
 3. **Díselo al usuario en la sesión, en ese momento**, sin esperar al final: qué falta, por qué
    (el comando y el error) y qué hacer, con estas palabras o parecidas: "Falta `<X>` en el entorno
    de claude.ai. Agrégalo en <Network access / Variables de entorno> (está en
-   `docs/agent-cloud.md`), abre una sesión nueva y corre `/cloud-ready verify`".
+   `docs/agent-cloud.md`) y vuelve a verificar: en tu terminal, en la rama `<rama>` actualizada
+   (`git pull`), corre `npx agent-cloud-kit verify`".
 4. En `verify`, ponlo también en "Cambiar en claude.ai" del comentario del PR.
 
 Un dominio que ya está en `domains`, o una variable que ya está en `requiredEnv`, no se agrega

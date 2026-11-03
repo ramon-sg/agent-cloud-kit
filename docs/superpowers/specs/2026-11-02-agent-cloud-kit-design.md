@@ -162,7 +162,11 @@ script); cómo verificar el entorno en una sesión nueva (`agent-cloud-kit docto
 
 1. Comprueba: terminal interactiva, repo git con `origin`, árbol limpio, `claude` en `PATH` y
    que `claude --help` mencione `--cloud`. Si falta algo, dice qué y sale 1.
-2. Sin preguntas: las variables secretas y los dominios no se piden por adelantado. La skill
+2. Menú "¿Dónde preparo el repo?" como el de agent-kitchen (flechas; `--pr`/`--here` lo saltan):
+   "En un PR nuevo" (por defecto, sigue en el paso 3; los cambios sin commitear no importan) o
+   "En la rama actual, sin commit" (init, configure y manual en el checkout; termina pidiendo
+   commit, push y `agent-cloud-kit verify`, que lanza la verificación en la nube de la rama actual
+   ya subida). Sin preguntas sobre secretos ni dominios: las variables secretas y los dominios no se piden por adelantado. La skill
    anota los que ve necesarios y, cuando algo falla en la nube por un dominio o una variable que
    falta, lo agrega a `.claude/cloud.json`, regenera `docs/agent-cloud.md` y se lo dice al
    usuario en la sesión en ese momento (y en el comentario del PR).

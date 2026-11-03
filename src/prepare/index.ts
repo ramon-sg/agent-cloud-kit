@@ -9,8 +9,9 @@ import { readConfig } from "../config.ts";
 import { CONFIG_FILE, OUTPUT_PREFIX, PACKAGE } from "../constants.ts";
 import { defaultBranch } from "../detect.ts";
 import { init } from "../init.ts";
-import { renderEnvironmentSection, writeManual } from "../manual.ts";
+import { MANUAL_FILE, renderEnvironmentSection, writeManual } from "../manual.ts";
 import type { Capture, Run } from "../run.ts";
+import type { Choose } from "../select.ts";
 import { preflight } from "./detect.ts";
 import { configurePrompt, verifyPrompt } from "./prompts.ts";
 import type { Ask } from "./questions.ts";
@@ -60,6 +61,15 @@ const RESUME_COMMAND = `npx ${PACKAGE} prepare --resume`;
 /** Printed just before the local agent starts: `prepare` continues only when `claude` exits. */
 const EXIT_CLAUDE_HINT = `${OUTPUT_PREFIX}cuando la skill diga que configure terminó, sal de claude (/exit) y prepare hará el commit, el push y abrirá el PR`;
 
+/** Printed before the local agent starts in the current branch: nothing is committed. */
+const EXIT_CLAUDE_HINT_HERE = `${OUTPUT_PREFIX}cuando la skill diga que configure terminó, sal de claude (/exit)`;
+
+/** Question of the place menu. */
+const PLACE_QUESTION = "¿Dónde preparo el repo?";
+
+/** Command that launches the cloud verification of the current branch. */
+const VERIFY_COMMAND = `npx ${PACKAGE} verify`;
+
 /** Exit code for success. */
 const EXIT_OK = 0;
 
@@ -87,7 +97,12 @@ interface Progress {
   worktree?: string;
   /** True while an interactive `claude` owns the terminal: Ctrl+C is for it, not for `prepare`. */
   childOwnsTerminal?: boolean;
+  /** True once `prepare` started changing the current checkout (the "current branch" place). */
+  here?: boolean;
 }
+
+/** Where `prepare` works: a new worktree that ends in a PR, or the current checkout. */
+export type Place = "pr" | "here";
 
 /** Handler `prepare` registers for Ctrl+C; returns true when the process should exit. */
 export type InterruptHandler = () => boolean;
@@ -100,6 +115,8 @@ export interface PrepareDeps {
   capture: Capture;
   /** Asks one question. */
   ask: Ask;
+  /** Shows a menu and returns the picked value, or null when cancelled. */
+  choose: Choose;
   /** Shows a text and waits for Enter. */
   waitEnter: (text: string) => Promise<void>;
   /** Prints one line. */
@@ -125,6 +142,8 @@ export interface PrepareDeps {
 export interface PrepareOptions {
   /** Continue in an existing prepare worktree: skip creating the worktree and the local agent. */
   resume?: boolean;
+  /** Where to work, skipping the menu. */
+  place?: Place;
 }
 
 /**
@@ -420,14 +439,15 @@ async function commitAndPush(worktree: string, branch: string, deps: PrepareDeps
 }
 
 /**
- * Prepares a repo for Claude Code cloud sessions: checks, asks, creates a worktree on a new
- * branch, runs the local agent with the `cloud-ready` skill, commits, pushes, opens a draft PR,
+ * Prepares a repo for Claude Code cloud sessions: checks, asks where to work (a new PR or the
+ * current branch, see `prepareHere`), creates a worktree on a new branch, runs the local agent with the `cloud-ready` skill, commits, pushes, opens a draft PR,
  * waits while the user configures the environment and starts a cloud session that verifies it.
  *
  * @param repo - Folder where the user runs `prepare` (inside the repo, or the worktree with resume).
  * @param deps - Dependencies.
  * @param options - `resume` continues in an existing prepare worktree.
- * @returns 0 when the cloud session was started, 130 after Ctrl+C at a question, 1 otherwise.
+ * @returns 0 when the cloud session was started (or, in the current branch, when it is prepared),
+ *   130 after Ctrl+C at a question, 1 otherwise.
  * @example
  * process.exitCode = await prepare(process.cwd(), deps);
  */
@@ -489,6 +509,7 @@ async function runInteractive(deps: PrepareDeps, progress: Progress, args: strin
  * interruptedLine({}); // "agent-cloud-kit: interrumpido; no se creó nada"
  */
 function interruptedLine(progress: Progress): string {
+  if (progress.here) return `${OUTPUT_PREFIX}interrumpido; lo que alcanzó a cambiar quedó sin commit en tu rama`;
   return progress.worktree === undefined ? `${OUTPUT_PREFIX}interrumpido; no se creó nada` : resumeLine("interrumpido", progress.worktree);
 }
 
@@ -521,6 +542,12 @@ async function prepareSteps(gitRoot: string, deps: PrepareDeps, options: Prepare
       return EXIT_FAIL;
     }
   } else {
+    const place = options.place ?? (await askPlace(gitRoot, deps));
+    if (place === null) {
+      deps.print(`${OUTPUT_PREFIX}no se cambió nada`);
+      return EXIT_FAIL;
+    }
+    if (place === "here") return prepareHere(gitRoot, deps, progress);
     branch = `${BRANCH_PREFIX}${deps.today}`;
     worktree = worktreePath(gitRoot);
     if (!(await createAndConfigure(gitRoot, branch, worktree, deps, progress))) return EXIT_FAIL;
@@ -537,5 +564,134 @@ async function prepareSteps(gitRoot: string, deps: PrepareDeps, options: Prepare
     return EXIT_FAIL;
   }
   deps.print(`${OUTPUT_PREFIX}la sesión cloud avisará con un push a ${branch} y un comentario en el PR`);
+  return EXIT_OK;
+}
+
+/**
+ * Asks where to work, with the same options as agent-kitchen.
+ *
+ * @param gitRoot - Git root.
+ * @param deps - Dependencies.
+ * @returns The place, or null when cancelled.
+ * @example
+ * await askPlace("/home/u/app", deps); // "pr"
+ */
+async function askPlace(gitRoot: string, deps: PrepareDeps): Promise<Place | null> {
+  return deps.choose<Place>(
+    PLACE_QUESTION,
+    [
+      { value: "pr", label: "En un PR nuevo", hint: `recomendado · parte de origin/${defaultBranch(gitRoot)}, no toca tu rama ni tus archivos` },
+      { value: "here", label: "En la rama actual, sin commit", hint: `los revisas con git diff, haces commit y push, y luego corres ${VERIFY_COMMAND}` },
+    ],
+    "pr",
+  );
+}
+
+/**
+ * The "current branch" place: installs the kit, runs the local agent and writes the manual in the
+ * checkout, without committing. The cloud verification comes later, with `verify`, once pushed.
+ *
+ * @param gitRoot - Git root (the current checkout).
+ * @param deps - Dependencies.
+ * @param progress - Marks the checkout as changed.
+ * @returns The exit code.
+ * @example
+ * await prepareHere("/home/u/app", deps, {}); // 0
+ */
+async function prepareHere(gitRoot: string, deps: PrepareDeps, progress: Progress): Promise<number> {
+  progress.here = true;
+  const stopped = `${OUTPUT_PREFIX}prepare se detuvo; lo que alcanzó a cambiar quedó sin commit en tu rama`;
+  try {
+    const result = init(gitRoot, deps.packageVersion, deps.packageRoot);
+    for (const line of result.lines) deps.print(line);
+    if (!result.ok) {
+      deps.print(stopped);
+      return EXIT_FAIL;
+    }
+  } catch (err) {
+    deps.print(`${OUTPUT_PREFIX}${message(err)}`);
+    deps.print(stopped);
+    return EXIT_FAIL;
+  }
+  deps.print(EXIT_CLAUDE_HINT_HERE);
+  try {
+    await runInteractive(deps, progress, [configurePrompt()], gitRoot);
+  } catch {
+    deps.print(stopped);
+    return EXIT_FAIL;
+  }
+  const problem = configureProblem(gitRoot);
+  if (problem !== undefined) {
+    deps.print(`${OUTPUT_PREFIX}configure no terminó: ${problem}; corre claude "/cloud-ready configure" y luego prepare otra vez`);
+    return EXIT_FAIL;
+  }
+  try {
+    writeManual(gitRoot, deps.packageVersion);
+  } catch (err) {
+    deps.print(`${OUTPUT_PREFIX}no se pudo escribir ${MANUAL_FILE}: ${message(err)}`);
+    return EXIT_FAIL;
+  }
+  const config = readConfig(gitRoot).config;
+  if (config) deps.print(renderEnvironmentSection(config, deps.packageVersion));
+  deps.print(`${OUTPUT_PREFIX}listo, sin commit. Revisa los cambios con git diff, haz commit y push, configura el entorno en claude.ai (${MANUAL_FILE}) y corre ${VERIFY_COMMAND}`);
+  return EXIT_OK;
+}
+
+/**
+ * Launches the cloud verification of the current branch: checks that the preparation is there
+ * and pushed (the cloud only sees origin), then starts `claude --cloud` with `cloud-ready verify`.
+ *
+ * @param repo - Folder where the user runs `verify`.
+ * @param deps - Dependencies (`ask`, `choose`, `waitEnter` and `today` are not used).
+ * @returns 0 when the cloud session was started, 1 otherwise.
+ * @example
+ * process.exitCode = await verifyBranch(process.cwd(), deps);
+ */
+export async function verifyBranch(repo: string, deps: PrepareDeps): Promise<number> {
+  const gitRoot = await tryCapture(deps, "git", ["rev-parse", "--show-toplevel"], repo);
+  const cwd = gitRoot ?? repo;
+  const hasOrigin = (await tryCapture(deps, "git", ["remote", "get-url", "origin"], cwd)) !== undefined;
+  const claudeHelp = await tryCapture(deps, "claude", ["--help"], cwd);
+  const problems = preflight({ isTty: deps.isTty, gitRoot, hasOrigin, claudeHelp }, "verify");
+  if (problems.length || gitRoot === undefined) {
+    for (const problem of problems) deps.print(`${OUTPUT_PREFIX}${problem}`);
+    return EXIT_FAIL;
+  }
+  const branch = await tryCapture(deps, "git", ["rev-parse", "--abbrev-ref", "HEAD"], gitRoot);
+  if (branch === undefined || branch === "HEAD") {
+    deps.print(`${OUTPUT_PREFIX}no estás en una rama; cámbiate a la rama que quieres verificar`);
+    return EXIT_FAIL;
+  }
+  const problem = configureProblem(gitRoot);
+  if (problem !== undefined) {
+    deps.print(`${OUTPUT_PREFIX}el repo no está preparado (${problem}); corre npx ${PACKAGE} prepare primero`);
+    return EXIT_FAIL;
+  }
+  const notes = readConfig(gitRoot).config?.notes ?? DEFAULT_NOTES_FILE;
+  const files = [CONFIG_FILE, MANUAL_FILE, notes].filter((path) => entryExists(join(gitRoot, path)));
+  const dirty = await tryCapture(deps, "git", ["status", "--porcelain", "--", ...files], gitRoot);
+  if (dirty) {
+    deps.print(`${OUTPUT_PREFIX}hay cambios sin commit en la preparación; haz commit y push: la nube solo ve lo que está en origin`);
+    return EXIT_FAIL;
+  }
+  const head = await tryCapture(deps, "git", ["rev-parse", "HEAD"], gitRoot);
+  const remote = (await tryCapture(deps, "git", ["ls-remote", "origin", `refs/heads/${branch}`], gitRoot))?.split(/\s/)[0];
+  if (!head || remote !== head) {
+    deps.print(`${OUTPUT_PREFIX}la rama ${branch} no está subida o tiene commits sin subir; haz git push y vuelve a correr verify`);
+    return EXIT_FAIL;
+  }
+  const found = await tryCapture(deps, "gh", ["pr", "view", branch, "--json", "number", "--jq", ".number"], gitRoot);
+  const pr = found !== undefined && PR_NUMBER.test(found) ? found : undefined;
+  const progress: Progress = {};
+  const stop = deps.onInterrupt?.(() => !progress.childOwnsTerminal);
+  try {
+    await runInteractive(deps, progress, ["--cloud", verifyPrompt({ branch, pr })], gitRoot);
+  } catch (err) {
+    deps.print(`${OUTPUT_PREFIX}falló claude --cloud: ${message(err)}`);
+    return EXIT_FAIL;
+  } finally {
+    stop?.();
+  }
+  deps.print(`${OUTPUT_PREFIX}la sesión cloud avisará con un push a ${branch}${pr ? " y un comentario en el PR" : ""}`);
   return EXIT_OK;
 }
