@@ -6,7 +6,7 @@ import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, 
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { readConfig } from "./config.ts";
 import type { CloudConfig } from "./config.ts";
-import { CONFIG_FILE, OUTPUT_PREFIX, PACKAGE, packageSpec } from "./constants.ts";
+import { CONFIG_FILE, PACKAGE, packageSpec } from "./constants.ts";
 
 /** Path of the manual, relative to the repo. */
 export const MANUAL_FILE = "docs/agent-cloud.md";
@@ -35,18 +35,8 @@ function setupScript(packageVersion: string): string {
   return `#!/bin/bash\nnpx -y ${packageSpec(packageVersion)} setup`;
 }
 
-/** The "how it works" section, five lines. */
-const HOW_IT_WORKS = [
-  "## Cómo funciona",
-  "",
-  "1. agent-kitchen instala las herramientas y los ganchos en el repo.",
-  `2. \`${PACKAGE} prepare\` configura el repo con la skill y genera este documento.`,
-  "3. Tú configuras el entorno en claude.ai con lo que indica la siguiente sección.",
-  "4. Una sesión en la nube verifica que el entorno quedó bien.",
-  "5. El PR guarda el resultado.",
-  "",
-  "Este documento se va actualizando. Cuando la skill `cloud-ready`, en local o en la nube, detecta que hace falta un dominio o una variable de entorno nueva, la agrega a `.claude/cloud.json`, regenera este archivo y te lo dice en la sesión. Cuando cambie la sección \"Configurar el entorno en claude.ai\", aplica lo nuevo en claude.ai y vuelve a verificar con `npx agent-cloud-kit verify` desde la rama.",
-].join("\n");
+/** Note at the top: the document grows when the skill finds something new. */
+const UPDATES_NOTE = `> 🔄 Se actualiza solo cuando la skill \`cloud-ready\` detecta un dominio o una variable nueva. Si cambia, aplícalo en claude.ai y corre \`npx ${PACKAGE} verify\`.`;
 
 /**
  * Extracts the host of an apt repo URL.
@@ -85,55 +75,34 @@ function allowedHosts(config: CloudConfig): string[] {
  * @param packageVersion - Version of the running package, for the setup script.
  * @returns The section, without a trailing newline.
  * @example
- * renderEnvironmentSection(config, "1.0.0").startsWith("## Configurar el entorno en claude.ai"); // true
+ * renderEnvironmentSection(config, "1.0.0").startsWith("## ⚙️ Configurar el entorno en claude.ai"); // true
  */
 export function renderEnvironmentSection(config: CloudConfig, packageVersion: string): string {
   const hosts = allowedHosts(config);
+  const code = (items: string[]): string => items.map((item) => `\`${item}\``).join(", ");
   const lines = [
-    "## Configurar el entorno en claude.ai",
+    "## ⚙️ Configurar el entorno en claude.ai",
     "",
-    "`claude --cloud` usa el entorno que elijas con `/remote-env` en una terminal (queda en tu configuración de usuario). Configura ese entorno en claude.ai/code:",
+    "Elige el entorno con `/remote-env` y edítalo en claude.ai/code:",
     "",
-    "### Network access",
-    "",
-    'Elige **Custom**, marca "Also include default list of common package managers" y agrega estos dominios:',
-    "",
-    ...(hosts.length ? hosts.map((host) => `- ${host}`) : ["ninguno extra"]),
-    "",
-    "### Setup script",
+    `- 🌐 **Network access:** Custom + ✅ "Also include default list of common package managers". Dominios extra: ${hosts.length ? code(hosts) : "ninguno"}.`,
+    `- 🔑 **Variables:** ${config.requiredEnv.length ? `${code(config.requiredEnv)} (solo los nombres; los valores los pones tú)` : "ninguna"}.`,
+    "- 🐙 **Claude GitHub App:** instalado en el repo, o la sesión no puede pushear.",
+    "- 📜 **Setup script:**",
     "",
     "```bash",
     setupScript(packageVersion),
     "```",
-    "",
-    "### Variables de entorno",
-    "",
   ];
-  if (config.requiredEnv.length) {
-    lines.push(...config.requiredEnv.map((name) => `- \`${name}\``));
-    lines.push("", "Solo los nombres; los valores los pones tú en el entorno. Ojo: quien use el entorno puede leerlas, y no llegan al setup script (solo a la sesión).");
-  } else {
-    lines.push("Ninguna.");
-  }
-  lines.push(
-    "",
-    "### Claude GitHub App",
-    "",
-    "El Claude GitHub App debe estar instalado en el repo. Sin él, la sesión no puede pushear.",
-  );
+  if (config.requiredEnv.length) lines.push("", "> ⚠️ Quien use el entorno puede leer las variables, y no llegan al setup script (solo a la sesión).");
   return lines.join("\n");
 }
 
-/** The "how to verify" section: what a fresh cloud session checks. */
+/** The "how to verify" section, one line. */
 const VERIFY_SECTION = [
-  "## Verificar el entorno",
+  "## ✅ Verificar",
   "",
-  "En una sesión nueva en la nube, revisa esto:",
-  "",
-  `1. \`${PACKAGE} doctor\` muestra todo en \`ok\` y termina con salida 0.`,
-  "2. `node_modules` existe.",
-  "3. Las versiones de `.tool-versions` son las que están instaladas.",
-  `4. Al empezar la sesión no hay líneas \`${OUTPUT_PREFIX.trim()}\` de falla.`,
+  `Corre \`npx ${PACKAGE} verify\` desde la rama subida: abre una sesión en la nube que revisa \`${PACKAGE} doctor\`, las dependencias, las versiones y las variables, y lo reporta en el PR.`,
 ].join("\n");
 
 /**
@@ -176,11 +145,11 @@ export function renderManual(input: { config: CloudConfig; packageVersion: strin
   const parts = [
     BEGIN,
     `<!-- Generado por ${PACKAGE} ${input.packageVersion}. No edites entre las marcas. -->`,
-    "# Nube de Claude Code",
-    HOW_IT_WORKS,
+    "# ☁️ Claude Code en la nube",
+    UPDATES_NOTE,
     renderEnvironmentSection(input.config, input.packageVersion),
     VERIFY_SECTION,
-    `## Qué corre en la nube\n\n${notes?.trim() ? notes.trim() : "Nada anotado."}`,
+    `## 🧪 Qué corre en la nube\n\n${notes?.trim() ? notes.trim() : "Nada anotado."}`,
     END,
   ];
   return parts.join("\n\n");

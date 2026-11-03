@@ -4,6 +4,15 @@ All notable changes to this project are documented in this file. The format foll
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 1.0.0-rc.5
+
+### Changed
+
+- `docs/agent-cloud.md` is shorter and easier to scan: an emoji per key point, the environment
+  setup as four bullets (network, variables, GitHub App, setup script), one line to verify, and
+  the variables warning only when there are variables.
+- The `cloud-ready` skill writes "Qué corre en la nube" as short bullets marked ✅, ⏳ or ❌.
+
 ## 1.0.0-rc.4
 
 ### Changed

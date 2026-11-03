@@ -33,17 +33,16 @@ const base: CloudConfig = {
 test("renders domains from config and apt repos, sorted and unique", () => {
   const config = { ...base, domains: ["zeta.example.com", "api.example.com"], aptRepos: ["https://apt.example.com/repo", "https://api.example.com/x", "ftp://nope.example.com", "not a url"] };
   const out = renderManual({ config, packageVersion: "1.2.3" });
-  const list = ["- api.example.com", "- apt.example.com", "- zeta.example.com"].join("\n");
-  assert.ok(out.includes(list));
+  assert.ok(out.includes("Dominios extra: `api.example.com`, `apt.example.com`, `zeta.example.com`."));
   assert.equal(out.split("api.example.com").length, 2);
   assert.ok(!out.includes("nope.example.com"));
-  assert.ok(renderManual({ config: base, packageVersion: "1.2.3" }).includes("ninguno extra"));
+  assert.ok(renderManual({ config: base, packageVersion: "1.2.3" }).includes("Dominios extra: ninguno."));
 });
 
 test("renders the exact setup script", () => {
   const out = renderEnvironmentSection(base, "1.2.0");
   assert.ok(out.includes("```bash\n#!/bin/bash\nnpx -y agent-cloud-kit@1 setup\n```"));
-  assert.ok(out.startsWith("## Configurar el entorno en claude.ai"));
+  assert.ok(out.startsWith("## ⚙️ Configurar el entorno en claude.ai"));
   assert.ok(out.includes("Also include default list of common package managers"));
   assert.ok(out.includes("/remote-env"));
   assert.ok(!out.includes("por defecto de tu cuenta"));
@@ -52,10 +51,11 @@ test("renders the exact setup script", () => {
 
 test("lists requiredEnv names with the warnings", () => {
   const out = renderManual({ config: { ...base, requiredEnv: ["API_TOKEN", "DB_URL"] }, packageVersion: "1.2.3" });
-  assert.ok(out.includes("- `API_TOKEN`"));
-  assert.ok(out.includes("- `DB_URL`"));
-  assert.ok(out.includes("quien use el entorno puede leerlas"));
+  assert.ok(out.includes("🔑 **Variables:** `API_TOKEN`, `DB_URL` (solo los nombres; los valores los pones tú)."));
+  assert.ok(out.includes("Quien use el entorno puede leer las variables"));
   assert.ok(out.includes("no llegan al setup script"));
+  assert.ok(renderManual({ config: base, packageVersion: "1.2.3" }).includes("🔑 **Variables:** ninguna."));
+  assert.ok(!renderManual({ config: base, packageVersion: "1.2.3" }).includes("⚠️"));
 });
 
 test("keeps Hallazgos byte for byte", () => {
@@ -87,11 +87,10 @@ test("the manual has no test sections", () => {
 
 test("the manual tells how to verify the environment", () => {
   const out = renderManual({ config: base, packageVersion: "1.2.3" });
-  assert.ok(out.includes("## Verificar el entorno"));
+  assert.ok(out.includes("## ✅ Verificar"));
+  assert.ok(out.includes("npx agent-cloud-kit verify"));
   assert.ok(out.includes("agent-cloud-kit doctor"));
-  assert.ok(out.includes("node_modules"));
-  assert.ok(out.includes(".tool-versions"));
-  assert.ok(out.includes("## Qué corre en la nube"));
+  assert.ok(out.includes("## 🧪 Qué corre en la nube"));
   assert.ok(out.includes("Nada anotado."));
   assert.ok(renderManual({ config: { ...base, notes: "No hay GPU." }, packageVersion: "1.2.3" }).includes("No hay GPU."));
 });
@@ -151,11 +150,15 @@ test("manual command prints the result and exits 1 without a config", async () =
 
 test("the manual says it is updated when the skill finds a new domain or variable", () => {
   const out = renderManual({ config: base, packageVersion: "1.0.0" });
-  assert.match(out, /Este documento se va actualizando/);
-  assert.match(out, /dominio o una variable de entorno nueva/);
+  assert.match(out, /🔄 Se actualiza solo cuando la skill `cloud-ready` detecta un dominio o una variable nueva/);
 });
 
 test("a prerelease gets the exact version in the setup script; a major range would not match it", () => {
   const out = renderEnvironmentSection(base, "1.0.0-rc.1");
   assert.ok(out.includes("npx -y agent-cloud-kit@1.0.0-rc.1 setup"));
+});
+
+test("the manual is short", () => {
+  const out = renderManual({ config: { ...base, requiredEnv: ["A"], domains: ["a.com"] }, packageVersion: "1.2.3" });
+  assert.ok(out.split("\n").length <= 35, `${out.split("\n").length} lines`);
 });

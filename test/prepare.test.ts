@@ -176,7 +176,7 @@ test("runs the steps in order with the expected argv", async () => {
   assert.equal(asked.length, 0);
   assert.deepEqual(waited, [enterLine(false), continueLine(false)]);
   const out = printed.join("\n");
-  assert.match(out, /## Configurar el entorno en claude\.ai/);
+  assert.match(out, /## ⚙️ Configurar el entorno en claude\.ai/);
   assert.match(out, /API_TOKEN/);
   assert.ok(out.indexOf("Configurar el entorno") < out.lastIndexOf("push"));
   assert.match(printed.at(-1) ?? "", /push a chore\/cloud-ready-20261102 y un comentario en el PR/);
