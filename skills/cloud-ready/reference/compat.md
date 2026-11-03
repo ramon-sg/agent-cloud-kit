@@ -39,9 +39,9 @@ Todo va en `.claude/cloud.json`; no toca código ni tests.
 | `localhost` en URLs de tests o servicios | No hay IPv6. El servidor escucha en `127.0.0.1`. La URL del navegador puede quedar en `localhost` (Chromium prueba `::1` y luego `127.0.0.1`; así pasó un e2e en la nube), y debe quedar así si el framework reescribe el host: Next (`NextURL`) cambia `127.0.0.1` por `localhost` en las redirecciones, el origen cambia y se pierden las cookies. Un buscador de puertos libres pide el `0` en `127.0.0.1` y prueba el mismo en `::1`; trata como "sin IPv6" un error sin `code` (Bun), `EADDRNOTAVAIL` o `EAFNOSUPPORT` (Node). |
 | Variables secretas (API keys de prueba) | Nombres en `requiredEnv`; el usuario pone los valores en el entorno de claude.ai. Recuerda que las lee cualquiera que use el entorno. |
 | Hosts externos que el setup o los tests necesitan | En `domains`; el manual los lista para la red del entorno. |
-| Electron | Ver "Electron", abajo: el binario necesita un mirror y la app, Xvfb. |
+| Electron | Ver "Electron", abajo: corre con `xvfb-run -a … --no-sandbox`; la imagen ya trae Xvfb. |
 | Expo o React Native | Ver "Expo y React Native", abajo: casi todo menos el simulador corre. |
-| Instalar herramientas en el setup | Lo que viene de releases de GitHub falla. Node: de `nodejs.org`. Bun, pnpm, Yarn: de npm (lo hace el paquete). Un CLI cuyo paquete npm baja de releases: el repo apt del proveedor (`aptRepos`). Dentro de una imagen, no `curl … \| sh` de GitHub: copia el binario de la imagen oficial fijada por digest (`COPY --from=oven/bun:<v>@sha256:<d> /usr/local/bin/bun /usr/local/bin/bun`; `bunx` es un symlink y no viene, y para musl va la etiqueta `-alpine`). |
+| Instalar herramientas en el setup | Los releases públicos de GitHub se bajan; lo que da 403 es la API, `archive/` y `codeload` de otros repos. Node: de `nodejs.org`. Bun, pnpm, Yarn: de npm (lo hace el paquete). Un CLI cuyo paquete npm baja de releases: el repo apt del proveedor (`aptRepos`). Dentro de una imagen, no `curl … \| sh` de GitHub: copia el binario de la imagen oficial fijada por digest (`COPY --from=oven/bun:<v>@sha256:<d> /usr/local/bin/bun /usr/local/bin/bun`; `bunx` es un symlink y no viene, y para musl va la etiqueta `-alpine`). |
 | Instalación pesada (dependencias en frío, navegadores) | En `setup`, no en `session` (cada paso de `session` se corta a los 2 min, con SIGKILL al grupo: no corren los `trap`). Lo independiente va en paralelo en un script del repo llamado desde `setup` (`cmd1 & cmd2 &`, `wait` de cada uno, sale con 1 si alguno falló). Si `session` reinstala, con `timeout` (manda SIGTERM, a diferencia del corte del paquete) y una marca (`touch node_modules/.instalado`) que solo se escribe si terminó bien. |
 | Hook SessionStart propio del repo | Nunca hace fallar el inicio (`set -uo pipefail` sin `-e`, cada paso `\|\| aviso`, `exit 0` al final), avisa por stdout (stderr no llega a Claude), revisa lo que dejaron los pasos de `session` (la marca de instalación) y exporta variables en `$CLAUDE_ENV_FILE` solo si el comando que las generó terminó bien (p. ej. un `direnv export` fallido imprime `unset …` y borraría variables). Su `timeout` por defecto ya es 600 s. |
 | Corridas largas (más de 2 min) | En segundo plano con la salida a un log. En la nube, un comando en segundo plano tiene 30 min por defecto (hasta 2 h con `timeout`); `BASH_DEFAULT_TIMEOUT_MS` y `BASH_MAX_TIMEOUT_MS` en las variables del entorno lo cambian. Anota en `notes` cuánto tardan. Ver "Corridas largas", abajo, si pasan de ~25 min. |
@@ -64,7 +64,7 @@ Déjalo fuera y anótalo en `notes` con el porqué:
 - APIs externas que el entorno no permite o que no deben recibir tráfico de pruebas.
 - Secretos que el entorno no tiene (o que no deben estar en un entorno compartido).
 - Lo que necesita abrir puertos hacia fuera o una vista previa (no existen).
-- iOS (simulador o build local): necesita macOS. El emulador de Android, salvo que haya `/dev/kvm`.
+- iOS (simulador o build local): necesita macOS. El emulador de Android: la VM no tiene `/dev/kvm`.
 - Sitios HTTPS externos abiertos con Playwright (bug abierto, ver `knowledge.md`).
 
 Antes de dejar fuera una app gráfica (Electron, Expo, un navegador), mira las secciones de abajo:
@@ -98,8 +98,7 @@ funcionando en local y en la CI.
    se deja explícito por claridad. Las dos variables hacen falta: Node y npm leen
    `NODE_EXTRA_CA_CERTS` (no `SSL_CERT_FILE`); Bun lee `SSL_CERT_FILE`.
 4. **Red:** una imagen basada en Debian funcionó con `deb.debian.org` y `security.debian.org`
-   en `domains` (la lista por defecto no trae los mirrors de Debian). Nada que se baje de
-   releases de GitHub dentro de la imagen.
+   en `domains` (la lista por defecto no trae los mirrors de Debian).
 
 ## Corridas largas
 
@@ -123,30 +122,29 @@ técnica está diseñada, pero todavía no se probó entera en la nube):
 
 ## Electron
 
-Sin pantalla, pero con Xvfb corre. Cada paso se prueba en `verify`; los hechos están en
-`knowledge.md` ("Apps de escritorio y móviles"), casi todos por verificar.
+Probado en la nube el 2026-11-03 con Electron 45 (`knowledge.md`, "Apps de escritorio y
+móviles"). La imagen ya trae Xvfb y las librerías de Chromium: no hace falta `apt`.
 
-1. **El binario:** se baja de releases de GitHub y el proxy lo bloquea. `npmmirror.com` y
-   `cdn.npmmirror.com` van en `domains`, y estas variables donde se baje:
-   `ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ ELECTRON_GET_USE_PROXY=1` (más
-   `NODE_USE_ENV_PROXY=1` con Node 24). Hasta Electron 41 se baja al instalar: las variables
-   van antes de `npm ci`. Desde Electron 42 se baja al primer uso: en `setup`, después de
-   instalar, `ELECTRON_MIRROR=… ELECTRON_GET_USE_PROXY=1 npx install-electron --no`, para que el
-   binario quede en `node_modules/electron/dist` y la sesión no tenga que bajarlo. Si el repo
-   tiene su propio paso (p. ej. un script que corre `install-electron`), ese paso necesita las
-   mismas variables.
-2. **La pantalla:** en `apt`, `xvfb` y las librerías de Chromium con los nombres de Ubuntu
-   24.04: `libnss3`, `libgtk-3-0t64`, `libgbm1`, `libasound2t64`, `libxss1`,
-   `libatk-bridge2.0-0t64` (más `imagemagick` si vas a sacar capturas con `import`).
-3. **Correrlo:** `xvfb-run -a <comando de Electron> --no-sandbox`. Para ver que arranca: que el
-   proceso siga vivo unos segundos sin errores, o una captura dentro del mismo `xvfb-run` (fuera
-   no hay `DISPLAY`): `xvfb-run -a sh -c '<app> --no-sandbox & sleep 5; import -window root captura.png'`.
-4. **Tests e2e:** Playwright con `_electron.launch({ args: [".", "--no-sandbox"] })` bajo
-   `xvfb-run` (usa `require('electron')`: desde Electron 42 eso baja el binario si no está).
-   Si el repo no los tiene, no los crees: propónlos.
+1. **El binario:** se baja de releases de GitHub sin nada especial. Desde Electron 42 se baja
+   al primer uso: en `setup`, después de instalar las dependencias,
+   `node node_modules/electron/install.js`, para que la sesión ya lo tenga. Si el repo tiene su
+   propio paso (p. ej. un script que corre `install-electron`), sirve ese. Solo si GitHub
+   fallara: `ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/`, con `npmmirror.com` y
+   `cdn.npmmirror.com` en `domains`.
+2. **Correrlo:** `xvfb-run -a <comando de Electron> --no-sandbox`. Sin `--no-sandbox` se cae
+   (la sesión es root); sin Xvfb, `Missing X server or $DISPLAY`. Los errores de `dbus` y el
+   aviso de `--use-openssl-ca` del log son ruido.
+3. **Ver que arranca:** una captura con Playwright (`page.screenshot`) o `import -window root`
+   dentro del mismo `xvfb-run` (fuera no hay `DISPLAY`):
+   `xvfb-run -a sh -c '<app> --no-sandbox & sleep 5; import -window root captura.png'`.
+   `webContents.capturePage()` no sirve (`UnknownVizError`).
+4. **Tests e2e:** Playwright con
+   `_electron.launch({ args: ["<main>", "--no-sandbox"] })` bajo `xvfb-run -a` (no necesita
+   navegadores de Playwright). Si el repo no los tiene, no los crees: propónlos.
 
-Si `--no-sandbox` o el mirror requieren cambiar un script del repo, es una variante para la nube
-(nivel 2) y necesita aprobación.
+`--no-sandbox` y `xvfb-run` van en el comando que lanza Electron en la nube. Si eso cambia un
+script del repo, que sea según la capacidad (sin `DISPLAY`, `xvfb-run`; como root,
+`--no-sandbox`) y con aprobación.
 
 ## Expo y React Native
 
@@ -156,8 +154,8 @@ Si `--no-sandbox` o el mirror requieren cambiar un script del repo, es una varia
 | `npx expo export --platform android` (o `ios`), `npx expo prebuild --no-install` | Corren sin simulador: comprueban que Metro compila el bundle y que la config genera los proyectos nativos. `EXPO_OFFLINE=1` apaga la red del CLI. `prebuild` escribe `android/` e `ios/` en el árbol: no los commitees si el repo no los versiona. |
 | `npx expo-doctor` | Necesita `api.expo.dev` y `reactnative.directory` en `domains` (ignora `EXPO_OFFLINE`); sin red, `EXPO_DOCTOR_WARN_ON_NETWORK_ERRORS=1`. |
 | Expo web (`react-native-web`) | `npx expo export --platform web` y Playwright contra el resultado servido en `127.0.0.1`, o `npx expo start --web`. Los módulos sin versión web (`expo-glass-effect`, las APIs `@expo/ui/swift-ui`; `expo-symbols` sin `fallback`) se ven distinto o no se ven: anótalo. |
-| Build de Android | Necesita el Android SDK en `setup` (`dl.google.com` en `domains`); suele pasar los ~5 min. El wrapper de Gradle baja de releases de GitHub: usa el Gradle de la imagen o un mirror en `distributionUrl`. Mejor fuera, o en EAS. |
-| Emulador de Android | Solo con `/dev/kvm` (`ls /dev/kvm`); si no está, fuera. |
+| Build de Android | Necesita el Android SDK en `setup` (`dl.google.com` en `domains`); suele pasar los ~5 min. `dl.google.com` no viene en la lista por defecto. El wrapper de Gradle sí se baja. Mejor fuera, o en EAS. |
+| Emulador de Android | Fuera: la VM no tiene `/dev/kvm`. |
 | iOS (simulador, `expo run:ios`, build) | Fuera: necesita macOS. Alternativa: build remoto en EAS con `EXPO_TOKEN` en `requiredEnv` y `expo.dev` y `api.expo.dev` en `domains`. |
 
 ## Ejemplo: vitest, Postgres en compose y Playwright

@@ -192,7 +192,7 @@ inicio de la sesión la marca como faltante, o el error nombra una variable vac�
 2. Corre `agent-cloud-kit manual`: `docs/agent-cloud.md` queda con lo nuevo.
 3. **Díselo al usuario en la sesión, en ese momento**, sin esperar al final: qué falta, por qué
    (el comando y el error) y qué hacer, con estas palabras o parecidas: "Falta `<X>` en el entorno
-   de claude.ai. Agrégalo en <Network access / Variables de entorno> (está en
+   de claude.ai. Agrégalo en <Acceso a la red / Variables de entorno> (está en
    `docs/agent-cloud.md`) y vuelve a verificar: en tu terminal, en la rama `<rama>` actualizada
    (`git pull`), corre `npx agent-cloud-kit verify`".
 4. En `verify`, ponlo también en "Cambiar en claude.ai" del comentario del PR.

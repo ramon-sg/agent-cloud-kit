@@ -85,7 +85,7 @@ export function renderEnvironmentSection(config: CloudConfig, packageVersion: st
     "",
     "Elige el entorno con `/remote-env` y edítalo en claude.ai/code:",
     "",
-    `- **Network access:** Custom y marca "Also include default list of common package managers". Dominios extra: ${hosts.length ? code(hosts) : "ninguno"}.`,
+    `- **Acceso a la red:** Limitado (Custom) con "Permitir administradores de paquetes" encendido ("Also include default list of common package managers"). Dominios extra: ${hosts.length ? code(hosts) : "ninguno"}.`,
     `- **Variables:** ${config.requiredEnv.length ? `${code(config.requiredEnv)} (solo los nombres; los valores los pones tú)` : "ninguna"}.`,
     "- **Claude GitHub App:** instalado en el repo, o la sesión no puede pushear.",
     "- **Setup script:**",
