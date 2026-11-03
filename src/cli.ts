@@ -370,16 +370,24 @@ function onProcessInterrupt(handler: InterruptHandler): () => void {
 }
 
 /**
- * Shows a text on the terminal and waits for Enter.
+ * Shows a text on the terminal and waits for Enter. Ctrl+C rejects with `InterruptedError`.
  *
- * @param text - Text to show.
+ * @param text - Text to show, printed as is.
+ * @throws InterruptedError on Ctrl+C.
  * @example
- * await waitTerminal("Presiona Enter");
+ * await waitTerminal("Presiona Enter ");
  */
 async function waitTerminal(text: string): Promise<void> {
-  await askTerminal(text, "");
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    await new Promise<string>((resolveAnswer, reject) => {
+      rl.on("SIGINT", () => reject(new InterruptedError()));
+      rl.question(text).then(resolveAnswer, reject);
+    });
+  } finally {
+    rl.close();
+  }
 }
-
 /**
  * Runs `prepare` in the working directory.
  *
@@ -435,6 +443,7 @@ function prepareDeps(deps: CliDeps): PrepareDeps {
     packageRoot: deps.packageRoot ?? RUNNING_PACKAGE_ROOT,
     today: deps.today ?? branchDay(new Date()),
     isTty: deps.isTty ?? (process.stdin.isTTY === true && process.stdout.isTTY === true),
+    color: deps.isTty === undefined && process.stdout.isTTY === true && !deps.env.NO_COLOR,
     onInterrupt: deps.onInterrupt ?? onProcessInterrupt,
   };
 }

@@ -43,6 +43,10 @@ platform does not tell you:
      commits, pushes and opens a draft PR.
    - **En la rama actual, sin commit:** does the same in your checkout and stops there; you review
      with `git diff`, commit, push, and then run `npx agent-cloud-kit verify`.
+
+   Before Claude opens, a short screen says what will happen and waits for Enter. If the repo uses
+   [claude-repo-guard](https://github.com/ramon-sg/claude-repo-guard) and has its `claude:free`
+   script, Claude opens through it, so the skill can write the files the guard blocks.
 3. **Configure the environment in claude.ai** following `docs/agent-cloud.md`, which `prepare`
    generated from your `.claude/cloud.json`. The document keeps growing: when the skill, locally
    or in the cloud, finds that a domain or an environment variable is missing, it adds it to

@@ -4,6 +4,16 @@ All notable changes to this project are documented in this file. The format foll
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 1.0.0-rc.3
+
+### Changed
+
+- Before opening Claude Code, `prepare` shows a short colored screen (what will happen, what to
+  do, how to exit) and waits for Enter; Ctrl+C cancels without opening Claude.
+- When the repo uses claude-repo-guard (`.claude/repo-guard.config.json`) and has its
+  `claude:free` script, Claude opens through that script with the repo's package manager, so the
+  skill can write the files the guard otherwise blocks.
+
 ## 1.0.0-rc.2
 
 ### Changed

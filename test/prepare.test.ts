@@ -8,6 +8,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync,
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
+import { enterLine } from "../src/prepare/banner.ts";
 import { InterruptedError, branchDay, prepare, verifyBranch } from "../src/prepare/index.ts";
 import type { PrepareDeps } from "../src/prepare/index.ts";
 import { captureProcess } from "../src/run.ts";
@@ -100,7 +101,7 @@ const run: Run = async (cmd, args, opts) => {
     await captureProcess(cmd, args, opts);
     return;
   }
-  if (cmd === "claude" && args[0] !== "--cloud") {
+  if ((cmd === "claude" && args[0] !== "--cloud") || (cmd === "npm" && args[1] === "claude:free")) {
     if (agentFails) throw new Error("claude exited with code 1");
     agent(opts?.cwd ?? "");
   }
@@ -173,7 +174,7 @@ test("runs the steps in order with the expected argv", async () => {
   assert.equal(cloud?.cwd, worktree);
   assert.equal(calls.find((c) => c.args[0] === "push")?.cwd, worktree);
   assert.equal(asked.length, 0);
-  assert.deepEqual(waited, ["Configura el entorno en claude.ai y luego presiona Enter"]);
+  assert.deepEqual(waited, [enterLine(false), "Configura el entorno en claude.ai y luego presiona Enter "]);
   const out = printed.join("\n");
   assert.match(out, /## Configurar el entorno en claude\.ai/);
   assert.match(out, /API_TOKEN/);
@@ -216,14 +217,41 @@ test("an agent that exits 0 with an invalid config: prepare prints the config er
   assert.ok(printed.includes(`prepare se detuvo; el worktree está en ${worktree}; corre npx agent-cloud-kit prepare --resume ahí para continuar`));
 });
 
-test("before the local agent starts, prepare tells the user to exit claude when configure is done", async () => {
+test("before Claude opens, prepare shows what will happen and waits for Enter", async () => {
   let before: string[] = [];
+  let waitedBefore: string[] = [];
   agent = (cwd) => {
     before = [...printed];
+    waitedBefore = [...waited];
     finishConfigure(cwd);
   };
   assert.equal(await prepare(repo, deps()), 0, printed.join("\n"));
-  assert.ok(before.includes("agent-cloud-kit: cuando la skill diga que configure terminó, sal de claude (/exit) y prepare hará el commit, el push y abrirá el PR"));
+  const screen = before.join("\n");
+  assert.match(screen, /Ahora se abre Claude Code/);
+  assert.match(screen, /sal con \/exit → prepare hace commit, push y PR/);
+  assert.deepEqual(waitedBefore, [enterLine(false)]);
+});
+
+test("Ctrl+C at the Enter line before Claude keeps the worktree and opens nothing", async () => {
+  const waitEnter = async (): Promise<void> => {
+    throw new InterruptedError();
+  };
+  assert.equal(await prepare(repo, deps({ waitEnter })), 130);
+  assert.ok(!calls.some((c) => c.cmd === "claude" && c.args[0] !== "--help"));
+  assert.ok(printed.some((l) => l.startsWith("interrumpido; el worktree está en ")));
+});
+
+test("with claude-repo-guard's claude:free script, Claude opens through it", async () => {
+  writeFileSync(join(repo, "package.json"), JSON.stringify({ scripts: { "claude:free": "claude --dangerously-skip-permissions" } }));
+  mkdirSync(join(repo, ".claude"));
+  writeFileSync(join(repo, ".claude/repo-guard.config.json"), "{}");
+  git(repo, ["add", "package.json", ".claude/repo-guard.config.json"]);
+  git(repo, ["commit", "-q", "-m", "guard"]);
+  git(repo, ["push", "-q", "origin", "HEAD:main"]);
+  const code = await prepare(repo, deps());
+  assert.equal(code, 0, printed.join("\n"));
+  assert.ok(calls.some((c) => c.cmd === "npm" && c.args.join(" ") === "run claude:free -- /cloud-ready configure" && c.cwd === worktree));
+  assert.match(printed.join("\n"), /Se abre con claude:free/);
 });
 
 test("every resume hint is an npx command", async () => {
@@ -487,7 +515,7 @@ test("the current branch: prepares the checkout without committing, pushing or a
   const configure = calls.find((c) => c.cmd === "claude" && c.args[0] === "/cloud-ready configure");
   assert.equal(configure?.cwd, repo);
   assert.ok(!calls.some((c) => c.args[0] === "commit" || c.args[0] === "push" || c.args[0] === "--cloud" || c.cmd === "gh"));
-  assert.deepEqual(waited, []);
+  assert.deepEqual(waited, [enterLine(false)]);
   assert.match(printed.join("\n"), /listo, sin commit\..*npx agent-cloud-kit verify/);
 });
 

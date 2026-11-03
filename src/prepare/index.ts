@@ -12,6 +12,7 @@ import { init } from "../init.ts";
 import { MANUAL_FILE, renderEnvironmentSection, writeManual } from "../manual.ts";
 import type { Capture, Run } from "../run.ts";
 import type { Choose } from "../select.ts";
+import { claudeCommand, enterLine, hasFreeScript, renderBanner } from "./banner.ts";
 import { preflight } from "./detect.ts";
 import { configurePrompt, verifyPrompt } from "./prompts.ts";
 import type { Ask } from "./questions.ts";
@@ -47,7 +48,7 @@ const INCLUDE_QUESTION = "¿Incluir estos cambios en el commit? [s/N]";
 const YES_ANSWER = /^(s|si|sí|y|yes)$/i;
 
 /** Text shown while the user configures the environment in claude.ai. */
-const WAIT_TEXT = "Configura el entorno en claude.ai y luego presiona Enter";
+const WAIT_TEXT = "Configura el entorno en claude.ai y luego presiona Enter ";
 
 /** Matches a GitHub remote URL (https or ssh) and captures `owner/repo`. */
 const GITHUB_REMOTE = /github\.com[:/]([^/\s]+\/[^/\s]+?)(?:\.git)?\/?$/;
@@ -58,11 +59,6 @@ const PR_URL = /\/pull\/(\d+)/;
 /** Command that continues a prepare run; `npx` because a first-time user does not have the binary on PATH. */
 const RESUME_COMMAND = `npx ${PACKAGE} prepare --resume`;
 
-/** Printed just before the local agent starts: `prepare` continues only when `claude` exits. */
-const EXIT_CLAUDE_HINT = `${OUTPUT_PREFIX}cuando la skill diga que configure terminó, sal de claude (/exit) y prepare hará el commit, el push y abrirá el PR`;
-
-/** Printed before the local agent starts in the current branch: nothing is committed. */
-const EXIT_CLAUDE_HINT_HERE = `${OUTPUT_PREFIX}cuando la skill diga que configure terminó, sal de claude (/exit)`;
 
 /** Question of the place menu. */
 const PLACE_QUESTION = "¿Dónde preparo el repo?";
@@ -129,6 +125,8 @@ export interface PrepareDeps {
   today: string;
   /** Whether stdin and stdout are interactive terminals. */
   isTty: boolean;
+  /** Whether to print ANSI colors (the screen before Claude opens). */
+  color?: boolean;
   /**
    * Registers a handler for every Ctrl+C until the returned function removes it. While it is
    * registered the default exit must not happen: the caller exits with `EXIT_INTERRUPTED` only
@@ -365,10 +363,10 @@ async function createAndConfigure(repo: string, branch: string, worktree: string
     deps.print(stopped);
     return false;
   }
-  deps.print(EXIT_CLAUDE_HINT);
   try {
-    await runInteractive(deps, progress, [configurePrompt()], worktree);
-  } catch {
+    await runConfigure(deps, progress, "pr", worktree);
+  } catch (err) {
+    if (err instanceof InterruptedError) throw err;
     deps.print(stopped);
     return false;
   }
@@ -484,20 +482,40 @@ export async function prepare(repo: string, deps: PrepareDeps, options: PrepareO
  *
  * @param deps - Dependencies.
  * @param progress - Marks the child as owning the terminal.
- * @param args - Arguments of `claude`.
+ * @param command - Command and arguments that open Claude.
  * @param cwd - Worktree.
  * @returns Resolves when `claude` exits 0.
  * @throws When `claude` exits non-zero.
  * @example
- * await runInteractive(deps, progress, ["--cloud", prompt], "/home/u/app-cloud-ready");
+ * await runInteractive(deps, progress, { cmd: "claude", args: ["--cloud", prompt] }, "/home/u/app-cloud-ready");
  */
-async function runInteractive(deps: PrepareDeps, progress: Progress, args: string[], cwd: string): Promise<void> {
+async function runInteractive(deps: PrepareDeps, progress: Progress, command: { cmd: string; args: string[] }, cwd: string): Promise<void> {
   progress.childOwnsTerminal = true;
   try {
-    await deps.run("claude", args, { cwd });
+    await deps.run(command.cmd, command.args, { cwd });
   } finally {
     progress.childOwnsTerminal = false;
   }
+}
+
+/**
+ * Shows the screen before Claude Code opens, waits for Enter, and runs the local agent with
+ * `cloud-ready configure` (through the repo's `claude:free` script when it has one).
+ *
+ * @param deps - Dependencies.
+ * @param progress - Marks the child as owning the terminal.
+ * @param place - Where `prepare` works.
+ * @param cwd - Folder where Claude runs.
+ * @returns Resolves when Claude exits 0.
+ * @throws InterruptedError on Ctrl+C at the Enter line; an error when Claude exits non-zero.
+ * @example
+ * await runConfigure(deps, progress, "pr", "/home/u/app-cloud-ready");
+ */
+async function runConfigure(deps: PrepareDeps, progress: Progress, place: Place, cwd: string): Promise<void> {
+  const color = deps.color ?? false;
+  for (const line of renderBanner({ place, free: hasFreeScript(cwd), color })) deps.print(line);
+  await deps.waitEnter(enterLine(color));
+  await runInteractive(deps, progress, claudeCommand(cwd, configurePrompt()), cwd);
 }
 
 /**
@@ -558,7 +576,7 @@ async function prepareSteps(gitRoot: string, deps: PrepareDeps, options: Prepare
   if (config) deps.print(renderEnvironmentSection(config, deps.packageVersion));
   await deps.waitEnter(WAIT_TEXT);
   try {
-    await runInteractive(deps, progress, ["--cloud", verifyPrompt({ branch, pr: pushed.pr })], worktree);
+    await runInteractive(deps, progress, { cmd: "claude", args: ["--cloud", verifyPrompt({ branch, pr: pushed.pr })] }, worktree);
   } catch (err) {
     deps.print(`${OUTPUT_PREFIX}falló claude --cloud: ${message(err)}; corre ${RESUME_COMMAND} en ${worktree} para reintentar`);
     return EXIT_FAIL;
@@ -613,10 +631,10 @@ async function prepareHere(gitRoot: string, deps: PrepareDeps, progress: Progres
     deps.print(stopped);
     return EXIT_FAIL;
   }
-  deps.print(EXIT_CLAUDE_HINT_HERE);
   try {
-    await runInteractive(deps, progress, [configurePrompt()], gitRoot);
-  } catch {
+    await runConfigure(deps, progress, "here", gitRoot);
+  } catch (err) {
+    if (err instanceof InterruptedError) throw err;
     deps.print(stopped);
     return EXIT_FAIL;
   }
@@ -685,7 +703,7 @@ export async function verifyBranch(repo: string, deps: PrepareDeps): Promise<num
   const progress: Progress = {};
   const stop = deps.onInterrupt?.(() => !progress.childOwnsTerminal);
   try {
-    await runInteractive(deps, progress, ["--cloud", verifyPrompt({ branch, pr })], gitRoot);
+    await runInteractive(deps, progress, { cmd: "claude", args: ["--cloud", verifyPrompt({ branch, pr })] }, gitRoot);
   } catch (err) {
     deps.print(`${OUTPUT_PREFIX}falló claude --cloud: ${message(err)}`);
     return EXIT_FAIL;
