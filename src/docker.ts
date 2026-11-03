@@ -15,7 +15,7 @@ const POLL_MS = 1000;
 const MS_PER_SECOND = 1000;
 
 /** Message returned when there is no `dockerd` executable on PATH. */
-export const DOCKERD_MISSING = "dockerd not installed";
+export const DOCKERD_MISSING = "dockerd no está instalado";
 
 /**
  * Probe that tells whether a command exits with code 0.

@@ -74,7 +74,7 @@ export function findRepos(home: string): string[] {
 export function planSetup(repos: string[], current: string, read: typeof readConfig): SetupPlanItem[] {
   return repos.map((repo): SetupPlanItem => {
     const { config, errors } = read(repo);
-    if (!config) return { repo, action: "skip", reason: errors.length ? errors.join("; ") : `no ${CONFIG_FILE}` };
+    if (!config) return { repo, action: "skip", reason: errors.length ? errors.join("; ") : `no hay ${CONFIG_FILE}` };
     if (config.version === current) return { repo, action: "run", version: current };
     return { repo, action: "relaunch", version: config.version };
   });

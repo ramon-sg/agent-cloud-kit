@@ -76,15 +76,15 @@ describe("readConfig", () => {
 
   it("reports unknown fields but keeps the config", () => {
     const result = readConfig(makeRepo(JSON.stringify({ version: "1.0.0", apts: [] })));
-    assert.deepEqual(result.errors, ['.claude/cloud.json: unknown field "apts"']);
+    assert.deepEqual(result.errors, ['.claude/cloud.json: campo desconocido "apts"']);
     assert.equal(result.config?.version, "1.0.0");
   });
 
   it("reports fields of the wrong type", () => {
     const result = readConfig(makeRepo(JSON.stringify({ version: "1.0.0", apt: "jq", notes: 3 })));
     assert.deepEqual(result.errors, [
-      '.claude/cloud.json: "apt" must be an array of strings',
-      '.claude/cloud.json: "notes" must be a string',
+      '.claude/cloud.json: "apt" debe ser un arreglo de strings',
+      '.claude/cloud.json: "notes" debe ser un string',
     ]);
     assert.deepEqual(result.config?.apt, []);
   });
@@ -93,13 +93,13 @@ describe("readConfig", () => {
     const result = readConfig(makeRepo(JSON.stringify({ version: "^1" })));
     assert.equal(result.config, undefined);
     assert.equal(result.errors.length, 1);
-    assert.match(result.errors[0] ?? "", /^\.claude\/cloud\.json: "version" must be/);
+    assert.match(result.errors[0] ?? "", /^\.claude\/cloud\.json: "version" debe ser/);
   });
 
   it("requires version", () => {
     const result = readConfig(makeRepo("{}"));
     assert.equal(result.config, undefined);
-    assert.match(result.errors[0] ?? "", /"version" must be/);
+    assert.match(result.errors[0] ?? "", /"version" debe ser/);
   });
 
   it("reports broken JSON as a single error", () => {
@@ -132,13 +132,13 @@ describe("domains", () => {
   it("reports and drops invalid hosts", () => {
     const repo = makeRepo(JSON.stringify({ version: "1.0.0", domains: ["https://x", "ok.example.com"] }));
     const result = readConfig(repo);
-    assert.deepEqual(result.errors, ['.claude/cloud.json: "domains" has an invalid host: "https://x"']);
+    assert.deepEqual(result.errors, ['.claude/cloud.json: "domains" tiene un host inválido: "https://x"']);
     assert.deepEqual(result.config?.domains, ["ok.example.com"]);
   });
 
   it("tests is an unknown field", () => {
     const result = readConfig(makeRepo(JSON.stringify({ version: "1.0.0", tests: { unit: "npm test" } })));
-    assert.deepEqual(result.errors, ['.claude/cloud.json: unknown field "tests"']);
+    assert.deepEqual(result.errors, ['.claude/cloud.json: campo desconocido "tests"']);
     assert.equal("tests" in (result.config ?? {}), false);
   });
 });

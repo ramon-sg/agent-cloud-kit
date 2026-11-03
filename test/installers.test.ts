@@ -119,7 +119,7 @@ test("node installs from nodejs.org through bash", async () => {
 test("nodeArch maps x64 and arm64 and rejects the rest", () => {
   assert.equal(nodeArch("x64"), "x64");
   assert.equal(nodeArch("arm64"), "arm64");
-  assert.throws(() => nodeArch("ia32"), /unsupported architecture/);
+  assert.throws(() => nodeArch("ia32"), /arquitectura no soportada/);
 });
 
 test("bun uses the pinned node npm at the front of PATH", async () => {
@@ -197,15 +197,15 @@ test("invalid versions fail without running anything or creating directories", a
     assert.deepEqual(calls, []);
     assert.equal(results.length, 1);
     assert.equal(results[0]?.ok, false);
-    assert.equal(results[0]?.error, `invalid version for ${tool}: ${version}`);
+    assert.equal(results[0]?.error, `versión inválida para ${tool}: ${version}`);
     assert.deepEqual(readdirSync(dir), []);
     assert.equal(existsSync(join(dir, "..", "x")), false);
   }
 });
 
 test("the layout refuses a bad version instead of building a path", () => {
-  assert.throws(() => INSTALLERS.uv.dir("/t", "../x"), /invalid version for uv/);
-  assert.throws(() => INSTALLERS.bun.binDir("/t", "-g"), /invalid version for bun/);
+  assert.throws(() => INSTALLERS.uv.dir("/t", "../x"), /versión inválida para uv/);
+  assert.throws(() => INSTALLERS.bun.binDir("/t", "-g"), /versión inválida para bun/);
 });
 
 test("toolBinDirs skips invalid versions", () => {
@@ -242,7 +242,7 @@ test("node aliases are accepted for node only", () => {
   assert.ok(!isValidRequest("bun", "lts/iron"));
   assert.ok(!isValidRequest("node", "lts/../x"));
   assert.ok(!isValidRequest("node", "lts/"));
-  assert.throws(() => INSTALLERS.node.dir("/t", "lts/iron"), /invalid version for node/);
+  assert.throws(() => INSTALLERS.node.dir("/t", "lts/iron"), /versión inválida para node/);
 });
 
 /**
@@ -287,7 +287,7 @@ test("resolveVersions skips the download for exact versions", async () => {
 
 test("an unresolvable node is one failed step and is left out", async () => {
   for (const [requested, index, error] of [
-    ["lts/argon", INDEX, "no node release matches lts/argon"],
+    ["lts/argon", INDEX, "ninguna versión de node coincide con lts/argon"],
     ["22", undefined, "curl exited with code 56"],
   ] as const) {
     const { run } = indexServer(index);
@@ -352,7 +352,7 @@ test("a missing hash in SHASUMS256 fails before downloading the tarball", async 
     if (cmd === "curl") writeFileSync(args[args.indexOf("-o") + 1] as string, shasums("other.tar.xz"));
   }, { PATH: "/usr/bin" });
   assert.equal(results[0]?.ok, false);
-  assert.match(results[0]?.error ?? "", /not listed/);
+  assert.match(results[0]?.error ?? "", /no aparece/);
   assert.deepEqual(calls, ["curl"]);
   assert.deepEqual(readdirSync(dir), []);
 });

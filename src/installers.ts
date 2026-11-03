@@ -182,7 +182,7 @@ async function nodeExpectedHash(run: Run, env: NodeJS.ProcessEnv, dir: string, v
   const url = `${NODE_DIST_URL}/v${version}/${NODE_SHASUMS_FILE}`;
   await run("curl", ["-fsSL", "-o", path, "--", url], { env, timeoutMs: TOOL_INSTALL_TIMEOUT_MS });
   const hash = parseShasums(readFileSync(path, "utf8"), file);
-  if (!hash) throw new Error(`${file} is not listed in ${NODE_SHASUMS_FILE}`);
+  if (!hash) throw new Error(`${file} no aparece en ${NODE_SHASUMS_FILE}`);
   return hash;
 }
 
@@ -197,7 +197,7 @@ async function nodeExpectedHash(run: Run, env: NodeJS.ProcessEnv, dir: string, v
  */
 export function nodeArch(arch: string): string {
   const mapped = NODE_ARCHS[arch];
-  if (!mapped) throw new Error(`unsupported architecture for node: ${arch}`);
+  if (!mapped) throw new Error(`arquitectura no soportada para node: ${arch}`);
   return mapped;
 }
 
@@ -212,7 +212,7 @@ export function nodeArch(arch: string): string {
  * assertVersion("node", "24.14.1"); // ok
  */
 export function assertVersion(tool: string, version: string): void {
-  if (!VERSION_PATTERN.test(version)) throw new Error(`invalid version for ${tool}: ${version}`);
+  if (!VERSION_PATTERN.test(version)) throw new Error(`versión inválida para ${tool}: ${version}`);
 }
 
 /**
@@ -324,7 +324,7 @@ export function curlNodeIndex(run: Run, env: NodeJS.ProcessEnv): NodeIndexFetche
       const file = join(dir, NODE_INDEX_FILE);
       await run("curl", ["-fsSL", "--max-time", NODE_INDEX_TIMEOUT_SECONDS, "-o", file, "--", NODE_INDEX_URL], { env });
       const parsed: unknown = JSON.parse(readFileSync(file, "utf8"));
-      if (!Array.isArray(parsed)) throw new Error("the node release index is not a list");
+      if (!Array.isArray(parsed)) throw new Error("el índice de versiones de node no es una lista");
       return parsed.filter(
         (r): r is NodeRelease =>
           typeof r === "object" && r !== null && typeof r.version === "string" && (r.lts === false || typeof r.lts === "string"),
@@ -357,7 +357,7 @@ export async function resolveVersions(
   let exact: string | undefined;
   const result = await step(`node ${requested}`, async () => {
     exact = resolveNodeVersion(requested, await fetchIndex());
-    if (!exact) throw new Error(`no node release matches ${requested}`);
+    if (!exact) throw new Error(`ninguna versión de node coincide con ${requested}`);
   });
   if (!exact) return { resolved, results: [result] };
   resolved.node = exact;
@@ -494,7 +494,7 @@ export async function installTools(
     }
     if (tool === "node" && !NODE_EXACT.test(version)) {
       results.push(await step(`${tool} ${version}`, async () => {
-        throw new Error(`node ${version} must be resolved to an exact version first`);
+        throw new Error(`node ${version} debe resolverse primero a una versión exacta`);
       }));
       continue;
     }

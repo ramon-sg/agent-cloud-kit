@@ -88,9 +88,9 @@ async function checkDomain(host: string, capture: Capture): Promise<Check> {
   try {
     const status = (await capture("curl", args)).trim();
     const ok = status !== BLOCKED_STATUS && status !== NO_ANSWER_STATUS;
-    return { text: `network ${host}: ${ok ? "ok" : "blocked"}`, level: verdict(ok) };
+    return { text: `red ${host}: ${ok ? "ok" : "bloqueado"}`, level: verdict(ok) };
   } catch {
-    return { text: `network ${host}: blocked`, level: "fail" };
+    return { text: `red ${host}: bloqueado`, level: "fail" };
   }
 }
 
@@ -120,11 +120,11 @@ function checkTools(repo: string, toolsDir: string, state: MachineState | undefi
   return TOOLS.flatMap((tool): Check[] => {
     const version = versions[tool];
     if (!version) return [];
-    if (!isValidRequest(tool, version)) return [{ text: `tool ${tool} ${version}: invalid version`, level: "fail" }];
+    if (!isValidRequest(tool, version)) return [{ text: `herramienta ${tool} ${version}: versión inválida`, level: "fail" }];
     const executable = toolExecutable(tool, version, toolsDir, state?.resolved ?? {});
-    if (!executable) return [{ text: `tool ${tool} ${version}: not resolved (setup did not install it)`, level: "fail" }];
+    if (!executable) return [{ text: `herramienta ${tool} ${version}: sin resolver (setup no la instaló)`, level: "fail" }];
     const present = existsSync(executable);
-    return [{ text: `tool ${tool} ${version}: ${present ? "ok" : "missing"}`, level: verdict(present) }];
+    return [{ text: `herramienta ${tool} ${version}: ${present ? "ok" : "falta"}`, level: verdict(present) }];
   });
 }
 
@@ -136,17 +136,17 @@ function checkTools(repo: string, toolsDir: string, state: MachineState | undefi
  * @returns The checks, in order.
  */
 function checkState(repo: string, ctx: DoctorContext): Check[] {
-  if (!existsSync(join(repo, CONFIG_FILE))) return [{ text: `${CONFIG_FILE}: missing`, level: "fail" }];
+  if (!existsSync(join(repo, CONFIG_FILE))) return [{ text: `${CONFIG_FILE}: falta`, level: "fail" }];
   const { config, errors } = readConfig(repo);
   const out: Check[] = errors.map((text) => ({ text: `${CONFIG_FILE}: ${text}`, level: "fail" }));
   if (!config) return out;
   const state = readState(ctx.toolsDir, repo);
-  if (!state) return [...out, { text: "state: missing (setup did not run)", level: "fail" }];
+  if (!state) return [...out, { text: "estado: falta (setup no corrió)", level: "fail" }];
   const same = expectedFingerprint(repo, config, state) === state.fingerprint;
-  out.push({ text: `fingerprint: ${same ? "ok" : "mismatch"}`, level: verdict(same) });
+  out.push({ text: `huella: ${same ? "ok" : "distinta"}`, level: verdict(same) });
   for (const s of state.steps) {
     const seconds = (s.ms / MS_PER_SECOND).toFixed(DURATION_DECIMALS);
-    out.push({ text: `step ${s.name}: ${s.ok ? "ok" : "failed"} (${seconds}s)`, level: verdict(s.ok) });
+    out.push({ text: `paso ${s.name}: ${s.ok ? "ok" : "falló"} (${seconds}s)`, level: verdict(s.ok) });
   }
   return out;
 }
@@ -158,7 +158,7 @@ function checkState(repo: string, ctx: DoctorContext): Check[] {
  * @param repo - Repo root.
  * @returns One warning per enabled plugin.
  * @example
- * checkPlugins("/home/user/app"); // [{ text: "plugin x@m is enabled but ...", level: "warn" }]
+ * checkPlugins("/home/user/app"); // [{ text: "aviso: el plugin x@m está activado pero ...", level: "warn" }]
  */
 function checkPlugins(repo: string): Check[] {
   try {
@@ -168,7 +168,7 @@ function checkPlugins(repo: string): Check[] {
     return Object.entries(plugins)
       .filter(([, enabled]) => enabled === true)
       .map(([name]) => ({
-        text: `warn: plugin ${name} is enabled but is not in the repo; it will not reach the cloud (copy its skills with skills-manager)`,
+        text: `aviso: el plugin ${name} está activado pero no está en el repo; no llegará a la nube (copia sus skills con skills-manager)`,
         level: "warn",
       }));
   } catch {
@@ -183,14 +183,14 @@ function checkPlugins(repo: string): Check[] {
  * @param packageVersion - Version of this package.
  * @returns A warning, or nothing when there is no skill or the versions match.
  * @example
- * checkSkill("/home/user/app", "1.0.0"); // [{ text: "warn: .agents/skills/cloud-ready is 0.9.0, ...", level: "warn" }]
+ * checkSkill("/home/user/app", "1.0.0"); // [{ text: "aviso: .agents/skills/cloud-ready está en 0.9.0, ...", level: "warn" }]
  */
 function checkSkill(repo: string, packageVersion: string): Check[] {
   const installed = skillVersion(repo);
   if (installed === undefined || installed === packageVersion) return [];
   return [
     {
-      text: `warn: ${SKILL_DIR} is ${installed}, the package is ${packageVersion}; run npx agent-cloud-kit@${packageVersion} init`,
+      text: `aviso: ${SKILL_DIR} está en ${installed} y el paquete en ${packageVersion}; corre npx agent-cloud-kit@${packageVersion} init`,
       level: "warn",
     },
   ];
@@ -222,15 +222,15 @@ async function guarded(name: string, fn: () => Check[] | Promise<Check[]>): Prom
  */
 export async function doctor(repo: string, ctx: DoctorContext): Promise<DoctorResult> {
   const checks: Check[] = [];
-  checks.push(...(await guarded("network", async () => Promise.all(domainsToProbe(repo).map((host) => checkDomain(host, ctx.capture))))));
-  checks.push(...(await guarded("tools", () => checkTools(repo, ctx.toolsDir, readState(ctx.toolsDir, repo)))));
+  checks.push(...(await guarded("red", async () => Promise.all(domainsToProbe(repo).map((host) => checkDomain(host, ctx.capture))))));
+  checks.push(...(await guarded("herramientas", () => checkTools(repo, ctx.toolsDir, readState(ctx.toolsDir, repo)))));
   checks.push(
     ...(await guarded("docker", () => {
       const docker = ctx.dockerInfo();
-      return [{ text: `docker: ${docker ? "ok" : "missing"}`, level: verdict(docker) }];
+      return [{ text: `docker: ${docker ? "ok" : "falta"}`, level: verdict(docker) }];
     })),
   );
-  checks.push(...(await guarded("state", () => checkState(repo, ctx))));
+  checks.push(...(await guarded("estado", () => checkState(repo, ctx))));
   checks.push(...(await guarded("plugins", () => checkPlugins(repo))));
   checks.push(...(await guarded("skill", () => checkSkill(repo, ctx.packageVersion))));
   return { lines: checks.map((c) => OUTPUT_PREFIX + c.text), ok: checks.every((c) => c.level !== "fail") };

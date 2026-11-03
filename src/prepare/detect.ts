@@ -12,8 +12,6 @@ export interface Probe {
   gitRoot?: string;
   /** Whether the repo has an `origin` remote. */
   hasOrigin: boolean;
-  /** Whether the working tree has no uncommitted changes. */
-  clean: boolean;
   /** Output of `claude --help`; undefined when `claude` could not be run. */
   claudeHelp?: string;
 }
@@ -22,17 +20,16 @@ export interface Probe {
  * Checks that `prepare` can run.
  *
  * @param probe What was observed about the environment.
- * @returns Problems in English, in a fixed order; empty when everything is fine.
+ * @returns Problems in Spanish, in a fixed order; empty when everything is fine.
  * @example
- * preflight({ isTty: false, hasOrigin: true, clean: true }); // ["prepare needs an interactive terminal", ...]
+ * preflight({ isTty: false, hasOrigin: true }); // ["prepare necesita una terminal interactiva", ...]
  */
 export function preflight(probe: Probe): string[] {
   const problems: string[] = [];
-  if (!probe.isTty) problems.push("prepare needs an interactive terminal");
-  if (probe.gitRoot === undefined) problems.push("not inside a git repository");
-  if (!probe.hasOrigin) problems.push("the repository has no 'origin' remote");
-  if (!probe.clean) problems.push("the working tree has uncommitted changes; commit or stash them first");
-  if (probe.claudeHelp === undefined) problems.push("claude is not installed or not on the PATH");
-  else if (!probe.claudeHelp.includes(CLOUD_FLAG)) problems.push("claude does not support --cloud; update Claude Code");
+  if (!probe.isTty) problems.push("prepare necesita una terminal interactiva (corre el comando directamente en tu terminal)");
+  if (probe.gitRoot === undefined) problems.push("esto no es un repositorio git; corre prepare dentro del repo que quieres preparar");
+  if (!probe.hasOrigin) problems.push("el repositorio no tiene el remoto 'origin'; prepare necesita subir una rama y abrir un PR en GitHub");
+  if (probe.claudeHelp === undefined) problems.push("claude no está instalado o no está en el PATH; instala Claude Code y vuelve a correr prepare");
+  else if (!probe.claudeHelp.includes(CLOUD_FLAG)) problems.push("tu versión de claude no soporta --cloud; actualiza Claude Code y vuelve a correr prepare");
   return problems;
 }

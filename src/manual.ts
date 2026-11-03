@@ -216,7 +216,7 @@ export function mergeManual(existing: string | undefined, block: string): string
  */
 export function writeManual(repo: string, packageVersion: string): string {
   const { config, errors } = readConfig(repo);
-  if (!config) throw new Error(errors[0] ?? `${CONFIG_FILE} not found; run init first`);
+  if (!config) throw new Error(errors[0] ?? `no existe ${CONFIG_FILE}; corre init primero`);
   const file = join(repo, MANUAL_FILE);
   const existing = existsSync(file) ? readFileSync(file, "utf8") : undefined;
   const block = renderManual({ config, packageVersion, notes: resolveNotes(repo, config.notes) });

@@ -5,19 +5,18 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { preflight } from "../src/prepare/detect.ts";
 
-const OK = { isTty: true, gitRoot: "/r", hasOrigin: true, clean: true, claudeHelp: "Usage: claude --cloud" };
+const OK = { isTty: true, gitRoot: "/r", hasOrigin: true, claudeHelp: "Usage: claude --cloud" };
 
 test("preflight is empty when everything is fine", () => {
   assert.deepEqual(preflight(OK), []);
 });
 
 test("preflight reports each problem", () => {
-  assert.deepEqual(preflight({ ...OK, isTty: false }), ["prepare needs an interactive terminal"]);
-  assert.deepEqual(preflight({ ...OK, gitRoot: undefined }), ["not inside a git repository"]);
-  assert.deepEqual(preflight({ ...OK, hasOrigin: false }), ["the repository has no 'origin' remote"]);
-  assert.deepEqual(preflight({ ...OK, clean: false }), ["the working tree has uncommitted changes; commit or stash them first"]);
-  assert.deepEqual(preflight({ ...OK, claudeHelp: undefined }), ["claude is not installed or not on the PATH"]);
-  assert.deepEqual(preflight({ ...OK, claudeHelp: "Usage: claude" }), ["claude does not support --cloud; update Claude Code"]);
+  assert.deepEqual(preflight({ ...OK, isTty: false }), ["prepare necesita una terminal interactiva (corre el comando directamente en tu terminal)"]);
+  assert.deepEqual(preflight({ ...OK, gitRoot: undefined }), ["esto no es un repositorio git; corre prepare dentro del repo que quieres preparar"]);
+  assert.deepEqual(preflight({ ...OK, hasOrigin: false }), ["el repositorio no tiene el remoto 'origin'; prepare necesita subir una rama y abrir un PR en GitHub"]);
+  assert.deepEqual(preflight({ ...OK, claudeHelp: undefined }), ["claude no está instalado o no está en el PATH; instala Claude Code y vuelve a correr prepare"]);
+  assert.deepEqual(preflight({ ...OK, claudeHelp: "Usage: claude" }), ["tu versión de claude no soporta --cloud; actualiza Claude Code y vuelve a correr prepare"]);
 });
 
 test("preflight collects several problems in order", () => {

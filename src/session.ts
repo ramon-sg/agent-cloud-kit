@@ -22,7 +22,7 @@ import type { MachineState } from "./state.ts";
 
 /** Generic note shown in every cloud session. */
 const GENERIC_NOTE =
-  "you are in a Claude Code cloud session. There are no open ports or previews: test against localhost. gh pr and gh issue fail (the GitHub proxy blocks GraphQL): use gh api (REST).";
+  "estás en una sesión cloud de Claude Code. No hay puertos abiertos ni previews: prueba contra localhost. gh pr y gh issue fallan (el proxy de GitHub bloquea GraphQL): usa gh api (REST).";
 
 /** Milliseconds in a second. */
 const MS_PER_SECOND = 1000;
@@ -129,19 +129,19 @@ export function expectedFingerprint(repo: string, config: CloudConfig, state: Ma
 function machineWarnings(repo: string, config: CloudConfig, state: MachineState | undefined, packageVersion: string): string[] {
   if (!state) {
     return [
-      `the environment setup did not run for ${basename(repo)}. Set the setup script of the environment in claude.ai to: npx -y ${packageSpec(packageVersion)} setup`,
+      `el setup del entorno no corrió para ${basename(repo)}. Pon como script de setup del entorno en claude.ai: npx -y ${packageSpec(packageVersion)} setup`,
     ];
   }
   const out: string[] = [];
   const failed = state.steps.filter((s) => !s.ok).map((s) => s.name);
-  if (failed.length) out.push(`setup failed: ${failed.join(", ")}. Run agent-cloud-kit doctor.`);
+  if (failed.length) out.push(`falló el setup: ${failed.join(", ")}. Corre agent-cloud-kit doctor.`);
   if (expectedFingerprint(repo, config, state) !== state.fingerprint) {
     out.push(
-      "the machine was prepared with another configuration. Edit the setup script field in claude.ai (any change) so it is rebuilt.",
+      "la máquina se preparó con otra configuración. Edita el campo del script de setup en claude.ai (cualquier cambio) para que se reconstruya.",
     );
   }
   const total = state.steps.reduce((sum, s) => sum + s.ms, 0);
-  if (total > SETUP_SLOW_MS) out.push(`setup took ${minutesSeconds(total)}, close to the ~5 minute limit.`);
+  if (total > SETUP_SLOW_MS) out.push(`el setup tardó ${minutesSeconds(total)}, cerca del límite de ~5 minutos.`);
   return out;
 }
 
@@ -160,7 +160,7 @@ function writeEnvFile(env: NodeJS.ProcessEnv, lines: string[]): string | undefin
     appendFileSync(file, `${body.join("\n")}\n`);
     return undefined;
   } catch (err) {
-    return `could not write ${ENV_FILE_VAR} (${file}): ${err instanceof Error ? err.message : String(err)}`;
+    return `no se pudo escribir ${ENV_FILE_VAR} (${file}): ${err instanceof Error ? err.message : String(err)}`;
   }
 }
 
@@ -204,7 +204,7 @@ async function runSessionSteps(repo: string, commands: string[], run: Run, env: 
     try {
       await run("bash", ["-c", command], { cwd: repo, env, stdio: "stderr", timeoutMs: SESSION_STEP_TIMEOUT_MS });
     } catch (err) {
-      problems.push(`${err instanceof RunTimeoutError ? "session step timed out" : "session step failed"}: ${command}`);
+      problems.push(`${err instanceof RunTimeoutError ? "el paso de sesión superó el tiempo límite" : "falló el paso de sesión"}: ${command}`);
     }
   }
   return problems;
@@ -244,11 +244,11 @@ async function sessionBody(repo: string, ctx: SessionContext, out: string[]): Pr
   if (envFileProblem) out.push(envFileProblem);
   if (config) out.push(...machineWarnings(repo, config, state, ctx.packageVersion));
   const missing = (config?.requiredEnv ?? []).filter((name) => !ctx.env[name]);
-  if (missing.length) out.push(`missing environment variables: ${missing.join(", ")}`);
+  if (missing.length) out.push(`faltan variables de entorno: ${missing.join(", ")}`);
   const notes = resolveNotes(repo, config?.notes)?.trim();
   if (notes) out.push(notes);
   const dockerProblem = startDocker(ctx.docker ?? realDocker);
-  if (dockerProblem) out.push(`could not start dockerd: ${dockerProblem}`);
+  if (dockerProblem) out.push(`no se pudo iniciar dockerd: ${dockerProblem}`);
   const env = toolsEnv(dirs, ctx.env, ca);
   await syncGit(repo, ctx.run, env);
   out.push(...(await runSessionSteps(repo, config?.session ?? [], ctx.run, env)));
@@ -269,7 +269,7 @@ export async function session(repo: string, ctx: SessionContext): Promise<string
   try {
     await sessionBody(repo, ctx, out);
   } catch (err) {
-    out.push(`session error: ${err instanceof Error ? err.message : String(err)}`);
+    out.push(`error en session: ${err instanceof Error ? err.message : String(err)}`);
   }
   return out.map((line) => OUTPUT_PREFIX + line);
 }

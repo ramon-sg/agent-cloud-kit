@@ -108,14 +108,14 @@ async function aptLane(config: CloudConfig, deps: Deps): Promise<StepResult[]> {
   for (const url of config.aptRepos) {
     const name = `apt repo ${url}`;
     if (!url.startsWith(HTTPS_PREFIX)) {
-      results.push(await refused(name, `apt repo must be an ${HTTPS_PREFIX} URL`));
+      results.push(await refused(name, `el repo de apt debe ser una URL ${HTTPS_PREFIX}`));
       continue;
     }
     results.push(await step(name, () => deps.run("bash", ["-c", APT_REPO_SCRIPT, SCRIPT_NAME, url], { env, timeoutMs: APT_STEP_TIMEOUT_MS })));
   }
   const valid = config.apt.filter((pkg) => DEBIAN_PACKAGE_NAME.test(pkg));
   for (const pkg of config.apt.filter((p) => !valid.includes(p))) {
-    results.push(await refused(`apt package ${pkg}`, "invalid Debian package name"));
+    results.push(await refused(`apt package ${pkg}`, "nombre de paquete Debian inválido"));
   }
   if (!valid.length && !config.aptRepos.length) return results;
   results.push(await step("apt-get update", () => deps.run("apt-get", ["update", "-q"], { env, timeoutMs: APT_STEP_TIMEOUT_MS })));
@@ -161,10 +161,10 @@ async function dockerLane(config: CloudConfig, images: string[], docker: DockerO
   const results: StepResult[] = [];
   const valid = images.filter((image) => !WHITESPACE.test(image) && !image.startsWith("-") && image !== "");
   for (const image of images.filter((i) => !valid.includes(i))) {
-    results.push(await refused(`docker pull ${image}`, "invalid image reference"));
+    results.push(await refused(`docker pull ${image}`, "referencia de imagen inválida"));
   }
   const up = await docker.ensure().catch(() => false);
-  if (!up) return [...results, await refused("docker", `dockerd did not start; see ${DOCKERD_LOG}`)];
+  if (!up) return [...results, await refused("docker", `dockerd no arrancó; revisa ${DOCKERD_LOG}`)];
   return [...results, ...(await pullAll(valid, deps))];
 }
 
@@ -226,7 +226,7 @@ function manifestVersion(root: string): string | undefined {
  */
 function copyPackage(source: string, target: string, version: string): void {
   const found = manifestVersion(source);
-  if (found !== version) throw new Error(`the package at ${source} is ${found ?? "unknown"}, not ${version}`);
+  if (found !== version) throw new Error(`el paquete en ${source} es ${found ?? "desconocido"}, no ${version}`);
   const temp = `${target}.${process.pid}.tmp`;
   rmSync(temp, { recursive: true, force: true });
   mkdirSync(temp, { recursive: true });
@@ -318,7 +318,7 @@ export async function setupRepo(repo: string, ctx: SetupContext): Promise<Machin
     resolved: {},
   });
   const { config, errors } = readConfig(repo);
-  if (!config) return failed("config", errors.join("; ") || "no config");
+  if (!config) return failed("config", errors.join("; ") || "sin configuración");
   try {
     return await runPhases(repo, config, ctx);
   } catch (err) {

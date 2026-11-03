@@ -208,7 +208,7 @@ test("docker that does not start is one failed step and no pulls", async () => {
   assert.ok(!log.some((l) => l.startsWith("docker pull")));
   const dockerStep = state.steps.find((s) => s.name === "docker");
   assert.equal(dockerStep?.ok, false);
-  assert.equal(dockerStep?.error, "dockerd did not start; see /var/log/agent-cloud-kit-dockerd.log");
+  assert.equal(dockerStep?.error, "dockerd no arrancó; revisa /var/log/agent-cloud-kit-dockerd.log");
 });
 
 test("self install skips the copy when that version is already there and replaces the link", async () => {
@@ -233,7 +233,7 @@ test("self install replaces another version's leftovers and refuses a source of 
   const state = await setupRepo(repo, { ...ctx(), packageRoot: fakePackage(root, "2.0.0") });
   const self = state.steps.find((s) => s.name === "self install 1.0.0");
   assert.equal(self?.ok, false);
-  assert.match(self?.error ?? "", /is 2\.0\.0, not 1\.0\.0/);
+  assert.match(self?.error ?? "", /es 2\.0\.0, no 1\.0\.0/);
 });
 
 test("a partial node version is resolved, installed by its exact version and recorded", async () => {
@@ -338,7 +338,7 @@ test("a timed out setup step is recorded and the next one still runs", async () 
   const state = await setupRepo(repo, { ...ctx(), run: timing });
   const one = state.steps.find((s) => s.name === "setup: echo one");
   assert.equal(one?.ok, false);
-  assert.match(one?.error ?? "", /timed out/);
+  assert.match(one?.error ?? "", /superó el límite/);
   assert.equal(state.steps.find((s) => s.name === "setup: echo two")?.ok, true);
   assert.ok(log.includes("bash -c echo two"));
 });

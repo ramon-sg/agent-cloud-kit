@@ -37,16 +37,16 @@ const KNOWN_PATHS = [
 const TEST_AUDIT_PROJECT_FILE = ".agents/skills/test-audit/project.md";
 
 /** Message of the commit `prepare` makes. */
-const COMMIT_MESSAGE = "chore: prepare the repo for the Claude Code cloud";
+const COMMIT_MESSAGE = "chore: prepara el repo para la nube de Claude Code";
 
 /** Question asked before committing changes outside the known files. */
-const INCLUDE_QUESTION = "Include these changes in the commit? [y/N]";
+const INCLUDE_QUESTION = "¿Incluir estos cambios en el commit? [s/N]";
 
 /** Answers to `INCLUDE_QUESTION` that mean yes. */
-const YES_ANSWER = /^y(es)?$/i;
+const YES_ANSWER = /^(s|si|sí|y|yes)$/i;
 
 /** Text shown while the user configures the environment in claude.ai. */
-const WAIT_TEXT = "Configure the environment in claude.ai, then press Enter";
+const WAIT_TEXT = "Configura el entorno en claude.ai y luego presiona Enter";
 
 /** Matches a GitHub remote URL (https or ssh) and captures `owner/repo`. */
 const GITHUB_REMOTE = /github\.com[:/]([^/\s]+\/[^/\s]+?)(?:\.git)?\/?$/;
@@ -58,7 +58,7 @@ const PR_URL = /\/pull\/(\d+)/;
 const RESUME_COMMAND = `npx ${PACKAGE} prepare --resume`;
 
 /** Printed just before the local agent starts: `prepare` continues only when `claude` exits. */
-const EXIT_CLAUDE_HINT = `${OUTPUT_PREFIX}when the skill says configure is done, exit claude (/exit) and prepare will commit, push and open the PR`;
+const EXIT_CLAUDE_HINT = `${OUTPUT_PREFIX}cuando la skill diga que configure terminó, sal de claude (/exit) y prepare hará el commit, el push y abrirá el PR`;
 
 /** Exit code for success. */
 const EXIT_OK = 0;
@@ -76,7 +76,7 @@ const PR_NUMBER = /^\d+$/;
 export class InterruptedError extends Error {
   /** Builds the error. */
   constructor() {
-    super("interrupted");
+    super("interrumpido");
     this.name = "InterruptedError";
   }
 }
@@ -147,10 +147,10 @@ export function branchDay(date: Date): string {
  * @param worktree - Worktree folder.
  * @returns The line to print.
  * @example
- * resumeLine("interrupted", "/home/u/app-cloud-ready"); // "interrupted; the worktree is at ...; run ... --resume there"
+ * resumeLine("interrumpido", "/home/u/app-cloud-ready"); // "interrumpido; el worktree está en ...; corre ... --resume ahí para continuar"
  */
 function resumeLine(reason: string, worktree: string): string {
-  return `${reason}; the worktree is at ${worktree}; run ${RESUME_COMMAND} there`;
+  return `${reason}; el worktree está en ${worktree}; corre ${RESUME_COMMAND} ahí para continuar`;
 }
 
 /**
@@ -223,7 +223,7 @@ function worktreePath(repo: string): string {
  */
 function configureProblem(worktree: string): string | undefined {
   const { config, errors } = readConfig(worktree);
-  if (!config || errors.length) return errors[0] ?? `${CONFIG_FILE} not found`;
+  if (!config || errors.length) return errors[0] ?? `no existe ${CONFIG_FILE}`;
   const notes = config.notes ?? DEFAULT_NOTES_FILE;
   const rel = relative(worktree, join(worktree, notes));
   const inside = !isAbsolute(notes) && rel !== "" && rel !== ".." && !rel.startsWith(`..${sep}`);
@@ -232,7 +232,7 @@ function configureProblem(worktree: string): string | undefined {
   } catch {
     // NOTE: a missing file is reported below.
   }
-  return `the notes file ${notes} does not exist`;
+  return `no existe el archivo de notas ${notes}`;
 }
 
 /**
@@ -317,11 +317,11 @@ async function findResume(repo: string, deps: PrepareDeps): Promise<{ worktree: 
  */
 async function createAndConfigure(repo: string, branch: string, worktree: string, deps: PrepareDeps, progress: Progress): Promise<boolean> {
   if (existsSync(worktree)) {
-    deps.print(`${OUTPUT_PREFIX}${worktree} already exists; remove it (git worktree remove ${worktree}) or continue there with ${RESUME_COMMAND}`);
+    deps.print(`${OUTPUT_PREFIX}${worktree} ya existe; bórralo (git worktree remove ${worktree}) o continúa ahí con ${RESUME_COMMAND}`);
     return false;
   }
   if ((await tryCapture(deps, "git", ["rev-parse", "--verify", "--quiet", `refs/heads/${branch}`], repo)) !== undefined) {
-    deps.print(`${OUTPUT_PREFIX}branch ${branch} already exists; delete it (git branch -D ${branch}) or run prepare another day`);
+    deps.print(`${OUTPUT_PREFIX}la rama ${branch} ya existe; bórrala (git branch -D ${branch}) o corre prepare otro día`);
     return false;
   }
   const base = `origin/${defaultBranch(repo)}`;
@@ -330,10 +330,10 @@ async function createAndConfigure(repo: string, branch: string, worktree: string
     await deps.run("git", ["worktree", "add", "-b", branch, worktree, base], { cwd: repo });
     progress.worktree = worktree;
   } catch (err) {
-    deps.print(`${OUTPUT_PREFIX}could not create the worktree: ${message(err)}`);
+    deps.print(`${OUTPUT_PREFIX}no se pudo crear el worktree: ${message(err)}`);
     return false;
   }
-  const stopped = resumeLine("the local agent stopped", worktree);
+  const stopped = resumeLine("el agente local se detuvo", worktree);
   try {
     const result = init(worktree, deps.packageVersion, deps.packageRoot);
     for (const line of result.lines) deps.print(line);
@@ -355,8 +355,8 @@ async function createAndConfigure(repo: string, branch: string, worktree: string
   }
   const problem = configureProblem(worktree);
   if (problem !== undefined) {
-    deps.print(`${OUTPUT_PREFIX}configure did not finish: ${problem}`);
-    deps.print(resumeLine("prepare stopped", worktree));
+    deps.print(`${OUTPUT_PREFIX}configure no terminó: ${problem}`);
+    deps.print(resumeLine("prepare se detuvo", worktree));
     return false;
   }
   return true;
@@ -384,37 +384,37 @@ async function commitAndPush(worktree: string, branch: string, deps: PrepareDeps
     const status = await deps.capture("git", ["status", "--porcelain=v1", "-z", "--untracked-files=all"], { cwd: worktree });
     const others = statusPaths(status).filter((path) => !covered(path, known));
     if (others.length) {
-      deps.print(`${OUTPUT_PREFIX}the local agent also changed:`);
+      deps.print(`${OUTPUT_PREFIX}el agente local también cambió:`);
       for (const path of others) deps.print(`  ${path}`);
       if (YES_ANSWER.test((await deps.ask(INCLUDE_QUESTION, "")).trim())) {
         await deps.run("git", ["add", "--", ...others], { cwd: worktree });
       } else {
         await deps.run("git", ["reset", "-q", "--", ...others], { cwd: worktree });
-        deps.print(`${OUTPUT_PREFIX}left uncommitted in ${worktree}`);
+        deps.print(`${OUTPUT_PREFIX}quedó sin commitear en ${worktree}`);
       }
     }
     const staged = await deps.capture("git", ["diff", "--cached", "--name-only"], { cwd: worktree });
     if (staged.trim()) await deps.run("git", ["commit", "-m", COMMIT_MESSAGE], { cwd: worktree });
-    else deps.print(`${OUTPUT_PREFIX}nothing new to commit`);
+    else deps.print(`${OUTPUT_PREFIX}no hay nada nuevo que commitear`);
     await deps.run("git", ["push", "-u", "origin", branch], { cwd: worktree });
   } catch (err) {
     if (err instanceof InterruptedError) throw err;
-    deps.print(`${OUTPUT_PREFIX}could not commit and push: ${message(err)}; fix it in ${worktree} and run ${RESUME_COMMAND} there`);
+    deps.print(`${OUTPUT_PREFIX}no se pudo hacer commit y push: ${message(err)}; corrígelo en ${worktree} y corre ${RESUME_COMMAND} ahí`);
     return false;
   }
   const existing = await tryCapture(deps, "gh", ["pr", "view", branch, "--json", "number", "--jq", ".number"], worktree);
   if (existing !== undefined && PR_NUMBER.test(existing)) {
-    deps.print(`${OUTPUT_PREFIX}reusing the open PR #${existing}`);
+    deps.print(`${OUTPUT_PREFIX}se reutiliza el PR abierto #${existing}`);
     return { pr: existing };
   }
   try {
     const url = await deps.capture("gh", ["pr", "create", "--draft", "--fill"], { cwd: worktree });
-    deps.print(`${OUTPUT_PREFIX}draft PR: ${url.trim()}`);
+    deps.print(`${OUTPUT_PREFIX}PR en borrador: ${url.trim()}`);
     return { pr: PR_URL.exec(url)?.[1] };
   } catch {
     const origin = await tryCapture(deps, "git", ["remote", "get-url", "origin"], worktree);
     const link = compareLink(origin, branch);
-    deps.print(`${OUTPUT_PREFIX}could not open the PR with gh; open it by hand${link ? `: ${link}` : ` from branch ${branch}`}`);
+    deps.print(`${OUTPUT_PREFIX}no se pudo abrir el PR con gh; ábrelo a mano${link ? `: ${link}` : ` desde la rama ${branch}`}`);
     return {};
   }
 }
@@ -435,9 +435,8 @@ export async function prepare(repo: string, deps: PrepareDeps, options: PrepareO
   const gitRoot = await tryCapture(deps, "git", ["rev-parse", "--show-toplevel"], repo);
   const cwd = gitRoot ?? repo;
   const hasOrigin = (await tryCapture(deps, "git", ["remote", "get-url", "origin"], cwd)) !== undefined;
-  const clean = options.resume ? true : (await tryCapture(deps, "git", ["status", "--porcelain"], cwd)) === "";
   const claudeHelp = await tryCapture(deps, "claude", ["--help"], cwd);
-  const problems = preflight({ isTty: deps.isTty, gitRoot, hasOrigin, clean, claudeHelp });
+  const problems = preflight({ isTty: deps.isTty, gitRoot, hasOrigin, claudeHelp });
   if (problems.length || gitRoot === undefined) {
     for (const problem of problems) deps.print(`${OUTPUT_PREFIX}${problem}`);
     return EXIT_FAIL;
@@ -487,10 +486,10 @@ async function runInteractive(deps: PrepareDeps, progress: Progress, args: strin
  * @param progress - What exists so far.
  * @returns The line.
  * @example
- * interruptedLine({}); // "agent-cloud-kit: interrupted; nothing was created"
+ * interruptedLine({}); // "agent-cloud-kit: interrumpido; no se creó nada"
  */
 function interruptedLine(progress: Progress): string {
-  return progress.worktree === undefined ? `${OUTPUT_PREFIX}interrupted; nothing was created` : resumeLine("interrupted", progress.worktree);
+  return progress.worktree === undefined ? `${OUTPUT_PREFIX}interrumpido; no se creó nada` : resumeLine("interrumpido", progress.worktree);
 }
 
 /**
@@ -511,14 +510,14 @@ async function prepareSteps(gitRoot: string, deps: PrepareDeps, options: Prepare
   if (options.resume) {
     const found = await findResume(gitRoot, deps);
     if (!found) {
-      deps.print(`${OUTPUT_PREFIX}nothing to resume: run it in the ${WORKTREE_SUFFIX} worktree on a ${BRANCH_PREFIX}* branch`);
+      deps.print(`${OUTPUT_PREFIX}no hay nada que reanudar: corre prepare --resume en el worktree *${WORKTREE_SUFFIX}, sobre una rama ${BRANCH_PREFIX}*`);
       return EXIT_FAIL;
     }
     ({ worktree, branch } = found);
     progress.worktree = worktree;
     const problem = configureProblem(worktree);
     if (problem) {
-      deps.print(`${OUTPUT_PREFIX}configure is not finished in ${worktree}: ${problem}; run claude "/cloud-ready configure" there first, then ${RESUME_COMMAND}`);
+      deps.print(`${OUTPUT_PREFIX}configure no terminó en ${worktree}: ${problem}; corre claude "/cloud-ready configure" ahí primero y luego ${RESUME_COMMAND}`);
       return EXIT_FAIL;
     }
   } else {
@@ -534,9 +533,9 @@ async function prepareSteps(gitRoot: string, deps: PrepareDeps, options: Prepare
   try {
     await runInteractive(deps, progress, ["--cloud", verifyPrompt({ branch, pr: pushed.pr })], worktree);
   } catch (err) {
-    deps.print(`${OUTPUT_PREFIX}claude --cloud failed: ${message(err)}; run ${RESUME_COMMAND} in ${worktree} to try again`);
+    deps.print(`${OUTPUT_PREFIX}falló claude --cloud: ${message(err)}; corre ${RESUME_COMMAND} en ${worktree} para reintentar`);
     return EXIT_FAIL;
   }
-  deps.print(`${OUTPUT_PREFIX}the cloud session will report back as a push to ${branch} and a comment on the PR`);
+  deps.print(`${OUTPUT_PREFIX}la sesión cloud avisará con un push a ${branch} y un comentario en el PR`);
   return EXIT_OK;
 }

@@ -110,18 +110,18 @@ function isStringList(value: unknown): value is string[] {
 function parseDocker(value: unknown, errors: string[]): CloudConfig["docker"] {
   if (value === undefined) return { pull: PULL_AUTO };
   if (!isRecord(value)) {
-    errors.push(fail('"docker" must be an object'));
+    errors.push(fail('"docker" debe ser un objeto'));
     return { pull: PULL_AUTO };
   }
   for (const key of Object.keys(value)) {
     if (!(DOCKER_KEYS as readonly string[]).includes(key)) {
-      errors.push(fail(`unknown field "docker.${key}"`));
+      errors.push(fail(`campo desconocido "docker.${key}"`));
     }
   }
   const pull = value.pull;
   if (pull === undefined || pull === PULL_AUTO) return { pull: PULL_AUTO };
   if (pull === false || isStringList(pull)) return { pull };
-  errors.push(fail('"docker.pull" must be "auto", false or an array of strings'));
+  errors.push(fail('"docker.pull" debe ser "auto", false o un arreglo de strings'));
   return { pull: PULL_AUTO };
 }
 
@@ -137,7 +137,7 @@ function parseList(raw: Record<string, unknown>, key: string, errors: string[]):
   const value = raw[key];
   if (value === undefined) return [];
   if (isStringList(value)) return value;
-  errors.push(fail(`"${key}" must be an array of strings`));
+  errors.push(fail(`"${key}" debe ser un arreglo de strings`));
   return [];
 }
 
@@ -153,12 +153,12 @@ function parseList(raw: Record<string, unknown>, key: string, errors: string[]):
 function parseDomains(value: unknown, errors: string[]): string[] {
   if (value === undefined) return [];
   if (!isStringList(value)) {
-    errors.push(fail('"domains" must be an array of strings'));
+    errors.push(fail('"domains" debe ser un arreglo de strings'));
     return [];
   }
   return value.filter((host) => {
     const valid = isHostName(host);
-    if (!valid) errors.push(fail(`"domains" has an invalid host: ${JSON.stringify(host)}`));
+    if (!valid) errors.push(fail(`"domains" tiene un host inválido: ${JSON.stringify(host)}`));
     return valid;
   });
 }
@@ -173,11 +173,11 @@ function parseDomains(value: unknown, errors: string[]): string[] {
 function parseConfig(raw: Record<string, unknown>, errors: string[]): CloudConfig | undefined {
   const known: readonly string[] = [...CONFIG_KEYS, SCHEMA_KEY];
   for (const key of Object.keys(raw)) {
-    if (!known.includes(key)) errors.push(fail(`unknown field "${key}"`));
+    if (!known.includes(key)) errors.push(fail(`campo desconocido "${key}"`));
   }
   const version = raw.version;
   if (typeof version !== "string" || !EXACT_SEMVER.test(version)) {
-    errors.push(fail('"version" must be an exact semver string such as "1.0.0"'));
+    errors.push(fail('"version" debe ser un semver exacto, como "1.0.0"'));
     return undefined;
   }
   const lists = Object.fromEntries(LIST_KEYS.map((key) => [key, parseList(raw, key, errors)]));
@@ -192,7 +192,7 @@ function parseConfig(raw: Record<string, unknown>, errors: string[]): CloudConfi
     domains: parseDomains(raw.domains, errors),
   };
   if (typeof raw.notes === "string") config.notes = raw.notes;
-  else if (raw.notes !== undefined) errors.push(fail('"notes" must be a string'));
+  else if (raw.notes !== undefined) errors.push(fail('"notes" debe ser un string'));
   return config;
 }
 
@@ -212,9 +212,9 @@ export function readConfig(repo: string): ReadConfigResult {
     raw = JSON.parse(readFileSync(file, "utf8"));
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
-    return { errors: [fail(`cannot read file: ${reason}`)] };
+    return { errors: [fail(`no se pudo leer el archivo: ${reason}`)] };
   }
-  if (!isRecord(raw)) return { errors: [fail("must contain a JSON object")] };
+  if (!isRecord(raw)) return { errors: [fail("debe contener un objeto JSON")] };
   const errors: string[] = [];
   const config = parseConfig(raw, errors);
   return config ? { config, errors } : { errors };

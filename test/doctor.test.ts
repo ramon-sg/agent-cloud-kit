@@ -55,9 +55,9 @@ test("reports each domain as ok or blocked and fails when any is blocked", async
   const has = (text: string): boolean => lines.some((l) => l.startsWith("agent-cloud-kit: ") && l.includes(text));
   assert.ok(has("registry.npmjs.org: ok"));
   assert.ok(has("registry-1.docker.io: ok"));
-  assert.ok(has("api.github.com: blocked"));
-  assert.ok(has("pypi.org: blocked"));
-  assert.ok(has("nodejs.org: blocked"));
+  assert.ok(has("api.github.com: bloqueado"));
+  assert.ok(has("pypi.org: bloqueado"));
+  assert.ok(has("nodejs.org: bloqueado"));
   assert.equal(ok, false);
   assert.deepEqual(probes.find((a) => a.at(-1) === "https://registry.npmjs.org/"), [
     "-sS", "-o", "/dev/null", "-w", "%{http_code}", "-I", "--max-time", "5", "https://registry.npmjs.org/",
@@ -68,9 +68,9 @@ test("probes the configured domains after the fixed ones, skipping duplicates", 
   writeFileSync(join(repo, ".claude/cloud.json"), JSON.stringify({ version: "1.0.0", domains: ["api.example.com", "pypi.org"] }));
   const { lines } = await doctor(repo, ctx());
   assert.ok(probes.some((a) => a.at(-1) === "https://api.example.com/"));
-  assert.ok(lines.includes("agent-cloud-kit: network api.example.com: ok"), lines.join("\n"));
+  assert.ok(lines.includes("agent-cloud-kit: red api.example.com: ok"), lines.join("\n"));
   assert.equal(probes.filter((a) => a.at(-1) === "https://pypi.org/").length, 1);
-  const net = lines.filter((l) => l.includes("network "));
+  const net = lines.filter((l) => l.includes("red "));
   assert.ok(net.findIndex((l) => l.includes("api.example.com")) > net.findIndex((l) => l.includes("api.github.com")));
 });
 
@@ -80,8 +80,8 @@ test("invalid and unresolved versions are failed lines, not exceptions", async (
   writeFileSync(join(repo, ".tool-versions"), "pnpm $(id)\n");
   const { lines, ok } = await doctor(repo, ctx());
   assert.equal(ok, false);
-  assert.ok(lines.some((l) => l.includes("tool node lts/iron: not resolved")), lines.join("\n"));
-  assert.ok(lines.some((l) => l.includes("tool pnpm $(id): invalid version")), lines.join("\n"));
+  assert.ok(lines.some((l) => l.includes("herramienta node lts/iron: sin resolver")), lines.join("\n"));
+  assert.ok(lines.some((l) => l.includes("herramienta pnpm $(id): versión inválida")), lines.join("\n"));
 });
 
 test("a resolved partial node version is checked in its exact directory", async () => {
@@ -91,7 +91,7 @@ test("a resolved partial node version is checked in its exact directory", async 
   mkdirSync(join(tools, "node-22.12.0/bin"), { recursive: true });
   writeFileSync(join(tools, "node-22.12.0/bin/node"), "");
   const { lines } = await doctor(repo, ctx());
-  assert.ok(lines.some((l) => l.includes("tool node 22: ok")), lines.join("\n"));
+  assert.ok(lines.some((l) => l.includes("herramienta node 22: ok")), lines.join("\n"));
 });
 
 test("a malformed state or a throwing probe never makes doctor throw", async () => {
@@ -109,15 +109,15 @@ test("a malformed state or a throwing probe never makes doctor throw", async () 
   };
   const { lines, ok } = await doctor(repo, throwing);
   assert.equal(ok, false);
-  assert.ok(lines.some((l) => l.includes("state: missing")), lines.join("\n"));
+  assert.ok(lines.some((l) => l.includes("estado: falta")), lines.join("\n"));
   assert.ok(lines.some((l) => l.includes("docker: error: docker probe broke")), lines.join("\n"));
-  assert.ok(lines.some((l) => l.includes("network registry.npmjs.org: blocked")), lines.join("\n"));
+  assert.ok(lines.some((l) => l.includes("red registry.npmjs.org: bloqueado")), lines.join("\n"));
 });
 
 test("a repo without cloud.json is a failed check, not an exception", async () => {
   const { lines, ok } = await doctor(repo, ctx());
   assert.equal(ok, false);
-  assert.ok(lines.some((l) => l.includes("cloud.json") && l.includes("missing")));
+  assert.ok(lines.some((l) => l.includes("cloud.json") && l.includes("falta")));
 });
 
 test("checks tools, docker, fingerprint and step durations", async () => {
@@ -133,11 +133,11 @@ test("checks tools, docker, fingerprint and step durations", async () => {
     resolved: { node: "24.14.1" },
   });
   let result = await doctor(repo, ctx(false));
-  assert.ok(result.lines.some((l) => l.includes("node 24.14.1: missing")));
-  assert.ok(result.lines.some((l) => l.includes("docker: missing")));
-  assert.ok(result.lines.some((l) => l.includes("fingerprint: ok")));
-  assert.ok(result.lines.some((l) => l.includes("step apt: ok") && l.includes("1.5s")));
-  assert.ok(result.lines.some((l) => l.includes("step pull: failed")));
+  assert.ok(result.lines.some((l) => l.includes("node 24.14.1: falta")));
+  assert.ok(result.lines.some((l) => l.includes("docker: falta")));
+  assert.ok(result.lines.some((l) => l.includes("huella: ok")));
+  assert.ok(result.lines.some((l) => l.includes("paso apt: ok") && l.includes("1.5s")));
+  assert.ok(result.lines.some((l) => l.includes("paso pull: falló")));
   mkdirSync(join(tools, "node-24.14.1/bin"), { recursive: true });
   writeFileSync(join(tools, "node-24.14.1/bin/node"), "");
   result = await doctor(repo, ctx(true));
@@ -145,17 +145,17 @@ test("checks tools, docker, fingerprint and step durations", async () => {
   assert.ok(result.lines.some((l) => l.includes("docker: ok")));
   writeFileSync(join(repo, ".claude/cloud.json"), JSON.stringify({ version: "1.0.0", apt: ["jq"] }));
   result = await doctor(repo, ctx());
-  assert.ok(result.lines.some((l) => l.includes("fingerprint: mismatch")));
+  assert.ok(result.lines.some((l) => l.includes("huella: distinta")));
 });
 
-const warnings = (lines: string[]): string[] => lines.filter((l) => l.startsWith("agent-cloud-kit: warn: "));
+const warnings = (lines: string[]): string[] => lines.filter((l) => l.startsWith("agent-cloud-kit: aviso: "));
 
 test("an enabled plugin is a warning that does not fail doctor", async () => {
   const before = (await doctor(repo, ctx())).ok;
   writeFileSync(join(repo, ".claude/settings.json"), JSON.stringify({ enabledPlugins: { "x@m": true, "y@m": false } }));
   const { lines, ok } = await doctor(repo, ctx());
   assert.deepEqual(warnings(lines), [
-    "agent-cloud-kit: warn: plugin x@m is enabled but is not in the repo; it will not reach the cloud (copy its skills with skills-manager)",
+    "agent-cloud-kit: aviso: el plugin x@m está activado pero no está en el repo; no llegará a la nube (copia sus skills con skills-manager)",
   ]);
   assert.equal(ok, before);
 });
@@ -170,6 +170,6 @@ test("a cloud-ready skill of another version is a warning", async () => {
   writeFileSync(join(repo, ".agents/skills/cloud-ready/SKILL.md"), '---\nname: cloud-ready\nmetadata:\n  version: "0.9.0"\n---\n');
   const { lines } = await doctor(repo, ctx());
   assert.deepEqual(warnings(lines), [
-    "agent-cloud-kit: warn: .agents/skills/cloud-ready is 0.9.0, the package is 1.0.0; run npx agent-cloud-kit@1.0.0 init",
+    "agent-cloud-kit: aviso: .agents/skills/cloud-ready está en 0.9.0 y el paquete en 1.0.0; corre npx agent-cloud-kit@1.0.0 init",
   ]);
 });

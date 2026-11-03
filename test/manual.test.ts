@@ -145,7 +145,7 @@ test("manual command prints the result and exits 1 without a config", async () =
   assert.equal(await main(["manual"], deps), 1);
   writeFileSync(join(repo, ".claude/cloud.json"), JSON.stringify({ version: "1.0.0" }));
   assert.equal(await main(["manual"], deps), 0);
-  assert.equal(lines[lines.length - 1], "agent-cloud-kit: wrote docs/agent-cloud.md");
+  assert.equal(lines[lines.length - 1], "agent-cloud-kit: se escribió docs/agent-cloud.md");
   assert.ok(existsSync(join(repo, "docs/agent-cloud.md")));
 });
 

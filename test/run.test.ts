@@ -45,5 +45,5 @@ test("a run within its time limit resolves", async () => {
 
 test("captureProcess returns stdout and rejects on a non-zero exit", async () => {
   assert.equal(await captureProcess("sh", ["-c", "printf 403"]), "403");
-  await assert.rejects(captureProcess("sh", ["-c", "printf x; exit 7"]), /code 7/);
+  await assert.rejects(captureProcess("sh", ["-c", "printf x; exit 7"]), /código 7/);
 });

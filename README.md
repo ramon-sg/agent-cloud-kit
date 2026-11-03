@@ -158,7 +158,7 @@ package that `setup` left on the saved machine, so it needs no network and no `n
 ```json
 {
   "type": "command",
-  "command": "[ \"$CLAUDE_CODE_REMOTE\" = true ] || exit 0; /opt/agent-cloud-kit/bin/agent-cloud-kit session || echo 'agent-cloud-kit: the environment setup did not run; see npx agent-cloud-kit doctor'",
+  "command": "[ \"$CLAUDE_CODE_REMOTE\" = true ] || exit 0; /opt/agent-cloud-kit/bin/agent-cloud-kit session || echo 'agent-cloud-kit: el setup del entorno no corrió; revisa con npx agent-cloud-kit doctor'",
   "timeout": 600
 }
 ```
@@ -169,8 +169,8 @@ When the repo pins another version than the one that is running and that version
 ### Machine fingerprint
 
 `setup` stores a fingerprint of the config, the pinned versions, the images and the package
-version. If the repo changes afterwards, `session` warns that "the machine was prepared with
-another configuration". The saved machine is rebuilt by claude.ai about every 7 days, or when you
+version. If the repo changes afterwards, `session` warns that "la máquina se preparó con
+otra configuración". The saved machine is rebuilt by claude.ai about every 7 days, or when you
 edit the setup script field.
 
 ## The proxy CA and `docker build`

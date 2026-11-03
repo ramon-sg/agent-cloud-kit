@@ -27,22 +27,22 @@ import { session } from "./session.ts";
 import { setupRepo } from "./setup.ts";
 
 /** Help text shown by `--help`. */
-const HELP = `${OUTPUT_PREFIX}prepares Claude Code cloud sessions.
+const HELP = `${OUTPUT_PREFIX}prepara repos para las sesiones cloud de Claude Code.
 
-Usage: agent-cloud-kit <command>
+Uso: agent-cloud-kit <comando>
 
-Commands:
-  setup [--repo <path>]  prepare the machine for every repo in the home dir (or only <path>)
-  session                report the machine state and wire the tools into the session
-  docker                 start the Docker daemon and wait until it answers
-  doctor                 check the network allowlist, tools, Docker and the machine state
-  init                   create .claude/cloud.json and register the SessionStart hook
-  manual                 write docs/agent-cloud.md from .claude/cloud.json
-  prepare [--resume]     run locally: set the repo up for the cloud on a new branch and verify it in a cloud session
+Comandos:
+  setup [--repo <path>]  prepara la máquina para cada repo del directorio home (o solo <path>)
+  session                informa el estado de la máquina y conecta las herramientas a la sesión
+  docker                 inicia el demonio de Docker y espera a que responda
+  doctor                 revisa los dominios permitidos, las herramientas, Docker y el estado de la máquina
+  init                   crea .claude/cloud.json y registra el hook SessionStart
+  manual                 escribe docs/agent-cloud.md a partir de .claude/cloud.json
+  prepare [--resume]     corre en local: deja el repo listo para la nube en una rama nueva y lo verifica en una sesión cloud
 
-Options:
-  --help                 show this help
-  --version              print the package version
+Opciones:
+  --help                 muestra esta ayuda
+  --version              muestra la versión del paquete
 `;
 
 /** Environment variable with the project dir that Claude Code passes to hooks. */
@@ -133,7 +133,7 @@ async function runOne(repo: string, deps: CliDeps): Promise<void> {
   const { config, errors } = readConfig(repo);
   for (const error of errors) deps.print(`${OUTPUT_PREFIX}${repo}: ${error}`);
   if (config && config.version !== deps.packageVersion) {
-    deps.print(`${OUTPUT_PREFIX}running ${deps.packageVersion} although ${CONFIG_FILE} asks for ${config.version}`);
+    deps.print(`${OUTPUT_PREFIX}corriendo la versión ${deps.packageVersion}, aunque ${CONFIG_FILE} pide la ${config.version}`);
   }
   const state = await setupRepo(repo, {
     toolsDir: toolsDir(deps.env),
@@ -145,7 +145,7 @@ async function runOne(repo: string, deps: CliDeps): Promise<void> {
   });
   const failed = state.steps.filter((s) => !s.ok).map((s) => s.name);
   const detail = failed.length ? ` (${failed.join(", ")})` : "";
-  deps.print(`${OUTPUT_PREFIX}setup ${repo}: ${state.steps.length} steps, ${failed.length} failed${detail}`);
+  deps.print(`${OUTPUT_PREFIX}setup ${repo}: ${state.steps.length} pasos, ${failed.length} fallaron${detail}`);
 }
 
 /**
@@ -156,18 +156,18 @@ async function runOne(repo: string, deps: CliDeps): Promise<void> {
  */
 async function runPlanItem(item: SetupPlanItem, deps: CliDeps): Promise<void> {
   if (item.action === "skip") {
-    deps.print(`${OUTPUT_PREFIX}skipping ${item.repo}: ${item.reason ?? ""}`);
+    deps.print(`${OUTPUT_PREFIX}se omite ${item.repo}: ${item.reason ?? ""}`);
     return;
   }
   if (item.action === "run" || !item.version) {
     await runOne(item.repo, deps);
     return;
   }
-  deps.print(`${OUTPUT_PREFIX}relaunching with ${item.version} for ${item.repo}`);
+  deps.print(`${OUTPUT_PREFIX}relanzando con la versión ${item.version} para ${item.repo}`);
   try {
     await relaunch(item.repo, item.version, deps.run, deps.env);
   } catch (err) {
-    deps.print(`${OUTPUT_PREFIX}relaunch with ${item.version} for ${item.repo} failed: ${message(err)}`);
+    deps.print(`${OUTPUT_PREFIX}falló el relanzamiento con la versión ${item.version} para ${item.repo}: ${message(err)}`);
   }
 }
 
@@ -184,21 +184,21 @@ async function setupCommand(args: string[], deps: CliDeps): Promise<number> {
     const at = args.indexOf(REPO_OPTION);
     if (at >= 0) {
       const value = args[at + 1];
-      if (!value || value.startsWith("-")) deps.print(`${OUTPUT_PREFIX}${REPO_OPTION} needs a path`);
+      if (!value || value.startsWith("-")) deps.print(`${OUTPUT_PREFIX}${REPO_OPTION} necesita una ruta`);
       else await runOne(resolve(deps.cwd, value), deps);
       return EXIT_OK;
     }
     const repos = findRepos(homeDir(deps.env));
-    if (!repos.length) deps.print(`${OUTPUT_PREFIX}no repos found in ${homeDir(deps.env)}`);
+    if (!repos.length) deps.print(`${OUTPUT_PREFIX}no se encontraron repos en ${homeDir(deps.env)}`);
     for (const item of planSetup(repos, deps.packageVersion, readConfig)) {
       try {
         await runPlanItem(item, deps);
       } catch (err) {
-        deps.print(`${OUTPUT_PREFIX}setup error for ${item.repo}: ${message(err)}`);
+        deps.print(`${OUTPUT_PREFIX}error en setup de ${item.repo}: ${message(err)}`);
       }
     }
   } catch (err) {
-    deps.print(`${OUTPUT_PREFIX}setup error: ${message(err)}`);
+    deps.print(`${OUTPUT_PREFIX}error en setup: ${message(err)}`);
   }
   return EXIT_OK;
 }
@@ -241,7 +241,7 @@ async function sessionCommand(deps: CliDeps): Promise<number> {
     try {
       await deps.run(packageBin(tools, wanted), ["session"], { env: { ...deps.env, [DELEGATED_ENV]: DELEGATED_VALUE } });
     } catch (err) {
-      deps.print(`${OUTPUT_PREFIX}session ${wanted} failed: ${message(err)}`);
+      deps.print(`${OUTPUT_PREFIX}falló session con la versión ${wanted}: ${message(err)}`);
     }
     return EXIT_OK;
   }
@@ -258,7 +258,7 @@ async function sessionCommand(deps: CliDeps): Promise<number> {
  */
 async function dockerCommand(deps: CliDeps): Promise<number> {
   if (await deps.docker.ensure().catch(() => false)) return EXIT_OK;
-  deps.print(`${OUTPUT_PREFIX}dockerd did not start; see ${DOCKERD_LOG}`);
+  deps.print(`${OUTPUT_PREFIX}dockerd no arrancó; revisa ${DOCKERD_LOG}`);
   return EXIT_FAIL;
 }
 
@@ -310,7 +310,7 @@ function manualCommand(deps: CliDeps): number {
     deps.print(`${OUTPUT_PREFIX}${message(err)}`);
     return EXIT_FAIL;
   }
-  deps.print(`${OUTPUT_PREFIX}wrote ${MANUAL_FILE}`);
+  deps.print(`${OUTPUT_PREFIX}se escribió ${MANUAL_FILE}`);
   return EXIT_OK;
 }
 
@@ -324,7 +324,7 @@ function manualCommand(deps: CliDeps): number {
  * @returns The raw answer.
  * @throws InterruptedError on Ctrl+C.
  * @example
- * await askTerminal("Include these changes in the commit? [y/N]", ""); // "y"
+ * await askTerminal("¿Incluir estos cambios en el commit? [s/N]", ""); // "y"
  */
 const askTerminal: Ask = async (question, suggestion) => {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
@@ -361,7 +361,7 @@ function onProcessInterrupt(handler: InterruptHandler): () => void {
  *
  * @param text - Text to show.
  * @example
- * await waitTerminal("Press Enter");
+ * await waitTerminal("Presiona Enter");
  */
 async function waitTerminal(text: string): Promise<void> {
   await askTerminal(text, "");
@@ -377,7 +377,7 @@ async function waitTerminal(text: string): Promise<void> {
 async function prepareCommand(args: string[], deps: CliDeps): Promise<number> {
   const unknown = args.filter((arg) => arg !== RESUME_OPTION);
   if (unknown.length) {
-    deps.print(`${OUTPUT_PREFIX}unknown option for prepare: ${unknown.join(" ")}`);
+    deps.print(`${OUTPUT_PREFIX}opción desconocida para prepare: ${unknown.join(" ")}`);
     return EXIT_FAIL;
   }
   return prepare(

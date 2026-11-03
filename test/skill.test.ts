@@ -47,7 +47,7 @@ test("installSkill writes metadata.version when the packaged skill lacks it", ()
 });
 
 test("installSkill fails without touching the repo when the package has no skill", () => {
-  assert.throws(() => installSkill(repo, join(repo, "nowhere"), "1.0.0"), /SKILL\.md not found/);
+  assert.throws(() => installSkill(repo, join(repo, "nowhere"), "1.0.0"), /no se encontró skills\/cloud-ready\/SKILL\.md/);
   assert.equal(skillVersion(repo), undefined);
 });
 

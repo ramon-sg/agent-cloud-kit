@@ -52,11 +52,11 @@ test("planSetup skips, runs and relaunches", () => {
   const other = makeRepo("other", { version: "1.2.0" });
   const broken = makeRepo("broken", { version: "^1" });
   const plan = planSetup([none, same, other, broken], "1.0.0", readConfig);
-  assert.deepEqual(plan[0], { repo: none, action: "skip", reason: "no .claude/cloud.json" });
+  assert.deepEqual(plan[0], { repo: none, action: "skip", reason: "no hay .claude/cloud.json" });
   assert.deepEqual(plan[1], { repo: same, action: "run", version: "1.0.0" });
   assert.deepEqual(plan[2], { repo: other, action: "relaunch", version: "1.2.0" });
   assert.equal(plan[3]?.action, "skip");
-  assert.match(plan[3]?.reason ?? "", /exact semver/);
+  assert.match(plan[3]?.reason ?? "", /semver exacto/);
 });
 
 test("relaunch passes the pinned package as a single npx argument", async () => {

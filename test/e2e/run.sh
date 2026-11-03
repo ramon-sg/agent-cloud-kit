@@ -102,9 +102,9 @@ echo "== doctor checks the network through the proxy"
 in_box '. /tmp/env && cd /work/fixture && agent-cloud-kit doctor >/tmp/doctor.out 2>&1' || true
 doctor="$(in_box 'cat /tmp/doctor.out')"
 echo "$doctor"
-grep -qx "agent-cloud-kit: network registry.npmjs.org: ok" <<<"$doctor" || fail "doctor did not reach registry.npmjs.org"
-grep -qx "agent-cloud-kit: network api.github.com: blocked" <<<"$doctor" || fail "doctor did not report api.github.com as blocked"
-grep -qx "agent-cloud-kit: tool node 24.14.1: ok" <<<"$doctor" || fail "doctor did not find node"
+grep -qx "agent-cloud-kit: red registry.npmjs.org: ok" <<<"$doctor" || fail "doctor did not reach registry.npmjs.org"
+grep -qx "agent-cloud-kit: red api.github.com: bloqueado" <<<"$doctor" || fail "doctor did not report api.github.com as blocked"
+grep -qx "agent-cloud-kit: herramienta node 24.14.1: ok" <<<"$doctor" || fail "doctor did not find node"
 echo "ok: doctor saw npm reachable and GitHub blocked"
 
 echo "== manual writes the setup script"

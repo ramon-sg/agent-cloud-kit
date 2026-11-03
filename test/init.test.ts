@@ -83,7 +83,7 @@ test("settings.json values that are not the expected shape are left untouched", 
     assert.equal(result.ok, false, text);
     assert.equal(readFileSync(join(repo, ".claude/settings.json"), "utf8"), text);
     const line = result.lines.find((l) => l.includes("settings.json")) ?? "";
-    assert.ok(line.includes("by hand"), line);
+    assert.ok(line.includes("a mano"), line);
     assert.ok(line.includes("agent-cloud-kit session") && line.includes('"timeout":600'), line);
   }
 });
@@ -120,7 +120,7 @@ test("a second init at the same version leaves the skill untouched", () => {
   assert.equal(statSync(file).mtimeMs, before);
   assert.equal(statSync(join(repo, SKILL_DIR)).ino, dirBefore);
   assert.equal(readFileSync(join(repo, SKILL_DIR, "reference/knowledge.md"), "utf8"), "knowledge 1.0.0\n");
-  assert.ok(result.lines.some((l) => l.includes("already")), result.lines.join("\n"));
+  assert.ok(result.lines.some((l) => l.includes("ya está en")), result.lines.join("\n"));
 });
 
 test("init at a new version replaces the skill", () => {

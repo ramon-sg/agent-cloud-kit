@@ -87,13 +87,13 @@ function withVersion(text: string, version: string): string {
  * @throws When the package has no skill or the copy fails (the installed skill is kept).
  * @example
  * installSkill("/home/user/app", "/usr/lib/node_modules/agent-cloud-kit", "1.0.0");
- * // "installed .agents/skills/cloud-ready 1.0.0"
+ * // "se instaló .agents/skills/cloud-ready 1.0.0"
  */
 export function installSkill(repo: string, packageRoot: string, packageVersion: string): string {
   const current = skillVersion(repo);
-  if (current === packageVersion) return `${SKILL_DIR} already at ${packageVersion}`;
+  if (current === packageVersion) return `${SKILL_DIR} ya está en ${packageVersion}`;
   const source = join(packageRoot, PACKAGE_SKILL_DIR);
-  if (!existsSync(join(source, "SKILL.md"))) throw new Error(`${PACKAGE_SKILL_DIR}/SKILL.md not found in ${packageRoot}`);
+  if (!existsSync(join(source, "SKILL.md"))) throw new Error(`no se encontró ${PACKAGE_SKILL_DIR}/SKILL.md en ${packageRoot}`);
   const target = join(repo, SKILL_DIR);
   const temp = `${target}.${process.pid}.tmp`;
   const old = `${target}.${process.pid}.old`;
@@ -111,7 +111,7 @@ export function installSkill(repo: string, packageRoot: string, packageVersion: 
     throw err;
   }
   rmSync(old, { recursive: true, force: true });
-  return current === undefined ? `installed ${SKILL_DIR} ${packageVersion}` : `updated ${SKILL_DIR} from ${current} to ${packageVersion}`;
+  return current === undefined ? `se instaló ${SKILL_DIR} ${packageVersion}` : `se actualizó ${SKILL_DIR} de ${current} a ${packageVersion}`;
 }
 
 /**
@@ -137,7 +137,7 @@ function present(path: string): boolean {
  * @param repo - Repo root.
  * @returns A line describing what was done, or undefined when nothing was needed.
  * @example
- * linkSkill("/home/user/app"); // "linked .claude/skills/cloud-ready to .agents/skills/cloud-ready"
+ * linkSkill("/home/user/app"); // "se enlazó .claude/skills/cloud-ready a .agents/skills/cloud-ready"
  */
 export function linkSkill(repo: string): string | undefined {
   const claudeSkills = join(repo, CLAUDE_SKILLS_DIR);
@@ -147,5 +147,5 @@ export function linkSkill(repo: string): string | undefined {
   if (present(link)) return undefined;
   mkdirSync(claudeSkills, { recursive: true });
   symlinkSync(SKILL_LINK_TARGET, link);
-  return `linked ${SKILL_LINK} to ${SKILL_DIR}`;
+  return `se enlazó ${SKILL_LINK} a ${SKILL_DIR}`;
 }

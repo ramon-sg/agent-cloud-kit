@@ -16,7 +16,7 @@ import type { StepResult } from "../src/steps.ts";
 import { GIT_FETCH_TIMEOUT_MS } from "../src/constants.ts";
 import { SESSION_STEP_TIMEOUT_MS, session, toolsEnv } from "../src/session.ts";
 
-const NOTE = "agent-cloud-kit: you are in a Claude Code cloud session. There are no open ports or previews: test against localhost. gh pr and gh issue fail (the GitHub proxy blocks GraphQL): use gh api (REST).";
+const NOTE = "agent-cloud-kit: estás en una sesión cloud de Claude Code. No hay puertos abiertos ni previews: prueba contra localhost. gh pr y gh issue fallan (el proxy de GitHub bloquea GraphQL): usa gh api (REST).";
 
 let root: string;
 let repo: string;
@@ -67,7 +67,7 @@ test("no state prints the setup-did-not-run line", async () => {
   writeConfig();
   const lines = await session(repo, ctx());
   assert.equal(lines[0], NOTE);
-  assert.ok(lines.includes("agent-cloud-kit: the environment setup did not run for repo. Set the setup script of the environment in claude.ai to: npx -y agent-cloud-kit@1 setup"));
+  assert.ok(lines.includes("agent-cloud-kit: el setup del entorno no corrió para repo. Pon como script de setup del entorno en claude.ai: npx -y agent-cloud-kit@1 setup"));
 });
 
 test("config errors are printed and the session continues", async () => {
@@ -80,34 +80,34 @@ test("failed steps are listed", async () => {
   writeConfig();
   record([{ name: "a", ok: false, ms: 1 }, { name: "b", ok: true, ms: 1 }, { name: "c", ok: false, ms: 1 }]);
   const lines = await session(repo, ctx());
-  assert.ok(lines.includes("agent-cloud-kit: setup failed: a, c. Run agent-cloud-kit doctor."));
+  assert.ok(lines.includes("agent-cloud-kit: falló el setup: a, c. Corre agent-cloud-kit doctor."));
 });
 
 test("different fingerprint asks to rebuild", async () => {
   writeConfig();
   record([], "sha256-other");
   const lines = await session(repo, ctx());
-  assert.ok(lines.includes("agent-cloud-kit: the machine was prepared with another configuration. Edit the setup script field in claude.ai (any change) so it is rebuilt."));
+  assert.ok(lines.includes("agent-cloud-kit: la máquina se preparó con otra configuración. Edita el campo del script de setup en claude.ai (cualquier cambio) para que se reconstruya."));
 });
 
 test("matching fingerprint prints no rebuild line", async () => {
   writeConfig();
   record([]);
   const lines = await session(repo, ctx());
-  assert.ok(!lines.some((l) => l.includes("another configuration") || l.includes("did not run")));
+  assert.ok(!lines.some((l) => l.includes("another configuration") || l.includes("no corrió")));
 });
 
 test("slow setup reports minutes and seconds", async () => {
   writeConfig();
   record([{ name: "a", ok: true, ms: 100_000 }, { name: "b", ok: true, ms: 150_000 }]);
   const lines = await session(repo, ctx());
-  assert.ok(lines.includes("agent-cloud-kit: setup took 4m10s, close to the ~5 minute limit."));
+  assert.ok(lines.includes("agent-cloud-kit: el setup tardó 4m10s, cerca del límite de ~5 minutos."));
 });
 
 test("missing env vars are listed by name only", async () => {
   writeConfig({ requiredEnv: ["A", "B"] });
   const lines = await session(repo, ctx({ A: "super-secret-value" }));
-  assert.ok(lines.includes("agent-cloud-kit: missing environment variables: B"));
+  assert.ok(lines.includes("agent-cloud-kit: faltan variables de entorno: B"));
   assert.ok(!lines.join("\n").includes("super-secret-value"));
 });
 
@@ -126,8 +126,8 @@ test("without CLAUDE_ENV_FILE nothing is written, warnings print and steps still
   writeConfig({ session: ["echo hi"] });
   writeFileSync(join(repo, ".nvmrc"), "24.14.1\n");
   const lines = await session(repo, ctx());
-  assert.ok(lines.some((l) => l.includes("did not run")));
-  assert.ok(!lines.some((l) => l.includes("session error")));
+  assert.ok(lines.some((l) => l.includes("no corrió")));
+  assert.ok(!lines.some((l) => l.includes("error en session")));
   assert.ok(calls.some((c) => c.cmd === "bash" && c.args[1] === "echo hi"));
   assert.deepEqual(readdirSync(root).sort(), ["repo", "tools"].filter((n) => existsSync(join(root, n))));
 });
@@ -152,8 +152,8 @@ test("session steps run in order in the repo and a failure does not stop the nex
   assert.deepEqual(steps.map((c) => c.args), [["-c", "fail one"], ["-c", "echo two"]]);
   assert.equal(steps[0]?.cwd, repo);
   assert.ok(steps[0]?.env?.PATH?.startsWith(`${tools}/node-24.14.1/bin`));
-  assert.ok(lines.includes("agent-cloud-kit: session step failed: fail one"));
-  assert.ok(!lines.some((l) => l.includes("failed: echo two")));
+  assert.ok(lines.includes("agent-cloud-kit: falló el paso de sesión: fail one"));
+  assert.ok(!lines.some((l) => l.includes("falló el paso de sesión: echo two")));
 });
 
 test("starts docker, fetches the default branch with argv and skips invalid branches", async () => {
@@ -180,7 +180,7 @@ test("a failing docker start is reported and git sync and session steps still ru
   for (const start of [() => { throw new Error("kaboom"); }, () => "kaboom"]) {
     calls = [];
     const lines = await session(repo, { ...ctx(), docker: { start, ensure: async () => true } });
-    assert.ok(lines.includes("agent-cloud-kit: could not start dockerd: kaboom"));
+    assert.ok(lines.includes("agent-cloud-kit: no se pudo iniciar dockerd: kaboom"));
     assert.ok(calls.some((c) => c.args.includes("main:refs/remotes/origin/main")));
     assert.ok(calls.some((c) => c.cmd === "bash" && c.args[1] === "echo hi"));
   }
@@ -251,8 +251,8 @@ test("an env file that cannot be written is one line and the session goes on", a
   const envFile = join(root, "a-directory");
   mkdirSync(envFile);
   const lines = await session(repo, ctx({ CLAUDE_ENV_FILE: envFile }));
-  assert.ok(lines.some((l) => l.startsWith(`agent-cloud-kit: could not write CLAUDE_ENV_FILE (${envFile}):`)), lines.join("\n"));
-  assert.ok(!lines.some((l) => l.includes("session error")));
+  assert.ok(lines.some((l) => l.startsWith(`agent-cloud-kit: no se pudo escribir CLAUDE_ENV_FILE (${envFile}):`)), lines.join("\n"));
+  assert.ok(!lines.some((l) => l.includes("error en session")));
   assert.ok(calls.some((c) => c.cmd === "bash" && c.args[1] === "echo hi"));
 });
 
@@ -265,7 +265,7 @@ test("session steps send their output to stderr and have a time limit", async ()
     assert.equal(step.opts?.timeoutMs, SESSION_STEP_TIMEOUT_MS);
   }
   assert.equal(SESSION_STEP_TIMEOUT_MS, 120_000);
-  assert.ok(lines.includes("agent-cloud-kit: session step timed out: hang forever"));
+  assert.ok(lines.includes("agent-cloud-kit: el paso de sesión superó el tiempo límite: hang forever"));
   assert.ok(steps.some((c) => c.args[1] === "echo next"));
 });
 

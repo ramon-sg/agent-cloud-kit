@@ -66,10 +66,10 @@ test("setup --repo with another version runs anyway and warns, without relaunchi
   const repo = makeRepo("app", { version: "2.0.0", setup: ["echo hi"] });
   const code = await main(["setup", "--repo", repo], deps());
   assert.equal(code, 0);
-  assert.ok(printed.includes("agent-cloud-kit: running 1.0.0 although .claude/cloud.json asks for 2.0.0"));
+  assert.ok(printed.includes("agent-cloud-kit: corriendo la versión 1.0.0, aunque .claude/cloud.json pide la 2.0.0"));
   assert.ok(!calls.some((c) => c.cmd === "npx"));
   assert.ok(calls.some((c) => c.cmd === "bash" && c.args[1] === "echo hi"));
-  assert.ok(printed.includes(`agent-cloud-kit: setup ${repo}: 2 steps, 0 failed`));
+  assert.ok(printed.includes(`agent-cloud-kit: setup ${repo}: 2 pasos, 0 fallaron`));
 });
 
 test("setup without --repo skips, runs and relaunches in series and exits 0", async () => {
@@ -78,8 +78,8 @@ test("setup without --repo skips, runs and relaunches in series and exits 0", as
   const other = makeRepo("c-other", { version: "1.2.0" });
   const code = await main(["setup"], deps());
   assert.equal(code, 0);
-  assert.ok(printed.includes(`agent-cloud-kit: skipping ${none}: no .claude/cloud.json`));
-  assert.ok(printed.includes(`agent-cloud-kit: setup ${same}: 2 steps, 1 failed (setup: fail)`));
+  assert.ok(printed.includes(`agent-cloud-kit: se omite ${none}: no hay .claude/cloud.json`));
+  assert.ok(printed.includes(`agent-cloud-kit: setup ${same}: 2 pasos, 1 fallaron (setup: fail)`));
   assert.deepEqual(calls.at(-1), {
     cmd: "npx",
     args: ["-y", "agent-cloud-kit@1.2.0", "setup", "--repo", other],
@@ -93,7 +93,7 @@ test("a failed relaunch is reported and setup still exits 0", async () => {
   };
   const code = await main(["setup"], { ...deps(), run: failing });
   assert.equal(code, 0);
-  assert.ok(printed.some((l) => l.includes("relaunch") && l.includes("npx exited with code 1")));
+  assert.ok(printed.some((l) => l.includes("relanzamiento") && l.includes("npx exited with code 1")));
 });
 
 test("session delegates to the installed version the repo asks for", async () => {
@@ -116,20 +116,20 @@ test("a delegated session never delegates again", async () => {
   const env = { ...deps().env, CLAUDE_PROJECT_DIR: repo, AGENT_CLOUD_KIT_DELEGATED: "1" };
   assert.equal(await main(["session"], { ...deps(), env }), 0);
   assert.ok(!calls.some((c) => c.cmd === join(bin, "agent-cloud-kit")));
-  assert.ok(printed[0]?.startsWith("agent-cloud-kit: you are in a Claude Code cloud session"));
+  assert.ok(printed[0]?.startsWith("agent-cloud-kit: estás en una sesión cloud de Claude Code"));
 });
 
 test("session runs itself when the asked version is not installed", async () => {
   const repo = makeRepo("app", { version: "1.5.0" });
   const code = await main(["session"], { ...deps(), env: { ...deps().env, CLAUDE_PROJECT_DIR: repo } });
   assert.equal(code, 0);
-  assert.ok(printed[0]?.startsWith("agent-cloud-kit: you are in a Claude Code cloud session"));
+  assert.ok(printed[0]?.startsWith("agent-cloud-kit: estás en una sesión cloud de Claude Code"));
 });
 
 test("docker exits 0 when it responds and 1 with the log path otherwise", async () => {
   assert.equal(await main(["docker"], deps()), 0);
   assert.equal(await main(["docker"], deps(false)), 1);
-  assert.ok(printed.includes("agent-cloud-kit: dockerd did not start; see /var/log/agent-cloud-kit-dockerd.log"));
+  assert.ok(printed.includes("agent-cloud-kit: dockerd no arrancó; revisa /var/log/agent-cloud-kit-dockerd.log"));
 });
 
 test("--version prints the package version and unknown commands exit 1", async () => {
@@ -142,14 +142,14 @@ test("setup --repo without a value prints an error and runs nothing", async () =
   makeRepo("app", { version: "1.0.0" });
   assert.equal(await main(["setup", "--repo"], deps()), 0);
   assert.equal(await main(["setup", "--repo", "--other"], deps()), 0);
-  assert.deepEqual(printed, ["agent-cloud-kit: --repo needs a path", "agent-cloud-kit: --repo needs a path"]);
+  assert.deepEqual(printed, ["agent-cloud-kit: --repo necesita una ruta", "agent-cloud-kit: --repo necesita una ruta"]);
   assert.deepEqual(calls, []);
 });
 
 test("setup --repo resolves a relative path against the cwd", async () => {
   makeRepo("app", { version: "1.0.0" });
   assert.equal(await main(["setup", "--repo", "home/app"], deps()), 0);
-  assert.ok(printed.includes(`agent-cloud-kit: setup ${join(home, "app")}: 1 steps, 0 failed`));
+  assert.ok(printed.includes(`agent-cloud-kit: setup ${join(home, "app")}: 1 pasos, 0 fallaron`));
 });
 
 test("a repo that throws does not stop the next ones", async () => {
@@ -160,7 +160,7 @@ test("a repo that throws does not stop the next ones", async () => {
     printed.push(line);
   };
   assert.equal(await main(["setup"], { ...deps(), print: throwing }), 0);
-  assert.ok(printed.includes(`agent-cloud-kit: setup error for ${first}: boom`));
+  assert.ok(printed.includes(`agent-cloud-kit: error en setup de ${first}: boom`));
   assert.deepEqual(calls.at(-1), { cmd: "npx", args: ["-y", "agent-cloud-kit@1.2.0", "setup", "--repo", second] });
 });
 
@@ -171,7 +171,7 @@ test("init writes the config and hook, doctor exits 1 when a check fails", async
   assert.equal(await main(["init"], base), 0);
   assert.equal(await main(["doctor"], { ...base, capture: async () => "403", dockerInfo: () => true }), 1);
   assert.equal(await main(["doctor"], { ...base, capture: async () => "200", dockerInfo: () => true }), 1);
-  assert.ok(printed.some((l) => l.includes("state: missing")));
+  assert.ok(printed.some((l) => l.includes("estado: falta")));
   assert.ok(printed.some((l) => l.includes("registry.npmjs.org: ok")));
 });
 
@@ -193,12 +193,12 @@ test("prepare runs preflight and exits 1 without a terminal", async () => {
     throw new Error("not available");
   };
   assert.equal(await main(["prepare"], { ...deps(), capture, isTty: false }), 1);
-  assert.ok(printed.includes("agent-cloud-kit: prepare needs an interactive terminal"));
+  assert.ok(printed.includes("agent-cloud-kit: prepare necesita una terminal interactiva (corre el comando directamente en tu terminal)"));
   assert.ok(captured.includes("claude --help"));
   assert.ok(!calls.length);
 });
 
 test("prepare rejects unknown options", async () => {
   assert.equal(await main(["prepare", "--force"], deps()), 1);
-  assert.ok(printed.some((l) => l.includes("unknown option for prepare: --force")));
+  assert.ok(printed.some((l) => l.includes("opción desconocida para prepare: --force")));
 });

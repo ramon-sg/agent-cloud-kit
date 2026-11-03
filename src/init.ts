@@ -21,7 +21,7 @@ const JSON_INDENT = 2;
 
 /** Command of the SessionStart hook: does nothing outside cloud sessions. */
 const HOOK_COMMAND =
-  "[ \"$CLAUDE_CODE_REMOTE\" = true ] || exit 0; /opt/agent-cloud-kit/bin/agent-cloud-kit session || echo 'agent-cloud-kit: the environment setup did not run; see npx agent-cloud-kit doctor'";
+  "[ \"$CLAUDE_CODE_REMOTE\" = true ] || exit 0; /opt/agent-cloud-kit/bin/agent-cloud-kit session || echo 'agent-cloud-kit: el setup del entorno no corrió; revisa con npx agent-cloud-kit doctor'";
 
 /** The hook `init` registers. */
 const HOOK = { type: "command", command: HOOK_COMMAND, timeout: HOOK_TIMEOUT_SECONDS };
@@ -53,7 +53,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  */
 function addByHand(reason: string): { line: string; ok: boolean } {
   const entry = JSON.stringify({ hooks: [HOOK] });
-  return { line: `${SETTINGS_FILE} ${reason}, left untouched; add this entry to hooks.SessionStart by hand: ${entry}`, ok: false };
+  return { line: `${SETTINGS_FILE} ${reason}; no se tocó. Agrega esta entrada a hooks.SessionStart a mano: ${entry}`, ok: false };
 }
 
 /**
@@ -89,7 +89,7 @@ function hasHook(entries: unknown[]): boolean {
  */
 function scaffoldConfig(repo: string, packageVersion: string): string {
   const file = join(repo, CONFIG_FILE);
-  if (existsSync(file)) return `${CONFIG_FILE} already exists, left as is`;
+  if (existsSync(file)) return `${CONFIG_FILE} ya existe; se dejó como estaba`;
   writeJson(file, {
     $schema: `https://unpkg.com/${PACKAGE}@${packageVersion}/schema.json`,
     version: packageVersion,
@@ -101,7 +101,7 @@ function scaffoldConfig(repo: string, packageVersion: string): string {
     requiredEnv: [],
     domains: [],
   });
-  return `created ${CONFIG_FILE}`;
+  return `se creó ${CONFIG_FILE}`;
 }
 
 /**
@@ -117,17 +117,17 @@ function registerHook(repo: string): { line: string; ok: boolean } {
     try {
       settings = JSON.parse(readFileSync(file, "utf8"));
     } catch {
-      return addByHand("is not valid JSON");
+      return addByHand("no es JSON válido");
     }
   }
-  if (!isRecord(settings)) return addByHand("is not a JSON object");
+  if (!isRecord(settings)) return addByHand("no es un objeto JSON");
   const hooks = settings.hooks ?? {};
-  if (!isRecord(hooks)) return addByHand('has a "hooks" that is not an object');
+  if (!isRecord(hooks)) return addByHand('tiene un "hooks" que no es un objeto');
   const entries = hooks.SessionStart ?? [];
-  if (!Array.isArray(entries)) return addByHand('has a "hooks.SessionStart" that is not an array');
-  if (hasHook(entries)) return { line: `${SETTINGS_FILE} already has the SessionStart hook`, ok: true };
+  if (!Array.isArray(entries)) return addByHand('tiene un "hooks.SessionStart" que no es un arreglo');
+  if (hasHook(entries)) return { line: `${SETTINGS_FILE} ya tiene el hook SessionStart`, ok: true };
   writeJson(file, { ...settings, hooks: { ...hooks, SessionStart: [...entries, { hooks: [HOOK] }] } });
-  return { line: `added the SessionStart hook to ${SETTINGS_FILE}`, ok: true };
+  return { line: `se agregó el hook SessionStart a ${SETTINGS_FILE}`, ok: true };
 }
 
 /**
