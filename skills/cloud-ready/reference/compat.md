@@ -152,11 +152,44 @@ script del repo, que sea según la capacidad (sin `DISPLAY`, `xvfb-run`; como ro
 | --- | --- |
 | Tests de componentes (`jest-expo`, Testing Library) | Corren tal cual, sin red extra. |
 | `npx expo export --platform android` (o `ios`, o `web`), `npx expo prebuild --no-install` | Corren sin simulador ni red extra (~30 s cada export): comprueban que Metro compila el bundle y que la config genera los proyectos nativos. `EXPO_OFFLINE=1` en el export evita llamadas a Expo. `prebuild` escribe `android/` e `ios/` y cambia `app.json` y `package.json`: no lo dejes en el árbol si el repo no lo versiona. |
-| `npx expo-doctor` | Sin red a Expo sale con 1, aun con `EXPO_OFFLINE=1` o `EXPO_DOCTOR_WARN_ON_NETWORK_ERRORS=1`. Necesita `exp.host`, `api.expo.dev` y `reactnative.directory` en `domains` (con ellos no se probó): si el repo lo corre en sus tests, agrégalos o anótalo en `notes` con ⏳. |
+| `npx expo-doctor` | Necesita `exp.host`, `api.expo.dev` y `reactnative.directory` en `domains`; con ellos pasa. Sin ellos sale con 1, aun con `EXPO_OFFLINE=1` o `EXPO_DOCTOR_WARN_ON_NETWORK_ERRORS=1`. |
 | Expo web (`react-native-web`) | `npx expo export --platform web` y Playwright contra el resultado servido en `127.0.0.1` (o `npx expo start --web`, que sirve en `:8081`). Con el Chrome de la imagen no necesita red. En web, `GlassView` es un `View` común; `SymbolView` con nombre para web dibuja el ícono (la fuente viene en el bundle) y con solo un nombre de SF Symbols, su `fallback`. Las APIs `@expo/ui/swift-ui` y Compose no tienen web. |
-| Build de Android | Hoy no corre: Gradle falla resolviendo plugins porque Maven Central responde 429 a lo que no tiene (IP compartida) y `maven.google.com` redirige a `dl.google.com`, que no viene en la lista por defecto. Con solo agregar `dl.google.com`, el 429 seguiría (no probado). Déjalo fuera, o en EAS, y anótalo en `notes`. |
+| Build de Android | Corre, pero es pesado (~19 min y 2,7 GB de SDK la primera vez): ver "Build de Android", abajo. Si el repo no lo corre en sus tests, no lo agregues. |
 | Emulador de Android | Fuera: la VM no tiene `/dev/kvm`. |
 | iOS (simulador, `expo run:ios`, build) | Fuera: necesita macOS. Alternativa: build remoto en EAS con `EXPO_TOKEN` en `requiredEnv` y `expo.dev` y `api.expo.dev` en `domains`. |
+
+## Build de Android
+
+Verificado con Expo SDK 58 (`expo prebuild` y `./gradlew assembleDebug`). Cada paso hace falta:
+sin él, el build falla en 1–3 min.
+
+1. **Red:** `dl.google.com` en `domains` (SDK y `maven.google.com`, que redirige ahí).
+2. **SDK, en el setup:** las command-line tools de
+   `https://dl.google.com/android/repository/commandlinetools-linux-<n>_latest.zip` (el número,
+   de `repository2-3.xml`) en `$ANDROID_HOME/cmdline-tools/latest`, y los archivos de licencia
+   en `$ANDROID_HOME/licenses` (`android-sdk-license` con sus hashes). El resto (NDK, CMake,
+   build-tools, plataforma) lo baja Gradle solo. `ANDROID_HOME` va en `$CLAUDE_ENV_FILE`.
+3. **Java:** el JDK que pida el toolchain (Java 17 con React Native) por `apt`
+   (`openjdk-17-jdk-headless`); Gradle no puede bajarlo (`api.foojay.io` bloqueado).
+4. **Maven Central:** responde 429 de forma intermitente (IP compartida). Un init script de
+   Gradle pone antes el mirror de Google, sin tocar el repo:
+
+   ```groovy
+   // ~/.gradle/init.d/maven-mirror.gradle
+   def mirror = 'https://maven-central.storage-download.googleapis.com/maven2/'
+   beforeSettings { settings ->
+     settings.pluginManagement.repositories { maven { url = uri(mirror) }; google(); gradlePluginPortal() }
+   }
+   allprojects {
+     buildscript.repositories { maven { url = uri(mirror) }; google() }
+     repositories { maven { url = uri(mirror) }; google() }
+   }
+   ```
+
+5. **El build:** en segundo plano con log (~19 min la primera vez, con 4 CPUs).
+
+Todo esto es preparación (setup y `~/.gradle`), no cambia el repo. El emulador sigue fuera (sin
+`/dev/kvm`): el build comprueba que compila, no que la app funcione.
 
 ## Ejemplo: vitest, Postgres en compose y Playwright
 
