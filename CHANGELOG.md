@@ -4,6 +4,29 @@ All notable changes to this project are documented in this file. The format foll
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 1.0.0-rc.7
+
+### Added
+
+- `docs/agent-cloud.md` has a "Si cambian los tests" section: run `npx agent-cloud-kit prepare`
+  again after adding tests (e.g. Electron) or changing how they run.
+- The `cloud-ready` skill ends `configure` with a fixed summary: tests in the cloud, adaptations,
+  tests and scripts touched, what stays out, files.
+- Electron, Expo and Android knowledge, verified in cloud sessions: Electron runs with
+  `xvfb-run -a … --no-sandbox` (Xvfb and the Chromium libraries come in the image) and Playwright
+  `_electron` works; Expo's `jest-expo`, `expo export`, `prebuild`, web with Playwright and
+  `expo-doctor` (with the Expo domains); the Android build works with `dl.google.com`, Google's
+  Maven Central mirror, Java 17 from apt and the SDK licence files.
+- Test-adaptation principles in `compat.md`: tests stay as they are, differences go in what
+  prepares or launches them, detect the capability before the location.
+
+### Changed
+
+- The cloud knowledge was fact-checked against the docs and real sessions; wrong or overstated
+  claims were corrected or marked "por verificar" (e.g. public GitHub releases do download).
+- The network instructions use the app's Spanish names: Limitado and "Permitir administradores
+  de paquetes".
+
 ## 1.0.0-rc.6
 
 ### Changed
