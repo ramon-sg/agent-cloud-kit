@@ -8,6 +8,8 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync,
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
+import { KURO } from "../src/block.ts";
+import { useLang } from "../src/messages/index.ts";
 import { continueLine, enterLine } from "../src/prepare/banner.ts";
 import { InterruptedError, branchDay, prepare, verifyBranch } from "../src/prepare/index.ts";
 import type { PrepareDeps } from "../src/prepare/index.ts";
@@ -553,6 +555,32 @@ test("verify launches the cloud session on the pushed current branch", async () 
   assert.equal(cloud?.args[1], "/cloud-ready verify\n\n- Rama de prepare: main\n- PR: #9");
   assert.equal(cloud?.cwd, repo);
   assert.ok(printed.includes("agent-cloud-kit: la sesión cloud avisará con un push a main y un comentario en el PR"));
+});
+
+test("in a terminal, verify ends with Kuro, the branch and the PR", async () => {
+  await preparedAndPushed();
+  existingPr = "9";
+  assert.equal(await verifyBranch(repo, deps({ art: true })), 0, printed.join("\n"));
+  const text = printed.join("\n");
+  assert.ok(text.includes(KURO[0] as string));
+  assert.match(text, /\[ok\] La sesión cloud está en marcha/);
+  assert.match(text, /Rama {2}main\n.*PR {4}#9/);
+});
+
+test("in English, the menu and the lines of prepare speak English", async () => {
+  useLang("en");
+  try {
+    let question = "";
+    const choose: PrepareDeps["choose"] = async (message) => {
+      question = message;
+      return null;
+    };
+    assert.equal(await prepare(repo, deps({ choose })), 1);
+    assert.equal(question, "Where do I prepare the repo?");
+    assert.deepEqual(printed, ["agent-cloud-kit: nothing was changed"]);
+  } finally {
+    useLang("es");
+  }
 });
 
 test("verify refuses a branch with commits not pushed", async () => {

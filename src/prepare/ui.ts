@@ -47,33 +47,6 @@ export function formatLine(kind: Kind, text: string, color: boolean): string {
 }
 
 /**
- * Guesses the kind of a line `init` printed, from its wording.
- *
- * @param text - Line, with or without the prefix.
- * @returns `ok` for something done, `same` for something already there, `warn` otherwise.
- * @example
- * initKind("agent-cloud-kit: se creó .claude/cloud.json"); // "ok"
- */
-export function initKind(text: string): Kind {
-  const plain = text.startsWith(OUTPUT_PREFIX) ? text.slice(OUTPUT_PREFIX.length) : text;
-  if (/^se (creó|agregó|instaló|enlazó|actualizó|escribió)(\s|$)/.test(plain)) return "ok";
-  if (/\bya (existe|tiene|está)\b/.test(plain)) return "same";
-  return "warn";
-}
-
-/**
- * Removes the `agent-cloud-kit: ` prefix of a line, if it has it.
- *
- * @param text - Line.
- * @returns The line without prefix.
- * @example
- * unprefixed("agent-cloud-kit: hola"); // "hola"
- */
-export function unprefixed(text: string): string {
-  return text.startsWith(OUTPUT_PREFIX) ? text.slice(OUTPUT_PREFIX.length) : text;
-}
-
-/**
  * Styles a Markdown section for the terminal: headings in bold (and cyan for `##`), code fences
  * dropped and their lines indented, list items as bullets. Without color, the text is unchanged.
  *

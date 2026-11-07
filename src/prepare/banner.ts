@@ -1,9 +1,11 @@
 /**
- * @file The screen `prepare` shows before opening Claude Code: a small cloud, what will happen and
- * what the user has to do, in a few colored lines.
+ * @file The screen `prepare` shows before opening Claude Code: Kuro, what will happen and what the
+ * user has to do, in a few colored lines. `prepare` only runs in a terminal, so Kuro is always there.
  */
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { renderBlock } from "../block.ts";
+import { t } from "../messages/index.ts";
 
 /** Script of claude-repo-guard that opens Claude without sandbox nor permission prompts. */
 export const FREE_SCRIPT = "claude:free";
@@ -39,26 +41,22 @@ function paint(on: boolean, code: string, text: string): string {
  * @param input - Place, mode and color.
  * @returns The lines.
  * @example
- * renderBanner({ place: "pr", free: false, color: false })[2]; // "     .-(    ).     Ahora se abre Claude Code"
+ * renderBanner({ place: "pr", free: false, color: false })[2]; // " ≋≋██▀▀▀▀▀██              [>] Ahora se abre Claude Code"
  */
 export function renderBanner(input: BannerInput): string[] {
+  const m = t().banner;
   const c = (code: string, text: string): string => paint(input.color, code, text);
-  const cloud = (text: string): string => c("36", text);
-  const step = (n: number, text: string): string => `   ${c("1;35", String(n))}  ${text}`;
-  const after = input.place === "pr" ? "prepare hace commit, push y PR" : "quedan los cambios sin commit";
+  const step = (n: number, text: string): string => `${c("1;35", String(n))}  ${text}`;
+  const after = input.place === "pr" ? m.afterPr : m.afterHere;
   const lines = [
+    c("2", m.subtitle),
     "",
-    cloud("        .--."),
-    `${cloud("     .-(    ).")}     ${c("1", "Ahora se abre Claude Code")}`,
-    `${cloud("    (___.__)__)")}    ${c("2", "con la skill cloud-ready")}`,
-    "",
-    step(1, "Claude revisa el repo y te propone cómo prepararlo para la nube"),
-    step(2, "Responde sus preguntas"),
-    step(3, `Cuando diga ${c("1", "configure terminó")}, sal con ${c("1;33", "/exit")} ${c("2", `→ ${after}`)}`),
+    step(1, m.step1),
+    step(2, m.step2),
+    step(3, m.step3(c("1", m.configureDone), c("1;33", "/exit"), c("2", after))),
   ];
-  if (input.free) lines.push("", c("2", `   Se abre con ${FREE_SCRIPT} (sin sandbox ni preguntas de permisos): el repo usa claude-repo-guard`));
-  lines.push("");
-  return lines;
+  if (input.free) lines.push("", c("2", m.free(FREE_SCRIPT)));
+  return renderBlock({ mood: "next", title: m.title, lines }, { art: true, color: input.color });
 }
 
 /**
@@ -70,7 +68,8 @@ export function renderBanner(input: BannerInput): string[] {
  * enterLine(false); // "   ⏎ Enter abre Claude Code · Ctrl+C cancela "
  */
 export function enterLine(color: boolean): string {
-  return `   ${paint(color, "1;32", "⏎ Enter")} abre Claude Code ${paint(color, "2", "· Ctrl+C cancela")} `;
+  const m = t().banner;
+  return `   ${paint(color, "1;32", "⏎ Enter")} ${m.enter} ${paint(color, "2", m.cancel)} `;
 }
 
 /**
@@ -82,7 +81,8 @@ export function enterLine(color: boolean): string {
  * continueLine(false); // "\n   ⏎ Enter cuando hayas configurado el entorno en claude.ai · abre la sesión cloud que lo verifica "
  */
 export function continueLine(color: boolean): string {
-  return `\n   ${paint(color, "1;32", "⏎ Enter")} cuando hayas configurado el entorno en claude.ai ${paint(color, "2", "· abre la sesión cloud que lo verifica")} `;
+  const m = t().banner;
+  return `\n   ${paint(color, "1;32", "⏎ Enter")} ${m.continue} ${paint(color, "2", m.continueHint)} `;
 }
 
 /** Config file claude-repo-guard installs; the free mode is used only when it is there. */

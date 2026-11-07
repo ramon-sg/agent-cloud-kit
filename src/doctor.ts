@@ -4,10 +4,12 @@
  */
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import type { Block } from "./block.ts";
 import { readConfig } from "./config.ts";
 import { CONFIG_FILE, OUTPUT_PREFIX } from "./constants.ts";
 import { TOOLS, readToolVersions } from "./detect.ts";
 import { isValidRequest, toolExecutable } from "./installers.ts";
+import { stepLabel, t } from "./messages/index.ts";
 import type { Capture } from "./run.ts";
 import { expectedFingerprint } from "./session.ts";
 import { SKILL_DIR, skillVersion } from "./skill.ts";
@@ -50,6 +52,8 @@ export interface DoctorResult {
   lines: string[];
   /** False when any check failed; warnings do not count. */
   ok: boolean;
+  /** How many checks ran, failed and only warned, for the final block. */
+  counts: { total: number; failed: number; warnings: number };
 }
 
 /** One check outcome before formatting. */
@@ -88,9 +92,9 @@ async function checkDomain(host: string, capture: Capture): Promise<Check> {
   try {
     const status = (await capture("curl", args)).trim();
     const ok = status !== BLOCKED_STATUS && status !== NO_ANSWER_STATUS;
-    return { text: `red ${host}: ${ok ? "ok" : "bloqueado"}`, level: verdict(ok) };
+    return { text: t().doctor.domain(host, ok), level: verdict(ok) };
   } catch {
-    return { text: `red ${host}: bloqueado`, level: "fail" };
+    return { text: t().doctor.domain(host, false), level: "fail" };
   }
 }
 
@@ -120,11 +124,11 @@ function checkTools(repo: string, toolsDir: string, state: MachineState | undefi
   return TOOLS.flatMap((tool): Check[] => {
     const version = versions[tool];
     if (!version) return [];
-    if (!isValidRequest(tool, version)) return [{ text: `herramienta ${tool} ${version}: versión inválida`, level: "fail" }];
+    if (!isValidRequest(tool, version)) return [{ text: t().doctor.toolInvalid(tool, version), level: "fail" }];
     const executable = toolExecutable(tool, version, toolsDir, state?.resolved ?? {});
-    if (!executable) return [{ text: `herramienta ${tool} ${version}: sin resolver (setup no la instaló)`, level: "fail" }];
+    if (!executable) return [{ text: t().doctor.toolUnresolved(tool, version), level: "fail" }];
     const present = existsSync(executable);
-    return [{ text: `herramienta ${tool} ${version}: ${present ? "ok" : "falta"}`, level: verdict(present) }];
+    return [{ text: t().doctor.tool(tool, version, present), level: verdict(present) }];
   });
 }
 
@@ -136,17 +140,17 @@ function checkTools(repo: string, toolsDir: string, state: MachineState | undefi
  * @returns The checks, in order.
  */
 function checkState(repo: string, ctx: DoctorContext): Check[] {
-  if (!existsSync(join(repo, CONFIG_FILE))) return [{ text: `${CONFIG_FILE}: falta`, level: "fail" }];
+  if (!existsSync(join(repo, CONFIG_FILE))) return [{ text: t().doctor.fileMissing(CONFIG_FILE), level: "fail" }];
   const { config, errors } = readConfig(repo);
   const out: Check[] = errors.map((text) => ({ text: `${CONFIG_FILE}: ${text}`, level: "fail" }));
   if (!config) return out;
   const state = readState(ctx.toolsDir, repo);
-  if (!state) return [...out, { text: "estado: falta (setup no corrió)", level: "fail" }];
+  if (!state) return [...out, { text: t().doctor.stateMissing, level: "fail" }];
   const same = expectedFingerprint(repo, config, state) === state.fingerprint;
-  out.push({ text: `huella: ${same ? "ok" : "distinta"}`, level: verdict(same) });
+  out.push({ text: t().doctor.fingerprint(same), level: verdict(same) });
   for (const s of state.steps) {
     const seconds = (s.ms / MS_PER_SECOND).toFixed(DURATION_DECIMALS);
-    out.push({ text: `paso ${s.name}: ${s.ok ? "ok" : "falló"} (${seconds}s)`, level: verdict(s.ok) });
+    out.push({ text: t().doctor.step(stepLabel(s.name), s.ok, seconds), level: verdict(s.ok) });
   }
   return out;
 }
@@ -167,10 +171,7 @@ function checkPlugins(repo: string): Check[] {
     if (typeof plugins !== "object" || plugins === null) return [];
     return Object.entries(plugins)
       .filter(([, enabled]) => enabled === true)
-      .map(([name]) => ({
-        text: `aviso: el plugin ${name} está activado pero no está en el repo; no llegará a la nube (copia sus skills con skills-manager)`,
-        level: "warn",
-      }));
+      .map(([name]): Check => ({ text: t().doctor.plugin(name), level: "warn" }));
   } catch {
     return [];
   }
@@ -188,12 +189,7 @@ function checkPlugins(repo: string): Check[] {
 function checkSkill(repo: string, packageVersion: string): Check[] {
   const installed = skillVersion(repo);
   if (installed === undefined || installed === packageVersion) return [];
-  return [
-    {
-      text: `aviso: ${SKILL_DIR} está en ${installed} y el paquete en ${packageVersion}; corre npx agent-cloud-kit@${packageVersion} init`,
-      level: "warn",
-    },
-  ];
+  return [{ text: t().doctor.skill(SKILL_DIR, installed, packageVersion), level: "warn" }];
 }
 
 /**
@@ -207,7 +203,7 @@ async function guarded(name: string, fn: () => Check[] | Promise<Check[]>): Prom
   try {
     return await fn();
   } catch (err) {
-    return [{ text: `${name}: error: ${err instanceof Error ? err.message : String(err)}`, level: "fail" }];
+    return [{ text: t().doctor.groupError(name, err instanceof Error ? err.message : String(err)), level: "fail" }];
   }
 }
 
@@ -222,16 +218,34 @@ async function guarded(name: string, fn: () => Check[] | Promise<Check[]>): Prom
  */
 export async function doctor(repo: string, ctx: DoctorContext): Promise<DoctorResult> {
   const checks: Check[] = [];
-  checks.push(...(await guarded("red", async () => Promise.all(domainsToProbe(repo).map((host) => checkDomain(host, ctx.capture))))));
-  checks.push(...(await guarded("herramientas", () => checkTools(repo, ctx.toolsDir, readState(ctx.toolsDir, repo)))));
+  const groups = t().doctor.groups;
+  checks.push(...(await guarded(groups.network, async () => Promise.all(domainsToProbe(repo).map((host) => checkDomain(host, ctx.capture))))));
+  checks.push(...(await guarded(groups.tools, () => checkTools(repo, ctx.toolsDir, readState(ctx.toolsDir, repo)))));
   checks.push(
-    ...(await guarded("docker", () => {
+    ...(await guarded(groups.docker, () => {
       const docker = ctx.dockerInfo();
-      return [{ text: `docker: ${docker ? "ok" : "falta"}`, level: verdict(docker) }];
+      return [{ text: t().doctor.docker(docker), level: verdict(docker) }];
     })),
   );
-  checks.push(...(await guarded("estado", () => checkState(repo, ctx))));
-  checks.push(...(await guarded("plugins", () => checkPlugins(repo))));
-  checks.push(...(await guarded("skill", () => checkSkill(repo, ctx.packageVersion))));
-  return { lines: checks.map((c) => OUTPUT_PREFIX + c.text), ok: checks.every((c) => c.level !== "fail") };
+  checks.push(...(await guarded(groups.state, () => checkState(repo, ctx))));
+  checks.push(...(await guarded(groups.plugins, () => checkPlugins(repo))));
+  checks.push(...(await guarded(groups.skill, () => checkSkill(repo, ctx.packageVersion))));
+  const failed = checks.filter((c) => c.level === "fail").length;
+  const warnings = checks.filter((c) => c.level === "warn").length;
+  return { lines: checks.map((c) => OUTPUT_PREFIX + c.text), ok: failed === 0, counts: { total: checks.length, failed, warnings } };
+}
+
+/**
+ * The final block of `doctor`, shown with Kuro in a terminal.
+ *
+ * @param counts - Checks that ran, failed and warned.
+ * @returns What the block says.
+ * @example
+ * doctorBlock({ total: 9, failed: 0, warnings: 0 }); // { mood: "ok", title: "Todo en orden" }
+ */
+export function doctorBlock(counts: DoctorResult["counts"]): Block {
+  const m = t().doctor;
+  const lines = counts.warnings ? [m.warnings(counts.warnings)] : [];
+  if (!counts.failed) return { mood: "ok", title: m.allOk, lines };
+  return { mood: "error", title: m.someFailed(counts.failed, counts.total), lines: [...lines, m.failedHint] };
 }

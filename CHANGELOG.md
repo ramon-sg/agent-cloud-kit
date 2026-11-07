@@ -4,6 +4,21 @@ All notable changes to this project are documented in this file. The format foll
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Added
+
+- The terminal speaks Spanish by default and English with `--lang en` or
+  `AGENT_CLOUD_KIT_LANG=en` (`LANG` is not read). The texts live in one catalog per language
+  (`src/messages/`), and a test checks that both have the same keys.
+- In a terminal, the final messages of `doctor`, `prepare` and `verify` come in a block with Kuro,
+  the mascot of issue-flow and agent-kitchen. `NO_COLOR` removes the color.
+
+### Changed
+
+- The screen before Claude opens shows Kuro instead of the small cloud.
+- Step names that were in English (`self install`, `write state`) read in the chosen language.
+
 ## 1.0.0-rc.7
 
 ### Added

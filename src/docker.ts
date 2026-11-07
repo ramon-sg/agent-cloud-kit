@@ -4,6 +4,7 @@
 import { execFileSync, spawn } from "node:child_process";
 import { closeSync, openSync } from "node:fs";
 import { DOCKERD_LOG, DOCKER_WAIT_SECONDS } from "./constants.ts";
+import { t } from "./messages/index.ts";
 
 /** Timeout of each probe command, in milliseconds. */
 const PROBE_TIMEOUT_MS = 10_000;
@@ -14,8 +15,6 @@ const POLL_MS = 1000;
 /** Milliseconds in a second. */
 const MS_PER_SECOND = 1000;
 
-/** Message returned when there is no `dockerd` executable on PATH. */
-export const DOCKERD_MISSING = "dockerd no está instalado";
 
 /**
  * Probe that tells whether a command exits with code 0.
@@ -55,7 +54,7 @@ function succeeds(cmd: string, args: string[]): boolean {
  *
  * @returns True when `docker info` succeeds.
  * @example
- * if (!dockerResponds()) console.log("docker is down");
+ * if (!dockerResponds()) await ensureDocker();
  */
 export function dockerResponds(): boolean {
   return succeeds("docker", ["info"]);
@@ -66,14 +65,14 @@ export function dockerResponds(): boolean {
  * answers or when one is already running. Never throws.
  *
  * @param probe - Command probe; the real one when omitted (tests inject a fake).
- * @returns `DOCKERD_MISSING` when there is no `dockerd` on PATH, another error message when the
+ * @returns The "dockerd is not installed" message when there is no `dockerd` on PATH, another error message when the
  *   daemon could not be started, undefined otherwise.
  * @example
  * const problem = startDockerDetached();
  */
 export function startDockerDetached(probe: Probe = succeeds): string | undefined {
   if (probe("docker", ["info"])) return undefined;
-  if (!probe("sh", ["-c", "command -v dockerd"])) return DOCKERD_MISSING;
+  if (!probe("sh", ["-c", "command -v dockerd"])) return t().docker.missing;
   if (probe("pgrep", ["-x", "dockerd"])) return undefined;
   try {
     const log = openSync(DOCKERD_LOG, "a");
@@ -97,7 +96,7 @@ export function startDockerDetached(probe: Probe = succeeds): string | undefined
  * @param probe - Command probe; the real one when omitted (tests inject a fake).
  * @returns True when Docker answers in time; false when it never does or cannot start.
  * @example
- * if (await ensureDocker()) console.log("docker is up");
+ * const up = await ensureDocker();
  */
 export async function ensureDocker(probe: Probe = succeeds): Promise<boolean> {
   if (startDockerDetached(probe)) return false;

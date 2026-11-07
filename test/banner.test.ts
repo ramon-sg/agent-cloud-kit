@@ -6,6 +6,8 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import { KURO } from "../src/block.ts";
+import { useLang } from "../src/messages/index.ts";
 import { claudeCommand, enterLine, renderBanner } from "../src/prepare/banner.ts";
 
 test("the banner is short and says what to do", () => {
@@ -29,6 +31,21 @@ test("color adds ANSI codes; the Enter line too", () => {
   assert.match(renderBanner({ place: "pr", free: false, color: true }).join("\n"), /\x1b\[36m/);
   assert.equal(enterLine(false), "   ⏎ Enter abre Claude Code · Ctrl+C cancela ");
   assert.match(enterLine(true), /\x1b\[1;32m⏎ Enter/);
+});
+
+test("the banner comes with Kuro instead of the cloud, and speaks English with --lang en", () => {
+  const es = renderBanner({ place: "pr", free: false, color: false });
+  assert.ok(es.includes(KURO[0] as string));
+  assert.doesNotMatch(es.join("\n"), /\.--\./);
+  useLang("en");
+  try {
+    const en = renderBanner({ place: "here", free: true, color: false }).join("\n");
+    assert.match(en, /\[>\] Claude Code opens now/);
+    assert.match(en, /leave with \/exit → the changes stay uncommitted/);
+    assert.equal(enterLine(false), "   ⏎ Enter opens Claude Code · Ctrl+C cancels ");
+  } finally {
+    useLang("es");
+  }
 });
 
 test("claudeCommand uses claude, or claude:free through the repo's package manager", () => {

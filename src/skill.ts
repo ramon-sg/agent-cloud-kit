@@ -4,6 +4,7 @@
  */
 import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { t } from "./messages/index.ts";
 
 /** Repo-relative directory of the `cloud-ready` skill. */
 export const SKILL_DIR = ".agents/skills/cloud-ready";
@@ -83,17 +84,17 @@ function withVersion(text: string, version: string): string {
  * @param repo - Repo root.
  * @param packageRoot - Root of this package, which holds `skills/cloud-ready`.
  * @param packageVersion - Version of this package.
- * @returns A line describing the outcome.
+ * @returns A line describing the outcome, and whether it did something (`ok`) or found it there (`same`).
  * @throws When the package has no skill or the copy fails (the installed skill is kept).
  * @example
  * installSkill("/home/user/app", "/usr/lib/node_modules/agent-cloud-kit", "1.0.0");
- * // "se instaló .agents/skills/cloud-ready 1.0.0"
+ * // { kind: "ok", text: "se instaló .agents/skills/cloud-ready 1.0.0" }
  */
-export function installSkill(repo: string, packageRoot: string, packageVersion: string): string {
+export function installSkill(repo: string, packageRoot: string, packageVersion: string): { kind: "ok" | "same"; text: string } {
   const current = skillVersion(repo);
-  if (current === packageVersion) return `${SKILL_DIR} ya está en ${packageVersion}`;
+  if (current === packageVersion) return { kind: "same", text: t().skill.current(SKILL_DIR, packageVersion) };
   const source = join(packageRoot, PACKAGE_SKILL_DIR);
-  if (!existsSync(join(source, "SKILL.md"))) throw new Error(`no se encontró ${PACKAGE_SKILL_DIR}/SKILL.md en ${packageRoot}`);
+  if (!existsSync(join(source, "SKILL.md"))) throw new Error(t().skill.missing(PACKAGE_SKILL_DIR, packageRoot));
   const target = join(repo, SKILL_DIR);
   const temp = `${target}.${process.pid}.tmp`;
   const old = `${target}.${process.pid}.old`;
@@ -111,7 +112,7 @@ export function installSkill(repo: string, packageRoot: string, packageVersion: 
     throw err;
   }
   rmSync(old, { recursive: true, force: true });
-  return current === undefined ? `se instaló ${SKILL_DIR} ${packageVersion}` : `se actualizó ${SKILL_DIR} de ${current} a ${packageVersion}`;
+  return { kind: "ok", text: current === undefined ? t().skill.installed(SKILL_DIR, packageVersion) : t().skill.updated(SKILL_DIR, current, packageVersion) };
 }
 
 /**
@@ -147,5 +148,5 @@ export function linkSkill(repo: string): string | undefined {
   if (present(link)) return undefined;
   mkdirSync(claudeSkills, { recursive: true });
   symlinkSync(SKILL_LINK_TARGET, link);
-  return `se enlazó ${SKILL_LINK} a ${SKILL_DIR}`;
+  return t().skill.linked(SKILL_LINK, SKILL_DIR);
 }

@@ -3,14 +3,14 @@
  */
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { DOCKERD_MISSING, ensureDocker, startDockerDetached } from "../src/docker.ts";
+import { ensureDocker, startDockerDetached } from "../src/docker.ts";
 import type { Probe } from "../src/docker.ts";
 
 /** Probe of a machine without Docker: every command fails. */
 const nothingInstalled: Probe = () => false;
 
 test("without a dockerd on PATH, start reports it is not installed", () => {
-  assert.equal(startDockerDetached(nothingInstalled), DOCKERD_MISSING);
+  assert.equal(startDockerDetached(nothingInstalled), "dockerd no está instalado");
 });
 
 test("start does nothing when Docker already answers", () => {
