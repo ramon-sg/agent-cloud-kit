@@ -157,6 +157,8 @@ Options:
     none: "none",
     noneVariables: "none",
     githubApp: "- **Claude GitHub App:** installed on the repo, or the session cannot push.",
+    githubConnector: (guide) =>
+      `- **GitHub connector** (only if the repo uses Projects, search or other GitHub repos): add it once per account and set its tools to "always allow" ([guide](${guide})).`,
     setupScript: "- **Setup script:**",
     variablesWarning: "> ⚠️ Anyone who uses the environment can read the variables, and they do not reach the setup script (only the session).",
   },

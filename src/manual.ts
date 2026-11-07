@@ -92,6 +92,7 @@ export function renderEnvironmentSection(config: CloudConfig, packageVersion: st
     text.network(hosts.length ? code(hosts) : text.none),
     text.variables(config.requiredEnv.length ? text.namesOnly(code(config.requiredEnv)) : text.noneVariables),
     text.githubApp,
+    text.githubConnector(CONNECTOR_GUIDE),
     text.setupScript,
     "",
     "```bash",
@@ -107,6 +108,18 @@ const TESTS_CHANGE_SECTION = [
   "## Si cambian los tests",
   "",
   `Si agregas tests (p. ej. de Electron) o cambias cómo se corren, corre \`npx ${PACKAGE} prepare\`: la skill \`cloud-ready\` los adapta a la nube sin cambiar lo que comprueban y actualiza este documento.`,
+].join("\n");
+
+/** Guide to set up the GitHub connector in claude.ai, once per account. */
+export const CONNECTOR_GUIDE = "https://github.com/ramon-sg/github-rest/blob/main/docs/projects-connector.md";
+
+/** What of GitHub works in the cloud and what to do with the rest. */
+const GITHUB_SECTION = [
+  "## GitHub en la nube",
+  "",
+  "- ✅ `gh api repos/{owner}/{repo}/…` (REST) de los repos de la sesión, `gh api user` y `git push`.",
+  "- ❌ GraphQL (`gh pr`, `gh issue`, `gh project`) y lo que no es del repo (Projects v2, `search/…`, `user/repos`, otros repos): 403 del proxy, `This GitHub API path is not available: sessions are bound to their configured repositories`. Un `GH_TOKEN` propio no cambia nada.",
+  `- ⏳ Para eso, el conector de GitHub de claude.ai, una vez por cuenta ([guía](${CONNECTOR_GUIDE})). Pon sus herramientas en "permitir siempre" en claude.ai → Configuración → Conectores → GitHub: una regla \`permissions.allow\` en \`.claude/settings.json\` no evita el aviso en cada llamada.`,
 ].join("\n");
 
 /** The "how to verify" section, one line. */
@@ -160,6 +173,7 @@ export function renderManual(input: { config: CloudConfig; packageVersion: strin
     UPDATES_NOTE,
     renderEnvironmentSection(input.config, input.packageVersion),
     VERIFY_SECTION,
+    GITHUB_SECTION,
     `## Qué corre en la nube\n\n${notes?.trim() ? notes.trim() : "Nada anotado."}`,
     TESTS_CHANGE_SECTION,
     END,

@@ -165,6 +165,8 @@ Opciones:
     none: "ninguno",
     noneVariables: "ninguna",
     githubApp: "- **Claude GitHub App:** instalado en el repo, o la sesión no puede pushear.",
+    githubConnector: (guide: string) =>
+      `- **Conector de GitHub** (solo si el repo usa Projects, búsqueda u otros repos de GitHub): agrégalo una vez por cuenta y pon sus herramientas en "permitir siempre" ([guía](${guide})).`,
     setupScript: "- **Setup script:**",
     variablesWarning: "> ⚠️ Quien use el entorno puede leer las variables, y no llegan al setup script (solo a la sesión).",
   },

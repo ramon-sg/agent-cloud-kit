@@ -4,6 +4,18 @@ All notable changes to this project are documented in this file. The format foll
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Added
+
+- `docs/agent-cloud.md` has a "GitHub en la nube" section: the GitHub proxy only serves
+  `repos/{owner}/{repo}/…` of the session's repos; GraphQL, Projects v2, `search/…` and other
+  repos get a 403, and your own `GH_TOKEN` does not help. For those, the GitHub connector of
+  claude.ai, with a link to its guide and how to stop the approval prompt on every call. The
+  "Configurar el entorno en claude.ai" section mentions the connector, and so does the README.
+- The `cloud-ready` skill does not propose `gh project` or `gh api users/…` for the cloud: it looks
+  for the connector's tools and, if they are missing, gives the user the guide.
+
 ## 1.0.0-rc.8
 
 ### Added
