@@ -23,6 +23,14 @@ platform does not tell you:
 - The egress proxy blocks GitHub releases and GitHub's GraphQL API, so tools that download from
   GitHub fail. `agent-cloud-kit` installs Node from nodejs.org; Bun, Deno, pnpm and Yarn from npm;
   and uv from PyPI.
+- The GitHub proxy only serves `repos/{owner}/{repo}/…` routes of the session's repos. GraphQL
+  (`gh pr`, `gh issue`, `gh project`), Projects v2, `search/…`, `user/repos` and other repos get
+  a 403 written by the proxy (`This GitHub API path is not available: sessions are bound to their
+  configured repositories…`), and your own `GH_TOKEN` does not change that. For Projects and
+  everything outside the repo, use the GitHub connector of claude.ai, set up once per account
+  ([guide](https://github.com/ramon-sg/github-rest/blob/main/docs/projects-connector.md)); its
+  tools ask for approval on every call until you set them to "always allow" in claude.ai, which a
+  `permissions.allow` rule in the repo does not replace. `docs/agent-cloud.md` says what works.
 - The setup script runs from `/home/user`, not from the repo, and a failure is silent.
 - A setup that takes more than about 5 minutes does not leave a saved machine.
 - Two `apt` runs at the same time collide on the dpkg lock, so apt work runs in series.
@@ -52,6 +60,8 @@ platform does not tell you:
    or in the cloud, finds that a domain or an environment variable is missing, it adds it to
    `.claude/cloud.json`, regenerates the document and tells you in the session what to add in
    claude.ai.
+   If the repo's workflow uses GitHub outside the repo (Projects, search, other repos), also add
+   the GitHub connector in claude.ai and set its tools to "always allow" (see the guide above).
 4. **Verification in the cloud:** `prepare` (new PR) or `verify` (current branch, once pushed)
    launches `claude --cloud` on that branch, so a real cloud session runs `cloud-ready verify`,
    fixes what fails and reports in the PR. Run `npx agent-cloud-kit verify` again whenever you

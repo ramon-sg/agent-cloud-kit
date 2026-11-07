@@ -102,6 +102,21 @@ test("environment section mentions /remote-env and the GitHub App", () => {
   assert.ok(out.includes("Claude GitHub App"));
 });
 
+test("the manual says what of GitHub works in the cloud and points to the connector", () => {
+  const out = renderManual({ config: base, packageVersion: "1.2.3" });
+  assert.ok(out.includes("## GitHub en la nube"));
+  assert.ok(out.includes("repos/{owner}/{repo}"));
+  assert.ok(out.includes("sessions are bound to their configured repositories"));
+  assert.ok(out.includes("GH_TOKEN"));
+  assert.ok(out.includes("gh project"));
+  assert.ok(out.includes("projects-connector.md"));
+  assert.ok(out.includes("permissions.allow"));
+});
+
+test("environment section mentions the GitHub connector", () => {
+  assert.ok(renderEnvironmentSection(base, "1.2.0").includes("Conector de GitHub"));
+});
+
 test("notes from a file path are inlined", () => {
   writeFileSync(join(repo, ".claude/cloud.json"), JSON.stringify({ version: "1.0.0", notes: ".claude/cloud-notes.md" }));
   writeFileSync(join(repo, ".claude/cloud-notes.md"), "Sin GPU en la nube.\n");
@@ -160,7 +175,7 @@ test("a prerelease gets the exact version in the setup script; a major range wou
 
 test("the manual is short", () => {
   const out = renderManual({ config: { ...base, requiredEnv: ["A"], domains: ["a.com"] }, packageVersion: "1.2.3" });
-  assert.ok(out.split("\n").length <= 40, `${out.split("\n").length} lines`);
+  assert.ok(out.split("\n").length <= 45, `${out.split("\n").length} lines`);
 });
 
 test("the manual says to run prepare again when the tests change", () => {

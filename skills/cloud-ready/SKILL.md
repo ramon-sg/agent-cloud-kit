@@ -52,6 +52,11 @@ No le pidas al usuario una lista de variables secretas ni de dominios: anota en 
      defecto de gestores de paquetes.
    - `requiredEnv`: solo los nombres de las variables secretas que de verdad hacen falta en la nube.
    - `notes`: la ruta del archivo de `notes`.
+   - **GitHub fuera del repo:** si el flujo del repo usa algo de GitHub fuera de
+     `repos/{owner}/{repo}` (Projects, búsqueda, otros repos), en la nube no va por `gh`: anótalo
+     en `notes` (p. ej. `- ⏳ Projects: con el conector de GitHub de claude.ai`) y dile al
+     usuario que agregue el conector y ponga sus herramientas en "permitir siempre" (ver
+     "GitHub fuera del repo", abajo).
 3. **Busca los tests del repo:** scripts `test*` y `e2e*` de `package.json`, configuración de
    runners (`vitest.config.*`, `jest.config.*`, `playwright.config.*`, `.mocharc*`),
    Testcontainers en las dependencias, compose de tests y los jobs de la CI que corren tests.
@@ -200,6 +205,25 @@ inicio de la sesión la marca como faltante, o el error nombra una variable vac�
 Un dominio que ya está en `domains`, o una variable que ya está en `requiredEnv`, no se agrega
 de nuevo: si sigue faltando, el usuario aún no actualizó el entorno; recuérdaselo.
 
+## GitHub fuera del repo
+
+En ambos modos, en la nube el proxy de GitHub solo atiende `repos/{owner}/{repo}/…` de los repos
+de la sesión. Projects v2 (`users/{u}/projectsV2/…`), `search/…`, `user/repos`, otros repos y
+todo GraphQL dan 403 (`This GitHub API path is not available: sessions are bound to their
+configured repositories…`), y un `GH_TOKEN` propio no lo cambia.
+
+- No propongas ni intentes `gh project`, `gh api graphql` ni `gh api users/…/projectsV2/…` para
+  la nube.
+- Busca las herramientas del conector de GitHub de claude.ai (en la nube,
+  `mcp__<NombreDelConector>__<tool>`, p. ej. `mcp__GitHub__projects_list`; en local,
+  `mcp__claude_ai_<Nombre>__<tool>`). Si están, úsalas.
+- Si no están, no improvises: dale al usuario el link de la guía,
+  https://github.com/ramon-sg/github-rest/blob/main/docs/projects-connector.md (se configura una
+  vez por cuenta), y en `verify` ponlo en "Cambiar en claude.ai".
+- Si cada llamada pide aprobación, la solución está en claude.ai → Configuración → Conectores →
+  GitHub → Permisos de herramientas ("permitir siempre"); una regla `permissions.allow` en
+  `.claude/settings.json` no lo evita.
+
 ## Hallazgos
 
 En ambos modos: todo hecho nuevo sobre la nube (algo que no está en `reference/knowledge.md`,
@@ -218,5 +242,6 @@ No edites `reference/knowledge.md` del repo: se reemplaza al actualizar el paque
 
 - `verify` nunca cambia código, tests ni scripts; `configure`, solo con aprobación del usuario.
 - Nunca imprimas ni escribas el valor de una variable secreta; solo su nombre.
-- Nada de `gh pr` ni `gh issue` en la nube: usa `gh api` (REST).
+- Nada de `gh pr`, `gh issue` ni `gh project` en la nube: usa `gh api repos/{owner}/{repo}/…`
+  (REST) y, para lo que no es del repo, el conector de GitHub.
 - No configures claude.ai: da la instrucción exacta y que la haga el usuario.

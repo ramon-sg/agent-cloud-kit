@@ -95,3 +95,13 @@ test("new domains and variables go to the config and the manual, and the user is
   }
   assert.equal(skill.includes("[respuestas]"), false);
 });
+
+test("the skill sends GitHub outside the repo to the connector, never to gh in the cloud", () => {
+  const skill = read("SKILL.md");
+  const section = skill.slice(skill.indexOf("## GitHub fuera del repo"), skill.indexOf("## Hallazgos"));
+  assert.ok(section.length > 0, "no GitHub section");
+  assert.ok(section.includes("projects-connector.md"));
+  assert.ok(section.includes("permitir siempre"));
+  assert.match(section, /No propongas ni intentes `gh project`/);
+  assert.equal(/^\s*gh project /m.test(skill), false);
+});
