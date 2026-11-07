@@ -1,6 +1,6 @@
 {
   "name": "agent-cloud-kit",
-  "version": "1.0.0-rc.8",
+  "version": "1.0.0-rc.9",
   "description": "Zero-dependency CLI that prepares Claude Code cloud sessions.",
   "type": "module",
   "license": "MIT",
