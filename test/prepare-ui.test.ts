@@ -3,7 +3,7 @@
  */
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { formatLine, initKind, nextSteps, styleMarkdown } from "../src/prepare/ui.ts";
+import { formatLine, nextSteps, styleMarkdown } from "../src/prepare/ui.ts";
 
 /** Removes ANSI color codes. */
 const plain = (text: string): string => text.replace(/\x1b\[[0-9;]*m/g, "");
@@ -20,14 +20,6 @@ test("with color each kind has its icon", () => {
   assert.equal(plain(formatLine("fail", "a", true)), "  ✖ a");
   assert.match(formatLine("ok", "a", true), /\x1b\[32m✔/);
   assert.match(formatLine("fail", "a", true), /\x1b\[31m✖/);
-});
-
-test("init lines: done, already there, or a warning", () => {
-  assert.equal(initKind("agent-cloud-kit: se creó .claude/cloud.json"), "ok");
-  assert.equal(initKind("se instaló .agents/skills/cloud-ready 1.0.0"), "ok");
-  assert.equal(initKind(".claude/settings.json ya tiene el hook SessionStart"), "same");
-  assert.equal(initKind(".claude/cloud.json ya existe; se dejó como estaba"), "same");
-  assert.equal(initKind("agrega el hook a mano: no es JSON válido"), "warn");
 });
 
 test("markdown sections lose their marks in a terminal and stay as is otherwise", () => {

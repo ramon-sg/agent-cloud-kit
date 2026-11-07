@@ -5,6 +5,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { CONFIG_FILE, OUTPUT_PREFIX, PACKAGE } from "./constants.ts";
+import { t } from "./messages/index.ts";
 import { installSkill, linkSkill } from "./skill.ts";
 
 /** Path of the Claude Code settings file, relative to the repo root. */
@@ -26,10 +27,21 @@ const HOOK_COMMAND =
 /** The hook `init` registers. */
 const HOOK = { type: "command", command: HOOK_COMMAND, timeout: HOOK_TIMEOUT_SECONDS };
 
+/** What one line of `init` says: something done, something already there, or a problem. */
+export type InitKind = "ok" | "same" | "warn";
+
+/** One line of `init`, without prefix. */
+export interface InitEntry {
+  kind: InitKind;
+  text: string;
+}
+
 /** Result of `init`. */
 export interface InitResult {
   /** Prefixed lines describing what was done. */
   lines: string[];
+  /** The same lines without prefix, each with its kind. */
+  entries: InitEntry[];
   /** False when settings.json could not be updated because of its contents. */
   ok: boolean;
 }
@@ -51,9 +63,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * @param reason - What is wrong with the file.
  * @returns The failed outcome.
  */
-function addByHand(reason: string): { line: string; ok: boolean } {
-  const entry = JSON.stringify({ hooks: [HOOK] });
-  return { line: `${SETTINGS_FILE} ${reason}; no se tocó. Agrega esta entrada a hooks.SessionStart a mano: ${entry}`, ok: false };
+function addByHand(reason: string): { entry: InitEntry; ok: boolean } {
+  const hook = JSON.stringify({ hooks: [HOOK] });
+  return { entry: { kind: "warn", text: t().init.byHand(SETTINGS_FILE, reason, hook) }, ok: false };
 }
 
 /**
@@ -87,9 +99,9 @@ function hasHook(entries: unknown[]): boolean {
  * @param packageVersion - Version of this package.
  * @returns A line describing the outcome.
  */
-function scaffoldConfig(repo: string, packageVersion: string): string {
+function scaffoldConfig(repo: string, packageVersion: string): InitEntry {
   const file = join(repo, CONFIG_FILE);
-  if (existsSync(file)) return `${CONFIG_FILE} ya existe; se dejó como estaba`;
+  if (existsSync(file)) return { kind: "same", text: t().init.configExists(CONFIG_FILE) };
   writeJson(file, {
     $schema: `https://unpkg.com/${PACKAGE}@${packageVersion}/schema.json`,
     version: packageVersion,
@@ -101,7 +113,7 @@ function scaffoldConfig(repo: string, packageVersion: string): string {
     requiredEnv: [],
     domains: [],
   });
-  return `se creó ${CONFIG_FILE}`;
+  return { kind: "ok", text: t().init.configCreated(CONFIG_FILE) };
 }
 
 /**
@@ -110,24 +122,24 @@ function scaffoldConfig(repo: string, packageVersion: string): string {
  * @param repo - Repo root.
  * @returns The outcome line and whether it succeeded.
  */
-function registerHook(repo: string): { line: string; ok: boolean } {
+function registerHook(repo: string): { entry: InitEntry; ok: boolean } {
   const file = join(repo, SETTINGS_FILE);
   let settings: unknown = {};
   if (existsSync(file)) {
     try {
       settings = JSON.parse(readFileSync(file, "utf8"));
     } catch {
-      return addByHand("no es JSON válido");
+      return addByHand(t().init.notJson);
     }
   }
-  if (!isRecord(settings)) return addByHand("no es un objeto JSON");
+  if (!isRecord(settings)) return addByHand(t().init.notObject);
   const hooks = settings.hooks ?? {};
-  if (!isRecord(hooks)) return addByHand('tiene un "hooks" que no es un objeto');
+  if (!isRecord(hooks)) return addByHand(t().init.hooksNotObject);
   const entries = hooks.SessionStart ?? [];
-  if (!Array.isArray(entries)) return addByHand('tiene un "hooks.SessionStart" que no es un arreglo');
-  if (hasHook(entries)) return { line: `${SETTINGS_FILE} ya tiene el hook SessionStart`, ok: true };
+  if (!Array.isArray(entries)) return addByHand(t().init.sessionStartNotArray);
+  if (hasHook(entries)) return { entry: { kind: "same", text: t().init.hookExists(SETTINGS_FILE) }, ok: true };
   writeJson(file, { ...settings, hooks: { ...hooks, SessionStart: [...entries, { hooks: [HOOK] }] } });
-  return { line: `se agregó el hook SessionStart a ${SETTINGS_FILE}`, ok: true };
+  return { entry: { kind: "ok", text: t().init.hookAdded(SETTINGS_FILE) }, ok: true };
 }
 
 /**
@@ -147,6 +159,6 @@ export function init(repo: string, packageVersion: string, packageRoot: string):
   const hook = registerHook(repo);
   const skill = installSkill(repo, packageRoot, packageVersion);
   const link = linkSkill(repo);
-  const lines = [config, hook.line, skill, ...(link ? [link] : [])];
-  return { lines: lines.map((l) => OUTPUT_PREFIX + l), ok: hook.ok };
+  const entries: InitEntry[] = [config, hook.entry, skill, ...(link ? [{ kind: "ok" as const, text: link }] : [])];
+  return { lines: entries.map((e) => OUTPUT_PREFIX + e.text), entries, ok: hook.ok };
 }

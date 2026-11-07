@@ -161,6 +161,20 @@ A Node version that is not exact (`22`, `22.1`, `lts/iron`, `lts/*` or `node`) i
 Environment variables: `AGENT_CLOUD_KIT_DIR` overrides `/opt/agent-cloud-kit` and `AGENT_CLOUD_KIT_HOME`
 overrides `/home/user`; both exist mainly for tests.
 
+### Language and Kuro
+
+The terminal speaks Spanish by default. `--lang en` (with any command) switches it to English for
+one run, and `AGENT_CLOUD_KIT_LANG=en|es` fixes it; `--lang` wins over the variable. `LANG` and
+`LC_ALL` are not read. Only the terminal changes: what is written in the repo (`docs/agent-cloud.md`,
+`.claude/cloud-notes.md`, the `cloud-ready` skill, the commit) and the prompts for Claude stay in
+Spanish. `setup` passes the language on to the version it relaunches, and `session` to the one it
+delegates to.
+
+In a terminal, the final messages (the end of `doctor`, `prepare` and `verify`, and the screen
+before Claude opens) come in a block with Kuro, the mascot of issue-flow and agent-kitchen.
+`NO_COLOR` removes the color and keeps Kuro. Outside a terminal (logs, pipes, the `SessionStart`
+hook) the lines keep the plain `agent-cloud-kit: ` prefix.
+
 ### The `SessionStart` hook
 
 `init` adds this hook. Outside a cloud session it does nothing, and it calls the copy of the

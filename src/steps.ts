@@ -1,6 +1,7 @@
 /**
  * @file Step results: runs one unit of work and reports its outcome without ever throwing.
  */
+import { STEP } from "./messages/index.ts";
 
 /** Outcome of one named step. */
 export interface StepResult {
@@ -34,8 +35,6 @@ export async function step(name: string, fn: () => Promise<void>): Promise<StepR
   }
 }
 
-/** Prefix of the name given to a lane whose function rejected. */
-const LANE_NAME_PREFIX = "lane ";
 
 /**
  * Runs lanes of steps concurrently and joins their results in lane order.
@@ -53,7 +52,7 @@ export async function lanes(...laneFns: Array<() => Promise<StepResult[]>>): Pro
         return await laneFn();
       } catch (err) {
         const error = err instanceof Error ? err.message : String(err);
-        return [{ name: `${LANE_NAME_PREFIX}${index}`, ok: false, ms: Date.now() - start, error }];
+        return [{ name: `${STEP.lane}${index}`, ok: false, ms: Date.now() - start, error }];
       }
     }),
   );

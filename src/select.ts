@@ -3,6 +3,7 @@
  * and no dependencies: ↑/↓ move, Enter picks, Esc or Ctrl+C cancels.
  */
 import { emitKeypressEvents } from "node:readline";
+import { t } from "./messages/index.ts";
 
 /** One option of the menu. */
 export interface Choice<T extends string> {
@@ -60,7 +61,7 @@ export function menuKey(state: MenuState, key: Key, count: number): MenuState {
 
 /**
  * Draws the menu: the question, the options (hint only on the active one) and, once done, the
- * picked option or "Cancelado".
+ * picked option or "Cancelado" (in the language of the terminal).
  *
  * @param message - Question.
  * @param choices - Options.
@@ -72,7 +73,7 @@ export function menuKey(state: MenuState, key: Key, count: number): MenuState {
 export function renderMenu<T extends string>(message: string, choices: Choice<T>[], state: MenuState): string[] {
   const bar = ANSI.dim("│");
   if (state.done === "picked") return [`${ANSI.green("◇")}  ${message}`, `${bar}  ${ANSI.dim(choices[state.active]?.label ?? "")}`, bar];
-  if (state.done === "cancelled") return [`${ANSI.dim("■")}  ${message}`, `${bar}  ${ANSI.dim("Cancelado")}`, bar];
+  if (state.done === "cancelled") return [`${ANSI.dim("■")}  ${message}`, `${bar}  ${ANSI.dim(t().menu.cancelled)}`, bar];
   const lines = [`${ANSI.cyan("◆")}  ${message}`];
   choices.forEach((choice, index) => {
     if (index === state.active) {

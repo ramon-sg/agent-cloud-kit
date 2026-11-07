@@ -6,6 +6,7 @@ import { existsSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import type { readConfig } from "./config.ts";
 import { CONFIG_FILE, PACKAGE } from "./constants.ts";
+import { t } from "./messages/index.ts";
 import type { Run } from "./run.ts";
 
 /** Directory, inside the tools dir, that holds one installed copy of this package per version. */
@@ -74,7 +75,7 @@ export function findRepos(home: string): string[] {
 export function planSetup(repos: string[], current: string, read: typeof readConfig): SetupPlanItem[] {
   return repos.map((repo): SetupPlanItem => {
     const { config, errors } = read(repo);
-    if (!config) return { repo, action: "skip", reason: errors.length ? errors.join("; ") : `no hay ${CONFIG_FILE}` };
+    if (!config) return { repo, action: "skip", reason: errors.length ? errors.join("; ") : t().config.missing(CONFIG_FILE) };
     if (config.version === current) return { repo, action: "run", version: current };
     return { repo, action: "relaunch", version: config.version };
   });

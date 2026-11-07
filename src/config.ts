@@ -4,6 +4,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { CONFIG_FILE } from "./constants.ts";
+import { t } from "./messages/index.ts";
 
 
 /** Top-level key that editors use to point at the JSON schema; allowed but not part of the config. */
@@ -110,18 +111,18 @@ function isStringList(value: unknown): value is string[] {
 function parseDocker(value: unknown, errors: string[]): CloudConfig["docker"] {
   if (value === undefined) return { pull: PULL_AUTO };
   if (!isRecord(value)) {
-    errors.push(fail('"docker" debe ser un objeto'));
+    errors.push(fail(t().config.dockerNotObject));
     return { pull: PULL_AUTO };
   }
   for (const key of Object.keys(value)) {
     if (!(DOCKER_KEYS as readonly string[]).includes(key)) {
-      errors.push(fail(`campo desconocido "docker.${key}"`));
+      errors.push(fail(t().config.unknownField(`docker.${key}`)));
     }
   }
   const pull = value.pull;
   if (pull === undefined || pull === PULL_AUTO) return { pull: PULL_AUTO };
   if (pull === false || isStringList(pull)) return { pull };
-  errors.push(fail('"docker.pull" debe ser "auto", false o un arreglo de strings'));
+  errors.push(fail(t().config.badPull));
   return { pull: PULL_AUTO };
 }
 
@@ -137,7 +138,7 @@ function parseList(raw: Record<string, unknown>, key: string, errors: string[]):
   const value = raw[key];
   if (value === undefined) return [];
   if (isStringList(value)) return value;
-  errors.push(fail(`"${key}" debe ser un arreglo de strings`));
+  errors.push(fail(t().config.notStringList(key)));
   return [];
 }
 
@@ -153,12 +154,12 @@ function parseList(raw: Record<string, unknown>, key: string, errors: string[]):
 function parseDomains(value: unknown, errors: string[]): string[] {
   if (value === undefined) return [];
   if (!isStringList(value)) {
-    errors.push(fail('"domains" debe ser un arreglo de strings'));
+    errors.push(fail(t().config.notStringList("domains")));
     return [];
   }
   return value.filter((host) => {
     const valid = isHostName(host);
-    if (!valid) errors.push(fail(`"domains" tiene un host inválido: ${JSON.stringify(host)}`));
+    if (!valid) errors.push(fail(t().config.badHost(JSON.stringify(host))));
     return valid;
   });
 }
@@ -173,11 +174,11 @@ function parseDomains(value: unknown, errors: string[]): string[] {
 function parseConfig(raw: Record<string, unknown>, errors: string[]): CloudConfig | undefined {
   const known: readonly string[] = [...CONFIG_KEYS, SCHEMA_KEY];
   for (const key of Object.keys(raw)) {
-    if (!known.includes(key)) errors.push(fail(`campo desconocido "${key}"`));
+    if (!known.includes(key)) errors.push(fail(t().config.unknownField(key)));
   }
   const version = raw.version;
   if (typeof version !== "string" || !EXACT_SEMVER.test(version)) {
-    errors.push(fail('"version" debe ser un semver exacto, como "1.0.0"'));
+    errors.push(fail(t().config.badVersion));
     return undefined;
   }
   const lists = Object.fromEntries(LIST_KEYS.map((key) => [key, parseList(raw, key, errors)]));
@@ -192,7 +193,7 @@ function parseConfig(raw: Record<string, unknown>, errors: string[]): CloudConfi
     domains: parseDomains(raw.domains, errors),
   };
   if (typeof raw.notes === "string") config.notes = raw.notes;
-  else if (raw.notes !== undefined) errors.push(fail('"notes" debe ser un string'));
+  else if (raw.notes !== undefined) errors.push(fail(t().config.notesNotString));
   return config;
 }
 
@@ -212,9 +213,9 @@ export function readConfig(repo: string): ReadConfigResult {
     raw = JSON.parse(readFileSync(file, "utf8"));
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
-    return { errors: [fail(`no se pudo leer el archivo: ${reason}`)] };
+    return { errors: [fail(t().config.unreadable(reason))] };
   }
-  if (!isRecord(raw)) return { errors: [fail("debe contener un objeto JSON")] };
+  if (!isRecord(raw)) return { errors: [fail(t().config.notObject)] };
   const errors: string[] = [];
   const config = parseConfig(raw, errors);
   return config ? { config, errors } : { errors };

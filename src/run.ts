@@ -4,6 +4,7 @@
  */
 import { spawn } from "node:child_process";
 import type { StdioOptions } from "node:child_process";
+import { t } from "./messages/index.ts";
 
 /** Signal sent to a process group that ran past its time limit. */
 const KILL_SIGNAL = "SIGKILL";
@@ -55,7 +56,7 @@ export class RunTimeoutError extends Error {
    * @param ms - Time limit, in milliseconds.
    */
   constructor(cmd: string, ms: number) {
-    super(`${cmd} superó el límite de ${ms}ms`);
+    super(t().run.timedOut(cmd, ms));
     this.name = "RunTimeoutError";
   }
 }
@@ -125,7 +126,7 @@ function spawnAndWait(
     child.on("close", (code, signal) => {
       clearTimeout(timer);
       if (code === 0) return resolve();
-      reject(new Error(`${cmd} terminó con ${code === null ? `la señal ${signal}` : `el código ${code}`}`));
+      reject(new Error(code === null ? t().run.exitSignal(cmd, String(signal)) : t().run.exitCode(cmd, code)));
     });
   });
 }

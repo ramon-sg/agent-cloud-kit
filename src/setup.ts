@@ -16,6 +16,7 @@ import type { DockerOps } from "./docker.ts";
 import { curlNodeIndex, installTools, resolveVersions } from "./installers.ts";
 import type { Versions } from "./installers.ts";
 import { linkPath, packageBin, packageInstallDir } from "./launcher.ts";
+import { STEP, t } from "./messages/index.ts";
 import type { Run } from "./run.ts";
 import { pathDirs, toolsEnv } from "./session.ts";
 import { fingerprint, writeState } from "./state.ts";
@@ -106,16 +107,16 @@ async function aptLane(config: CloudConfig, deps: Deps): Promise<StepResult[]> {
   const env = { ...deps.env, ...APT_ENV };
   const results: StepResult[] = [];
   for (const url of config.aptRepos) {
-    const name = `apt repo ${url}`;
+    const name = `${STEP.aptRepo}${url}`;
     if (!url.startsWith(HTTPS_PREFIX)) {
-      results.push(await refused(name, `el repo de apt debe ser una URL ${HTTPS_PREFIX}`));
+      results.push(await refused(name, t().setup.aptRepoHttps(HTTPS_PREFIX)));
       continue;
     }
     results.push(await step(name, () => deps.run("bash", ["-c", APT_REPO_SCRIPT, SCRIPT_NAME, url], { env, timeoutMs: APT_STEP_TIMEOUT_MS })));
   }
   const valid = config.apt.filter((pkg) => DEBIAN_PACKAGE_NAME.test(pkg));
   for (const pkg of config.apt.filter((p) => !valid.includes(p))) {
-    results.push(await refused(`apt package ${pkg}`, "nombre de paquete Debian inválido"));
+    results.push(await refused(`${STEP.aptPackage}${pkg}`, t().setup.badDebianName));
   }
   if (!valid.length && !config.aptRepos.length) return results;
   results.push(await step("apt-get update", () => deps.run("apt-get", ["update", "-q"], { env, timeoutMs: APT_STEP_TIMEOUT_MS })));
@@ -161,10 +162,10 @@ async function dockerLane(config: CloudConfig, images: string[], docker: DockerO
   const results: StepResult[] = [];
   const valid = images.filter((image) => !WHITESPACE.test(image) && !image.startsWith("-") && image !== "");
   for (const image of images.filter((i) => !valid.includes(i))) {
-    results.push(await refused(`docker pull ${image}`, "referencia de imagen inválida"));
+    results.push(await refused(`docker pull ${image}`, t().setup.badImage));
   }
   const up = await docker.ensure().catch(() => false);
-  if (!up) return [...results, await refused("docker", `dockerd no arrancó; revisa ${DOCKERD_LOG}`)];
+  if (!up) return [...results, await refused("docker", t().docker.didNotStart(DOCKERD_LOG))];
   return [...results, ...(await pullAll(valid, deps))];
 }
 
@@ -226,7 +227,7 @@ function manifestVersion(root: string): string | undefined {
  */
 function copyPackage(source: string, target: string, version: string): void {
   const found = manifestVersion(source);
-  if (found !== version) throw new Error(`el paquete en ${source} es ${found ?? "desconocido"}, no ${version}`);
+  if (found !== version) throw new Error(t().setup.packageMismatch(source, found, version));
   const temp = `${target}.${process.pid}.tmp`;
   rmSync(temp, { recursive: true, force: true });
   mkdirSync(temp, { recursive: true });
@@ -247,7 +248,7 @@ function copyPackage(source: string, target: string, version: string): void {
  * @returns The self install result.
  */
 function selfInstall(version: string, toolsDir: string, source: string): Promise<StepResult> {
-  return step(`self install ${version}`, async () => {
+  return step(`${STEP.selfInstall}${version}`, async () => {
     const target = packageInstallDir(toolsDir, version);
     if (manifestVersion(target) !== version) copyPackage(source, target, version);
     const bin = packageBin(toolsDir, version);
@@ -294,7 +295,7 @@ async function runPhases(repo: string, config: CloudConfig, ctx: SetupContext): 
     steps,
     resolved,
   };
-  const saved = await step("write state", async () => writeState(ctx.toolsDir, repo, state));
+  const saved = await step(STEP.writeState, async () => writeState(ctx.toolsDir, repo, state));
   return saved.ok ? state : { ...state, steps: [...steps, saved] };
 }
 
@@ -318,7 +319,7 @@ export async function setupRepo(repo: string, ctx: SetupContext): Promise<Machin
     resolved: {},
   });
   const { config, errors } = readConfig(repo);
-  if (!config) return failed("config", errors.join("; ") || "sin configuración");
+  if (!config) return failed(STEP.config, errors.join("; ") || t().setup.noConfig);
   try {
     return await runPhases(repo, config, ctx);
   } catch (err) {

@@ -7,6 +7,8 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { readConfig } from "./config.ts";
 import type { CloudConfig } from "./config.ts";
 import { CONFIG_FILE, PACKAGE, packageSpec } from "./constants.ts";
+import { es, t } from "./messages/index.ts";
+import type { Messages } from "./messages/index.ts";
 
 /** Path of the manual, relative to the repo. */
 export const MANUAL_FILE = "docs/agent-cloud.md";
@@ -69,32 +71,34 @@ function allowedHosts(config: CloudConfig): string[] {
 }
 
 /**
- * Renders the "Configurar el entorno en claude.ai" section.
+ * Renders the "Configurar el entorno en claude.ai" section: in Spanish for the manual, in the
+ * language of the terminal when `prepare` shows it.
  *
  * @param config - Repo config.
  * @param packageVersion - Version of the running package, for the setup script.
+ * @param text - Texts of the section; Spanish when omitted.
  * @returns The section, without a trailing newline.
  * @example
  * renderEnvironmentSection(config, "1.0.0").startsWith("## Configurar el entorno en claude.ai"); // true
  */
-export function renderEnvironmentSection(config: CloudConfig, packageVersion: string): string {
+export function renderEnvironmentSection(config: CloudConfig, packageVersion: string, text: Messages["environment"] = es.environment): string {
   const hosts = allowedHosts(config);
   const code = (items: string[]): string => items.map((item) => `\`${item}\``).join(", ");
   const lines = [
-    "## Configurar el entorno en claude.ai",
+    text.title,
     "",
-    "Elige el entorno con `/remote-env` y edítalo en claude.ai/code:",
+    text.intro,
     "",
-    `- **Acceso a la red:** Limitado (Custom) con "Permitir administradores de paquetes" encendido ("Also include default list of common package managers"). Dominios extra: ${hosts.length ? code(hosts) : "ninguno"}.`,
-    `- **Variables:** ${config.requiredEnv.length ? `${code(config.requiredEnv)} (solo los nombres; los valores los pones tú)` : "ninguna"}.`,
-    "- **Claude GitHub App:** instalado en el repo, o la sesión no puede pushear.",
-    "- **Setup script:**",
+    text.network(hosts.length ? code(hosts) : text.none),
+    text.variables(config.requiredEnv.length ? text.namesOnly(code(config.requiredEnv)) : text.noneVariables),
+    text.githubApp,
+    text.setupScript,
     "",
     "```bash",
     setupScript(packageVersion),
     "```",
   ];
-  if (config.requiredEnv.length) lines.push("", "> ⚠️ Quien use el entorno puede leer las variables, y no llegan al setup script (solo a la sesión).");
+  if (config.requiredEnv.length) lines.push("", text.variablesWarning);
   return lines.join("\n");
 }
 
@@ -193,7 +197,7 @@ export function mergeManual(existing: string | undefined, block: string): string
  */
 export function writeManual(repo: string, packageVersion: string): string {
   const { config, errors } = readConfig(repo);
-  if (!config) throw new Error(errors[0] ?? `no existe ${CONFIG_FILE}; corre init primero`);
+  if (!config) throw new Error(errors[0] ?? t().manual.noConfig(CONFIG_FILE));
   const file = join(repo, MANUAL_FILE);
   const existing = existsSync(file) ? readFileSync(file, "utf8") : undefined;
   const block = renderManual({ config, packageVersion, notes: resolveNotes(repo, config.notes) });
