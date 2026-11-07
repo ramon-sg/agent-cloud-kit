@@ -56,7 +56,8 @@ No le pidas al usuario una lista de variables secretas ni de dominios: anota en 
      `repos/{owner}/{repo}` (Projects, búsqueda, otros repos), en la nube no va por `gh`: anótalo
      en `notes` (p. ej. `- ⏳ Projects: con el conector de GitHub de claude.ai`) y dile al
      usuario que agregue el conector y ponga sus herramientas en "permitir siempre" (ver
-     "GitHub fuera del repo", abajo).
+     "GitHub fuera del repo", abajo). Si además escribe en un proyecto al cerrar una issue o al
+     hacer merge, eso va en una GitHub Action (ver la misma sección).
 3. **Busca los tests del repo:** scripts `test*` y `e2e*` de `package.json`, configuración de
    runners (`vitest.config.*`, `jest.config.*`, `playwright.config.*`, `.mocharc*`),
    Testcontainers en las dependencias, compose de tests y los jobs de la CI que corren tests.
@@ -223,6 +224,23 @@ configured repositories…`), y un `GH_TOKEN` propio no lo cambia.
 - Si cada llamada pide aprobación, la solución está en claude.ai → Configuración → Conectores →
   GitHub → Permisos de herramientas ("permitir siempre"); una regla `permissions.allow` en
   `.claude/settings.json` no lo evita.
+
+**Al cerrar una issue o al hacer merge:** si el flujo del repo escribe en un proyecto cuando se
+cierra una issue o se hace merge de un PR (p. ej. las horas reales en un campo `Real`), propón
+una GitHub Action en `.github/workflows/` que lo haga con el evento (`issues: types: [closed]`,
+o `pull_request: types: [closed]` con `merged`). Una issue casi nunca la cierra el agente: se
+cierra con el merge o la cierra una persona, sin ninguna sesión corriendo, y la Action corre
+fuera del proxy. El ejemplo y lo que hay que saber están en `reference/project-action.md`.
+
+- No propongas que el agente escriba en el proyecto al cerrar una issue, ni en local ni en la
+  nube. El agente o el conector, solo para lo que se decide durante la sesión.
+- Avisa al usuario que hace falta un secret del repo con un token classic con `project` (y
+  `repo` si el repo es privado): el `GITHUB_TOKEN` de Actions no llega a Projects v2. Nunca
+  pidas ni escribas el valor del token.
+- La Action es código del repo: en `configure`, solo con aprobación del usuario; en `verify`,
+  proponla en el reporte, no la escribas.
+- Si solo hay que cambiar el estado (p. ej. Status = Done al cerrar), alcanza con los workflows
+  integrados del proyecto, sin código.
 
 ## Hallazgos
 

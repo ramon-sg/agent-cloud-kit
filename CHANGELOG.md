@@ -4,6 +4,17 @@ All notable changes to this project are documented in this file. The format foll
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Added
+
+- Writing in a GitHub project when an issue is closed or a PR is merged goes in a GitHub Action,
+  not in the agent. `docs/agent-cloud.md` (section "GitHub en la nube") and the README say so,
+  and that `GITHUB_TOKEN` can't reach Projects v2, so the Action needs a secret with a classic
+  token with `project`. The `cloud-ready` skill proposes the Action in `.github/workflows/`
+  instead of having the agent write, and warns about the secret. New
+  `skills/cloud-ready/reference/project-action.md` with a minimal workflow.
+
 ## 1.0.0-rc.9
 
 ### Added
