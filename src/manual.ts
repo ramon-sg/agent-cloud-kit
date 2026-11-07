@@ -113,6 +113,10 @@ const TESTS_CHANGE_SECTION = [
 /** Guide to set up the GitHub connector in claude.ai, once per account. */
 export const CONNECTOR_GUIDE = "https://github.com/ramon-sg/github-rest/blob/main/docs/projects-connector.md";
 
+/** Example of a GitHub Action that writes in a project when an issue is closed. */
+export const PROJECT_ACTION_GUIDE =
+  "https://github.com/ramon-sg/agent-cloud-kit/blob/main/skills/cloud-ready/reference/project-action.md";
+
 /** What of GitHub works in the cloud and what to do with the rest. */
 const GITHUB_SECTION = [
   "## GitHub en la nube",
@@ -120,6 +124,7 @@ const GITHUB_SECTION = [
   "- ✅ `gh api repos/{owner}/{repo}/…` (REST) de los repos de la sesión, `gh api user` y `git push`.",
   "- ❌ GraphQL (`gh pr`, `gh issue`, `gh project`) y lo que no es del repo (Projects v2, `search/…`, `user/repos`, otros repos): 403 del proxy, `This GitHub API path is not available: sessions are bound to their configured repositories`. Un `GH_TOKEN` propio no cambia nada.",
   `- ⏳ Para eso, el conector de GitHub de claude.ai, una vez por cuenta ([guía](${CONNECTOR_GUIDE})). Pon sus herramientas en "permitir siempre" en claude.ai → Configuración → Conectores → GitHub: una regla \`permissions.allow\` en \`.claude/settings.json\` no evita el aviso en cada llamada.`,
+  `- 🔁 Lo que pasa al cerrar una issue o al hacer merge (p. ej. escribir un campo del proyecto) va en una GitHub Action, no en el agente: corre en GitHub, fuera del proxy, aunque no haya ninguna sesión. \`GITHUB_TOKEN\` no llega a Projects v2: hace falta un secret con un token classic con \`project\` (y \`repo\` si el repo es privado) ([ejemplo](${PROJECT_ACTION_GUIDE})).`,
 ].join("\n");
 
 /** The "how to verify" section, one line. */

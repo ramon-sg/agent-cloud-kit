@@ -113,6 +113,16 @@ test("the manual says what of GitHub works in the cloud and points to the connec
   assert.ok(out.includes("permissions.allow"));
 });
 
+test("the manual sends what happens when an issue is closed to a GitHub Action, with its token", () => {
+  const out = renderManual({ config: base, packageVersion: "1.2.3" });
+  const github = out.slice(out.indexOf("## GitHub en la nube"), out.indexOf("## Qué corre en la nube"));
+  assert.ok(github.includes("GitHub Action"));
+  assert.ok(github.includes("al cerrar una issue"));
+  assert.ok(github.includes("GITHUB_TOKEN"));
+  assert.ok(github.includes("token classic con `project`"));
+  assert.ok(github.includes("project-action.md"));
+});
+
 test("environment section mentions the GitHub connector", () => {
   assert.ok(renderEnvironmentSection(base, "1.2.0").includes("Conector de GitHub"));
 });

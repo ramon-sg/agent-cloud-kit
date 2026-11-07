@@ -30,7 +30,12 @@ platform does not tell you:
   everything outside the repo, use the GitHub connector of claude.ai, set up once per account
   ([guide](https://github.com/ramon-sg/github-rest/blob/main/docs/projects-connector.md)); its
   tools ask for approval on every call until you set them to "always allow" in claude.ai, which a
-  `permissions.allow` rule in the repo does not replace. `docs/agent-cloud.md` says what works.
+  `permissions.allow` rule in the repo does not replace. To write in a project when something
+  happens on GitHub (an issue is closed, a PR is merged), use a GitHub Action instead of the
+  agent or the connector: no session is running when that happens, and an Action runs outside
+  the proxy. `GITHUB_TOKEN` can't reach Projects v2, so the Action needs a secret with a classic
+  token with `project` ([example](skills/cloud-ready/reference/project-action.md)).
+  `docs/agent-cloud.md` says what works.
 - The setup script runs from `/home/user`, not from the repo, and a failure is silent.
 - A setup that takes more than about 5 minutes does not leave a saved machine.
 - Two `apt` runs at the same time collide on the dpkg lock, so apt work runs in series.

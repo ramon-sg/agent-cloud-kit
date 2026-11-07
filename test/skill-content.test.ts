@@ -105,3 +105,22 @@ test("the skill sends GitHub outside the repo to the connector, never to gh in t
   assert.match(section, /No propongas ni intentes `gh project`/);
   assert.equal(/^\s*gh project /m.test(skill), false);
 });
+
+test("the skill proposes a GitHub Action, not the agent, to write in a project when an issue is closed", () => {
+  const skill = read("SKILL.md");
+  const section = skill.slice(skill.indexOf("## GitHub fuera del repo"), skill.indexOf("## Hallazgos"));
+  assert.ok(section.includes("GitHub Action"));
+  assert.ok(section.includes(".github/workflows/"));
+  assert.ok(section.includes("reference/project-action.md"));
+  assert.ok(section.includes("secret"));
+  assert.match(section, /No propongas que el agente escriba en el proyecto al cerrar una issue/);
+});
+
+test("the Action example reacts to the closed issue and writes with a secret token", () => {
+  const example = read("reference/project-action.md");
+  assert.match(example, /issues:\n\s+types: \[closed\]/);
+  assert.ok(example.includes("secrets."));
+  assert.ok(example.includes("GH_TOKEN"));
+  assert.ok(example.includes("@ramon-sg/github-rest@0.5.0 project set"));
+  assert.ok(example.includes("GITHUB_TOKEN"));
+});
