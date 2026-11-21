@@ -4,6 +4,29 @@ All notable changes to this project are documented in this file. The format foll
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 1.0.0
+
+### Added
+
+- `.agents/runner.json` is the repo's runner file: `"runner": "bun"` or `"node"` (default `bun`)
+  and, under `tools`, the version of agent-cloud-kit the repo uses. `init` writes it and never
+  lowers a version that is already pinned.
+- In the cloud, setup installs Bun with `npm install -g bun` when the repo runner is `bun`. If the
+  install fails, the message tells you to set `"runner": "node"` in `.agents/runner.json`. Setup
+  then relaunches itself with `bunx --bun` or `npx --yes`, according to the runner, and records a
+  `runner` step in the setup state.
+- The SessionStart hook that `init` writes pins the version, and its help text names the pinned
+  version.
+- `doctor` checks the runner, `.agents/runner.json` and the version pinned in the hook.
+- CI runs the package with Bun.
+
+### Changed
+
+- `init` only rewrites its own SessionStart hook; the hooks of sibling tools are left alone.
+- `version` in `.claude/cloud.json` is deprecated. It is still read as a fallback, with a warning,
+  and `doctor` warns when both it and `.agents/runner.json` exist.
+- The published package bundles its dependencies and has no `dependencies`.
+
 ## 1.0.0-rc.9
 
 ### Added
