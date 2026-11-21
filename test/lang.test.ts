@@ -46,6 +46,7 @@ function deps(env: NodeJS.ProcessEnv = {}, overrides: Partial<CliDeps> = {}): Cl
   return {
     env: { AGENT_CLOUD_KIT_DIR: join(root, "tools"), AGENT_CLOUD_KIT_HOME: root, CLAUDE_PROJECT_DIR: repo, ...env },
     run: async () => {},
+    available: () => true,
     docker: { start: () => undefined, ensure: async () => true },
     packageVersion: "1.0.0",
     print: (line) => printed.push(line),

@@ -66,6 +66,9 @@ Options:
     legacyOnly: (oldFile, newFile) => `the version comes from ${oldFile}, which is deprecated: move it to ${newFile}`,
     legacyBoth: (oldFile) => `remove "version" from ${oldFile}: .agents/runner.json takes precedence`,
   },
+  runner: {
+    bunFailed: (file, reason) => `could not get Bun ready (${reason}): set "runner": "node" in ${file} to use npx`,
+  },
   run: {
     timedOut: (cmd, ms) => `${cmd} went over the ${ms}ms limit`,
     exitCode: (cmd, code) => `${cmd} exited with code ${code}`,

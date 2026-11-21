@@ -38,6 +38,7 @@ const run: Run = async (cmd, args, opts) => {
 const deps = (up = true): CliDeps => ({
   env: { AGENT_CLOUD_KIT_DIR: tools, AGENT_CLOUD_KIT_HOME: home },
   run,
+  available: () => true,
   docker: { start: () => undefined, ensure: async () => up },
   packageVersion: "1.0.0",
   print: (line) => printed.push(line),
@@ -78,11 +79,11 @@ test("setup without --repo skips, runs and relaunches in series and exits 0", as
   const other = makeRepo("c-other", { version: "1.2.0" });
   const code = await main(["setup"], deps());
   assert.equal(code, 0);
-  assert.ok(printed.includes(`agent-cloud-kit: se omite ${none}: no hay .claude/cloud.json`));
+  assert.ok(printed.includes(`agent-cloud-kit: se omite ${none}: no hay .agents/runner.json`));
   assert.ok(printed.includes(`agent-cloud-kit: setup ${same}: 2 pasos, 1 fallaron (setup: fail)`));
   assert.deepEqual(calls.at(-1), {
-    cmd: "npx",
-    args: ["-y", "agent-cloud-kit@1.2.0", "setup", "--repo", other],
+    cmd: "bunx",
+    args: ["--bun", "agent-cloud-kit@1.2.0", "setup", "--repo", other],
   });
 });
 
@@ -94,6 +95,42 @@ test("a failed relaunch is reported and setup still exits 0", async () => {
   const code = await main(["setup"], { ...deps(), run: failing });
   assert.equal(code, 0);
   assert.ok(printed.some((l) => l.includes("relanzamiento") && l.includes("npx exited with code 1")));
+});
+
+test("a failed Bun install is reported for that repo and the next one is processed", async () => {
+  const first = makeRepo("a-bun");
+  mkdirSync(join(first, ".agents"));
+  writeFileSync(join(first, ".agents/runner.json"), JSON.stringify({ runner: "bun", tools: { "agent-cloud-kit": "1.5.0" } }));
+  makeRepo("b-same", { version: "1.0.0" });
+  const failingNpm: Run = async (cmd, args, opts) => {
+    calls.push({ cmd, args });
+    envs.push(opts?.env);
+    if (cmd === "npm") throw new Error("npm exited with code 1");
+  };
+  const code = await main(["setup"], { ...deps(), run: failingNpm, available: () => false });
+  assert.equal(code, 0);
+  assert.ok(printed.some((l) => l.includes('"runner": "node"') && l.includes(first)), printed.join("\n"));
+  assert.ok(!calls.some((c) => c.cmd === "bunx"));
+  assert.ok(printed.some((l) => l.includes("b-same") && l.includes("pasos")), printed.join("\n"));
+});
+
+test("setup --repo names runner.json in the version warning when the pin comes from it", async () => {
+  const repo = makeRepo("app");
+  mkdirSync(join(repo, ".agents"));
+  writeFileSync(join(repo, ".agents/runner.json"), JSON.stringify({ tools: { "agent-cloud-kit": "2.0.0" } }));
+  await main(["setup", "--repo", repo], deps());
+  assert.ok(printed.includes("agent-cloud-kit: corriendo la versión 1.0.0, aunque .agents/runner.json pide la 2.0.0"), printed.join("\n"));
+});
+
+test("session delegates to the version of runner.json", async () => {
+  const repo = makeRepo("app");
+  mkdirSync(join(repo, ".agents"));
+  writeFileSync(join(repo, ".agents/runner.json"), JSON.stringify({ tools: { "agent-cloud-kit": "1.6.0" } }));
+  const bin = join(tools, "pkg", "1.6.0", "node_modules", ".bin");
+  mkdirSync(bin, { recursive: true });
+  writeFileSync(join(bin, "agent-cloud-kit"), "");
+  await main(["session"], { ...deps(), env: { ...deps().env, CLAUDE_PROJECT_DIR: repo } });
+  assert.deepEqual(calls, [{ cmd: join(bin, "agent-cloud-kit"), args: ["session"] }]);
 });
 
 test("session delegates to the installed version the repo asks for", async () => {
@@ -161,7 +198,7 @@ test("a repo that throws does not stop the next ones", async () => {
   };
   assert.equal(await main(["setup"], { ...deps(), print: throwing }), 0);
   assert.ok(printed.includes(`agent-cloud-kit: error en setup de ${first}: boom`));
-  assert.deepEqual(calls.at(-1), { cmd: "npx", args: ["-y", "agent-cloud-kit@1.2.0", "setup", "--repo", second] });
+  assert.deepEqual(calls.at(-1), { cmd: "bunx", args: ["--bun", "agent-cloud-kit@1.2.0", "setup", "--repo", second] });
 });
 
 test("init writes the config and hook, doctor exits 1 when a check fails", async () => {

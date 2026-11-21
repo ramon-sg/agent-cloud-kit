@@ -9,7 +9,10 @@ import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { pathToFileURL } from "node:url";
+import { RUNNER_FILE, runnerAvailable } from "@ramon-sg/runner";
+import type { Runner } from "@ramon-sg/runner";
 import { renderBlock } from "./block.ts";
+import { ensureRunner } from "./bun.ts";
 import { readConfig } from "./config.ts";
 import { CONFIG_FILE, DOCKERD_LOG, OUTPUT_PREFIX, RUNNING_PACKAGE_ROOT, homeDir, toolsDir } from "./constants.ts";
 import { doctor, doctorBlock } from "./doctor.ts";
@@ -20,6 +23,7 @@ import { LANG_ENV, LangError, resolveLang, splitLang } from "./lang.ts";
 import type { Lang } from "./lang.ts";
 import { findRepos, packageBin, planSetup, relaunch } from "./launcher.ts";
 import type { SetupPlanItem } from "./launcher.ts";
+import { readPin } from "./pin.ts";
 import { MANUAL_FILE, writeManual } from "./manual.ts";
 import { stepLabel, t, useLang } from "./messages/index.ts";
 import { EXIT_INTERRUPTED, InterruptedError, branchDay, prepare, verifyBranch } from "./prepare/index.ts";
@@ -70,6 +74,8 @@ export interface CliDeps {
   run: Run;
   /** Docker operations. */
   docker: DockerOps;
+  /** Tells whether a runner (bunx or npx) is installed; `runnerAvailable` when omitted. */
+  available?: (runner: Runner) => boolean;
   /** Version of this package. */
   packageVersion: string;
   /** Prints one line on stdout. */
@@ -127,10 +133,12 @@ function message(err: unknown): string {
  * @param deps - CLI dependencies.
  */
 async function runOne(repo: string, deps: CliDeps): Promise<void> {
-  const { config, errors } = readConfig(repo);
-  for (const error of errors) deps.print(`${OUTPUT_PREFIX}${repo}: ${error}`);
-  if (config?.version && config.version !== deps.packageVersion) {
-    deps.print(OUTPUT_PREFIX + t().cli.versionMismatch(deps.packageVersion, CONFIG_FILE, config.version));
+  const { errors } = readConfig(repo);
+  const pin = readPin(repo);
+  for (const error of [...errors, ...pin.errors]) deps.print(`${OUTPUT_PREFIX}${repo}: ${error}`);
+  for (const warning of pin.warnings) deps.print(`${OUTPUT_PREFIX}${repo}: ${warning}`);
+  if (pin.version && pin.version !== deps.packageVersion) {
+    deps.print(OUTPUT_PREFIX + t().cli.versionMismatch(deps.packageVersion, pin.source === "runner" ? RUNNER_FILE : CONFIG_FILE, pin.version));
   }
   const state = await setupRepo(repo, {
     toolsDir: toolsDir(deps.env),
@@ -161,7 +169,8 @@ async function runPlanItem(item: SetupPlanItem, deps: CliDeps): Promise<void> {
   }
   deps.print(OUTPUT_PREFIX + t().cli.relaunching(item.version, item.repo));
   try {
-    await relaunch(item.repo, item.version, deps.run, langEnv(deps.env));
+    await ensureRunner(item.runner, deps.run, deps.env, deps.available ?? runnerAvailable);
+    await relaunch(item.repo, item.version, item.runner, deps.run, langEnv(deps.env));
   } catch (err) {
     deps.print(OUTPUT_PREFIX + t().cli.relaunchFailed(item.version, item.repo, message(err)));
   }
@@ -186,7 +195,7 @@ async function setupCommand(args: string[], deps: CliDeps): Promise<number> {
     }
     const repos = findRepos(homeDir(deps.env));
     if (!repos.length) deps.print(OUTPUT_PREFIX + t().cli.noRepos(homeDir(deps.env)));
-    for (const item of planSetup(repos, deps.packageVersion, readConfig)) {
+    for (const item of planSetup(repos, deps.packageVersion)) {
       try {
         await runPlanItem(item, deps);
       } catch (err) {
@@ -231,7 +240,7 @@ function sessionRepo(deps: CliDeps): string {
 async function sessionCommand(deps: CliDeps): Promise<number> {
   const repo = sessionRepo(deps);
   const tools = toolsDir(deps.env);
-  const wanted = readConfig(repo).config?.version;
+  const wanted = readPin(repo).version;
   const delegated = deps.env[DELEGATED_ENV] === DELEGATED_VALUE;
   if (!delegated && wanted && wanted !== deps.packageVersion && existsSync(packageBin(tools, wanted))) {
     try {

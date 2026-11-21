@@ -70,6 +70,10 @@ Opciones:
       `la versión viene de ${oldFile}, que quedó obsoleto: pásala a ${newFile}`,
     legacyBoth: (oldFile: string) => `quita "version" de ${oldFile}: manda .agents/runner.json`,
   },
+  runner: {
+    bunFailed: (file: string, reason: string) =>
+      `no se pudo dejar Bun listo (${reason}): pon "runner": "node" en ${file} para usar npx`,
+  },
   run: {
     timedOut: (cmd: string, ms: number) => `${cmd} superó el límite de ${ms}ms`,
     exitCode: (cmd: string, code: number) => `${cmd} terminó con el código ${code}`,

@@ -4,9 +4,12 @@
  */
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
-import type { readConfig } from "./config.ts";
-import { CONFIG_FILE, PACKAGE } from "./constants.ts";
+import { RUNNER_FILE, toolCommand } from "@ramon-sg/runner";
+import type { Runner } from "@ramon-sg/runner";
+import { readConfig } from "./config.ts";
+import { PACKAGE } from "./constants.ts";
 import { t } from "./messages/index.ts";
+import { readPin } from "./pin.ts";
 import type { Run } from "./run.ts";
 
 /** Directory, inside the tools dir, that holds one installed copy of this package per version. */
@@ -23,6 +26,8 @@ export interface SetupPlanItem {
   action: "run" | "relaunch" | "skip";
   /** Version the repo asks for, when known. */
   version?: string;
+  /** Runner the repo asks for (`"bun"` unless its runner.json says otherwise). */
+  runner: Runner;
   /** Why the repo is skipped. */
   reason?: string;
 }
@@ -67,35 +72,40 @@ export function findRepos(home: string): string[] {
  *
  * @param repos - Repo roots.
  * @param current - Version of this package.
- * @param read - Config reader (`readConfig`).
+ * @param pin - Pin reader (`readPin`).
  * @returns One item per repo, in the same order.
  * @example
- * planSetup(["/home/user/app"], "1.0.0", readConfig); // [{ repo: "/home/user/app", action: "run", version: "1.0.0" }]
+ * planSetup(["/home/user/app"], "1.0.0"); // [{ repo: "/home/user/app", action: "run", version: "1.0.0", runner: "bun" }]
  */
-export function planSetup(repos: string[], current: string, read: typeof readConfig): SetupPlanItem[] {
+export function planSetup(repos: string[], current: string, pin: typeof readPin = readPin): SetupPlanItem[] {
   return repos.map((repo): SetupPlanItem => {
-    const { config, errors } = read(repo);
-    if (!config) return { repo, action: "skip", reason: errors.length ? errors.join("; ") : t().config.missing(CONFIG_FILE) };
-    if (config.version === current) return { repo, action: "run", version: current };
-    return { repo, action: "relaunch", version: config.version };
+    const { version, runner, errors } = pin(repo);
+    if (!version) {
+      const reasons = errors.length ? errors : readConfig(repo).errors;
+      return { repo, action: "skip", runner, reason: reasons.length ? reasons.join("; ") : t().config.missing(RUNNER_FILE) };
+    }
+    if (version === current) return { repo, action: "run", version: current, runner };
+    return { repo, action: "relaunch", version, runner };
   });
 }
 
 /**
- * Runs setup for one repo with the exact version it pins, through npx.
+ * Runs setup for one repo with the exact version it pins, through the repo runner (bunx or npx).
  * The version is already validated as exact semver and travels as one argv element.
  *
  * @param repo - Repo root.
- * @param version - Exact version from the repo config.
+ * @param version - Exact version from the repo pin.
+ * @param runner - Runner the repo asks for.
  * @param run - Process runner.
- * @param env - Environment for npx.
+ * @param env - Environment for the runner.
  * @returns Resolves when the relaunched setup exits with 0.
- * @throws When npx cannot run or exits with a non-zero code.
+ * @throws When the runner cannot run or exits with a non-zero code.
  * @example
- * await relaunch("/home/user/app", "1.2.0", runProcess, process.env);
+ * await relaunch("/home/user/app", "1.2.0", "bun", runProcess, process.env);
  */
-export function relaunch(repo: string, version: string, run: Run, env: NodeJS.ProcessEnv): Promise<void> {
-  return run("npx", ["-y", `${PACKAGE}@${version}`, "setup", "--repo", repo], { env });
+export function relaunch(repo: string, version: string, runner: Runner, run: Run, env: NodeJS.ProcessEnv): Promise<void> {
+  const { file, args } = toolCommand(runner, PACKAGE, version, ["setup", "--repo", repo]);
+  return run(file, args, { env });
 }
 
 /**
