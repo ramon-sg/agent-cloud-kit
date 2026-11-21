@@ -5,6 +5,7 @@
  */
 import { existsSync, lstatSync, statSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, sep } from "node:path";
+import { RUNNER_FILE, chooseRunner } from "@ramon-sg/runner";
 import { readConfig } from "../config.ts";
 import { CONFIG_FILE } from "../constants.ts";
 import { defaultBranch } from "../detect.ts";
@@ -35,6 +36,7 @@ const DEFAULT_NOTES_FILE = ".claude/cloud-notes.md";
 const KNOWN_PATHS = [
   CONFIG_FILE,
   ".claude/settings.json",
+  RUNNER_FILE,
   ".agents/skills/cloud-ready",
   ".claude/skills/cloud-ready",
   "docs/agent-cloud.md",
@@ -111,6 +113,8 @@ export interface PrepareDeps {
   packageVersion: string;
   /** Root of this package, which holds the skill. */
   packageRoot: string;
+  /** Picks the runner for a new `.agents/runner.json`; `chooseRunner` when omitted. */
+  chooseRunner?: typeof chooseRunner;
   /** Today, as `YYYYMMDD` (see `branchDay`); names the branch. */
   today: string;
   /** Whether stdin and stdout are interactive terminals. */
@@ -372,7 +376,7 @@ async function createAndConfigure(repo: string, branch: string, worktree: string
   }
   const stopped = resumeLine(t().prepare.agentStopped, worktree);
   try {
-    const result = init(worktree, deps.packageVersion, deps.packageRoot);
+    const result = await init(worktree, deps.packageVersion, deps.packageRoot, deps.chooseRunner);
     for (const entry of result.entries) say(deps, entry.kind, entry.text);
     if (!result.ok) {
       say(deps, "warn", stopped);
@@ -641,7 +645,7 @@ async function prepareHere(gitRoot: string, deps: PrepareDeps, progress: Progres
   progress.here = true;
   const stopped = t().prepare.stoppedHere;
   try {
-    const result = init(gitRoot, deps.packageVersion, deps.packageRoot);
+    const result = await init(gitRoot, deps.packageVersion, deps.packageRoot, deps.chooseRunner);
     for (const entry of result.entries) say(deps, entry.kind, entry.text);
     if (!result.ok) {
       say(deps, "warn", stopped);

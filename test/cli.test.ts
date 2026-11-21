@@ -39,6 +39,7 @@ const deps = (up = true): CliDeps => ({
   env: { AGENT_CLOUD_KIT_DIR: tools, AGENT_CLOUD_KIT_HOME: home },
   run,
   available: () => true,
+  chooseRunner: async () => ({ runner: "node", warning: null }),
   docker: { start: () => undefined, ensure: async () => up },
   packageVersion: "1.0.0",
   print: (line) => printed.push(line),

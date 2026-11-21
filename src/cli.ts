@@ -9,7 +9,7 @@ import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { pathToFileURL } from "node:url";
-import { RUNNER_FILE, runnerAvailable } from "@ramon-sg/runner";
+import { RUNNER_FILE, chooseRunner, runnerAvailable } from "@ramon-sg/runner";
 import type { Runner } from "@ramon-sg/runner";
 import { renderBlock } from "./block.ts";
 import { ensureRunner } from "./bun.ts";
@@ -76,6 +76,8 @@ export interface CliDeps {
   docker: DockerOps;
   /** Tells whether a runner (bunx or npx) is installed; `runnerAvailable` when omitted. */
   available?: (runner: Runner) => boolean;
+  /** Picks the runner `init` writes in a new `.agents/runner.json`; `chooseRunner` when omitted. */
+  chooseRunner?: typeof chooseRunner;
   /** Version of this package. */
   packageVersion: string;
   /** Prints one line on stdout. */
@@ -293,10 +295,10 @@ async function doctorCommand(deps: CliDeps): Promise<number> {
  * @param deps - CLI dependencies.
  * @returns 0, or 1 when settings.json is not valid JSON or the skill cannot be copied.
  */
-function initCommand(deps: CliDeps): number {
-  let result: ReturnType<typeof init>;
+async function initCommand(deps: CliDeps): Promise<number> {
+  let result: Awaited<ReturnType<typeof init>>;
   try {
-    result = init(sessionRepo(deps), deps.packageVersion, deps.packageRoot ?? RUNNING_PACKAGE_ROOT);
+    result = await init(sessionRepo(deps), deps.packageVersion, deps.packageRoot ?? RUNNING_PACKAGE_ROOT, deps.chooseRunner);
   } catch (err) {
     deps.print(`${OUTPUT_PREFIX}${message(err)}`);
     return EXIT_FAIL;
@@ -435,6 +437,7 @@ function prepareDeps(deps: CliDeps): PrepareDeps {
     waitEnter: deps.waitEnter ?? waitTerminal,
     print: deps.print,
     packageVersion: deps.packageVersion,
+    chooseRunner: deps.chooseRunner,
     packageRoot: deps.packageRoot ?? RUNNING_PACKAGE_ROOT,
     today: deps.today ?? branchDay(new Date()),
     isTty: deps.isTty ?? (process.stdin.isTTY === true && process.stdout.isTTY === true),
