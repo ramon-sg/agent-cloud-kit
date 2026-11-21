@@ -282,6 +282,7 @@ async function doctorCommand(deps: CliDeps): Promise<number> {
     toolsDir: toolsDir(deps.env),
     packageVersion: deps.packageVersion,
     dockerInfo: deps.dockerInfo ?? dockerResponds,
+    available: deps.available,
   });
   for (const line of result.lines) deps.print(line);
   const art = deps.stdoutTty ?? process.stdout.isTTY === true;

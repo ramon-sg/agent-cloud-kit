@@ -94,10 +94,15 @@ Opciones:
     step: (name: string, ok: boolean, seconds: string) => `paso ${name}: ${ok ? "ok" : "falló"} (${seconds}s)`,
     docker: (ok: boolean) => `docker: ${ok ? "ok" : "falta"}`,
     plugin: (name: string) => `aviso: el plugin ${name} está activado pero no está en el repo; no llegará a la nube (copia sus skills con skills-manager)`,
-    skill: (dir: string, installed: string, version: string) =>
-      `aviso: ${dir} está en ${installed} y el paquete en ${version}; corre npx agent-cloud-kit@${version} init`,
+    skill: (dir: string, installed: string, version: string, command: string) =>
+      `aviso: ${dir} está en ${installed} y el paquete en ${version}; corre ${command}`,
+    runner: (runner: string, present: boolean) =>
+      present ? `ejecutor ${runner}: ok` : `ejecutor ${runner}: falta${runner === "bun" ? ': instala Bun o pon "runner": "node" en .agents/runner.json para usar npx' : ": instala Node.js (npx)"}`,
+    hookPin: (tool: string, version: string, ok: boolean) =>
+      ok ? `hook de SessionStart: ok (${tool}@${version})` : `el hook de SessionStart no dice ${tool}@${version}`,
+    warning: (text: string) => `aviso: ${text}`,
     groupError: (group: string, error: string) => `${group}: error: ${error}`,
-    groups: { network: "red", tools: "herramientas", docker: "docker", state: "estado", plugins: "plugins", skill: "skill" },
+    groups: { network: "red", tools: "herramientas", docker: "docker", state: "estado", plugins: "plugins", runner: "ejecutor", skill: "skill" },
     allOk: "Todo en orden",
     someFailed: (failed: number, total: number) => (failed === 1 ? `Falló 1 de ${total} revisiones` : `Fallaron ${failed} de ${total} revisiones`),
     warnings: (count: number) => (count === 1 ? "1 aviso" : `${count} avisos`),

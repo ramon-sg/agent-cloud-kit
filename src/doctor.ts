@@ -2,14 +2,18 @@
  * @file The `doctor` command: checks the network allowlist, the pinned tools, Docker and the
  * recorded machine state, and reports one line per check.
  */
+import { toolCommandText, runnerAvailable, checkToolPins } from "@ramon-sg/runner";
+import type { Runner } from "@ramon-sg/runner";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Block } from "./block.ts";
 import { readConfig } from "./config.ts";
-import { CONFIG_FILE, OUTPUT_PREFIX } from "./constants.ts";
+import { CONFIG_FILE, OUTPUT_PREFIX, PACKAGE } from "./constants.ts";
 import { TOOLS, readToolVersions } from "./detect.ts";
+import { isOwnHookCommand } from "./init.ts";
 import { isValidRequest, toolExecutable } from "./installers.ts";
 import { stepLabel, t } from "./messages/index.ts";
+import { readPin } from "./pin.ts";
 import type { Capture } from "./run.ts";
 import { expectedFingerprint } from "./session.ts";
 import { SKILL_DIR, skillVersion } from "./skill.ts";
@@ -44,6 +48,8 @@ export interface DoctorContext {
   packageVersion: string;
   /** Tells whether `docker info` succeeds. */
   dockerInfo: () => boolean;
+  /** Tells whether a runner is installed; defaults to `runnerAvailable`. */
+  available?: (runner: Runner) => boolean;
 }
 
 /** Result of `doctor`. */
@@ -189,7 +195,57 @@ function checkPlugins(repo: string): Check[] {
 function checkSkill(repo: string, packageVersion: string): Check[] {
   const installed = skillVersion(repo);
   if (installed === undefined || installed === packageVersion) return [];
-  return [{ text: t().doctor.skill(SKILL_DIR, installed, packageVersion), level: "warn" }];
+  const command = toolCommandText(readPin(repo).runner, PACKAGE, packageVersion, ["init"]);
+  return [{ text: t().doctor.skill(SKILL_DIR, installed, packageVersion, command), level: "warn" }];
+}
+
+/**
+ * Lists the commands of our own SessionStart hooks in the project settings; other tools' hooks,
+ * missing or malformed settings give nothing.
+ *
+ * @param repo - Repo root.
+ * @returns The commands of the hooks `init` wrote.
+ * @example
+ * ownHookCommands("/home/user/app"); // ["[ \"$CLAUDE_CODE_REMOTE\" = true ] || exit 0; ..."]
+ */
+function ownHookCommands(repo: string): string[] {
+  try {
+    const settings: unknown = JSON.parse(readFileSync(join(repo, SETTINGS_FILE), "utf8"));
+    const groups = (settings as { hooks?: { SessionStart?: unknown } } | null)?.hooks?.SessionStart;
+    if (!Array.isArray(groups)) return [];
+    return groups
+      .flatMap((group: { hooks?: unknown }) => (Array.isArray(group?.hooks) ? (group.hooks as { command?: unknown }[]) : []))
+      .map((hook) => hook?.command)
+      .filter((command): command is string => isOwnHookCommand(command));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Checks the runner: runner.json errors and warnings, that the runner is installed, and that our
+ * SessionStart hook says the version pinned in runner.json. Without a pin, or when the pin comes
+ * from the legacy cloud.json, or without our own hook, there is no pin line.
+ *
+ * @param repo - Repo root.
+ * @param available - Tells whether a runner is installed.
+ * @returns The checks, in order.
+ * @example
+ * checkRunner("/home/user/app", () => true); // [{ text: "ejecutor bun: ok", level: "ok" }, ...]
+ */
+function checkRunner(repo: string, available: (runner: Runner) => boolean): Check[] {
+  const pin = readPin(repo);
+  const out: Check[] = pin.errors.map((text) => ({ text, level: "fail" }));
+  if (pin.errors.length) return out;
+  out.push(...pin.warnings.map((text): Check => ({ text: t().doctor.warning(text), level: "warn" })));
+  const present = available(pin.runner);
+  out.push({ text: t().doctor.runner(pin.runner, present), level: verdict(present) });
+  if (pin.version === undefined || pin.source !== "runner") return out;
+  const commands = ownHookCommands(repo);
+  if (!commands.length) return out;
+  const failed = checkToolPins(repo, PACKAGE, commands).some((c) => c.status !== "ok");
+  out.push({ text: t().doctor.hookPin(PACKAGE, pin.version, !failed), level: verdict(!failed) });
+  return out;
 }
 
 /**
@@ -228,6 +284,7 @@ export async function doctor(repo: string, ctx: DoctorContext): Promise<DoctorRe
     })),
   );
   checks.push(...(await guarded(groups.state, () => checkState(repo, ctx))));
+  checks.push(...(await guarded(groups.runner, () => checkRunner(repo, ctx.available ?? runnerAvailable))));
   checks.push(...(await guarded(groups.plugins, () => checkPlugins(repo))));
   checks.push(...(await guarded(groups.skill, () => checkSkill(repo, ctx.packageVersion))));
   const failed = checks.filter((c) => c.level === "fail").length;

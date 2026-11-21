@@ -11,6 +11,8 @@ import type { DoctorContext } from "../src/doctor.ts";
 import { configImages } from "../src/detect.ts";
 import { readConfig } from "../src/config.ts";
 import type { Capture } from "../src/run.ts";
+import type { Runner } from "@ramon-sg/runner";
+import { hookCommand } from "../src/init.ts";
 import { fingerprint, statePath, writeState } from "../src/state.ts";
 
 let root: string;
@@ -47,7 +49,13 @@ beforeEach(() => {
   probes = [];
 });
 
-const ctx = (docker = true): DoctorContext => ({ capture: fakeCapture, toolsDir: tools, packageVersion: "1.0.0", dockerInfo: () => docker });
+const ctx = (docker = true, available: (r: Runner) => boolean = () => true): DoctorContext => ({
+  capture: fakeCapture,
+  toolsDir: tools,
+  packageVersion: "1.0.0",
+  dockerInfo: () => docker,
+  available,
+});
 
 test("reports each domain as ok or blocked and fails when any is blocked", async () => {
   writeFileSync(join(repo, ".claude/cloud.json"), JSON.stringify({ version: "1.0.0" }));
@@ -170,6 +178,66 @@ test("a cloud-ready skill of another version is a warning", async () => {
   writeFileSync(join(repo, ".agents/skills/cloud-ready/SKILL.md"), '---\nname: cloud-ready\nmetadata:\n  version: "0.9.0"\n---\n');
   const { lines } = await doctor(repo, ctx());
   assert.deepEqual(warnings(lines), [
-    "agent-cloud-kit: aviso: .agents/skills/cloud-ready está en 0.9.0 y el paquete en 1.0.0; corre npx agent-cloud-kit@1.0.0 init",
+    "agent-cloud-kit: aviso: .agents/skills/cloud-ready está en 0.9.0 y el paquete en 1.0.0; corre bunx --bun agent-cloud-kit@1.0.0 init",
   ]);
+});
+
+/** Writes `.agents/runner.json`. */
+function writeRunner(config: unknown): void {
+  mkdirSync(join(repo, ".agents"), { recursive: true });
+  writeFileSync(join(repo, ".agents/runner.json"), JSON.stringify(config));
+}
+
+/** Writes a SessionStart hook with the given command into settings.json. */
+function writeHook(command: string): void {
+  writeFileSync(join(repo, ".claude/settings.json"), JSON.stringify({ hooks: { SessionStart: [{ hooks: [{ type: "command", command }] }] } }));
+}
+
+const PREFIX = "agent-cloud-kit: ";
+const withText = (lines: string[], text: string): string[] => lines.filter((l) => l.startsWith(PREFIX) && l.includes(text));
+
+test("a valid runner.json with an available runner is ok", async () => {
+  writeRunner({ runner: "bun", tools: { "agent-cloud-kit": "1.0.0" } });
+  assert.deepEqual(withText((await doctor(repo, ctx())).lines, "ejecutor"), ["agent-cloud-kit: ejecutor bun: ok"]);
+});
+
+test("a missing bun fails and names Bun and the node runner", async () => {
+  writeRunner({ runner: "bun", tools: { "agent-cloud-kit": "1.0.0" } });
+  const { lines, ok } = await doctor(repo, ctx(true, () => false));
+  const [line] = withText(lines, "ejecutor");
+  assert.ok(line?.includes("Bun") && line.includes('"runner": "node"'), line);
+  assert.equal(ok, false);
+});
+
+test("an invalid runner.json fails with its error", async () => {
+  writeFileSync(join(repo, ".claude/cloud.json"), JSON.stringify({}));
+  mkdirSync(join(repo, ".agents"), { recursive: true });
+  writeFileSync(join(repo, ".agents/runner.json"), "{ nope");
+  const { lines, ok } = await doctor(repo, ctx());
+  assert.ok(withText(lines, ".agents/runner.json no es válido").length === 1);
+  assert.equal(ok, false);
+});
+
+test("a version only in cloud.json is a warning", async () => {
+  writeFileSync(join(repo, ".claude/cloud.json"), JSON.stringify({ version: "1.0.0" }));
+  assert.deepEqual(withText((await doctor(repo, ctx())).lines, "obsoleto"), [
+    "agent-cloud-kit: aviso: la versión viene de .claude/cloud.json, que quedó obsoleto: pásala a .agents/runner.json",
+  ]);
+});
+
+test("a hook with another version than runner.json fails; the same version is ok", async () => {
+  writeRunner({ runner: "bun", tools: { "agent-cloud-kit": "1.0.0" } });
+  writeHook(hookCommand("bun", "0.9.0"));
+  const bad = await doctor(repo, ctx());
+  assert.deepEqual(withText(bad.lines, "hook"), ["agent-cloud-kit: el hook de SessionStart no dice agent-cloud-kit@1.0.0"]);
+  assert.equal(bad.ok, false);
+  writeHook(hookCommand("bun", "1.0.0"));
+  assert.deepEqual(withText((await doctor(repo, ctx())).lines, "hook"), ["agent-cloud-kit: hook de SessionStart: ok (agent-cloud-kit@1.0.0)"]);
+});
+
+test("without our own hook there is no pin line, even with another tool's hook that mentions us", async () => {
+  writeRunner({ runner: "bun", tools: { "agent-cloud-kit": "1.0.0" } });
+  writeHook("npx --yes @ramon-sg/issue-flow@0.6.0 session # runs agent-cloud-kit session in the cloud");
+  const { lines } = await doctor(repo, ctx());
+  assert.deepEqual(withText(lines, "hook"), []);
 });
