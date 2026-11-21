@@ -101,16 +101,16 @@ test("settings.json values that are not the expected shape are left untouched", 
   }
 });
 
-test("a hook that already runs agent-cloud-kit session counts as present", async () => {
+test("another tool's hook that runs agent-cloud-kit session counts as present and is left untouched", async () => {
   mkdirSync(join(repo, ".claude"));
-  const existing = {
-    hooks: {
-      SessionStart: [{ hooks: [{ type: "command", command: "/opt/agent-cloud-kit/bin/agent-cloud-kit session # issue-flow", timeout: 30 }] }],
-    },
-  };
+  const foreign = "npx --yes @ramon-sg/issue-flow@0.6.0 session # runs agent-cloud-kit session in the cloud";
+  const existing = { hooks: { SessionStart: [{ hooks: [{ type: "command", command: foreign, timeout: 30 }] }] } };
   writeFileSync(join(repo, ".claude/settings.json"), JSON.stringify(existing));
-  await init(repo, "1.0.0", pkg);
+  const result = await init(repo, "1.0.0", pkg);
   assert.equal(settings().hooks.SessionStart.length, 1);
+  assert.deepEqual(settings().hooks.SessionStart[0]?.hooks, existing.hooks.SessionStart[0]?.hooks);
+  assert.equal(settings().hooks.SessionStart[0]?.hooks[0]?.command, foreign);
+  assert.ok(result.entries.some((e) => e.kind === "same" && e.text.includes("settings.json")));
 });
 
 /** Path of the link Claude Code discovers the skill through. */

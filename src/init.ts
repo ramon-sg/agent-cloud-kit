@@ -22,8 +22,23 @@ const HOOK_TIMEOUT_SECONDS = 600;
 /** Indentation of the files written. */
 const JSON_INDENT = 2;
 
+/** Fixed start of the command of our own hook; a hook that merely mentions the marker (another tool's) does not start with it. */
+export const HOOK_PREFIX = "[ \"$CLAUDE_CODE_REMOTE\" = true ] || exit 0; /opt/agent-cloud-kit/bin/agent-cloud-kit session";
+
+/**
+ * Tells whether a hook command is the one `init` writes (any version of it).
+ *
+ * @param command - Command of a hook.
+ * @returns True when it starts with `HOOK_PREFIX`.
+ * @example
+ * isOwnHookCommand(hookCommand("bun", "1.0.0")); // true
+ */
+export function isOwnHookCommand(command: unknown): boolean {
+  return typeof command === "string" && command.startsWith(HOOK_PREFIX);
+}
+
 /** Script of the hook (the installed link, fast and offline); the help text after it carries the pinned version. */
-const HOOK_SCRIPT = "[ \"$CLAUDE_CODE_REMOTE\" = true ] || exit 0; /opt/agent-cloud-kit/bin/agent-cloud-kit session";
+const HOOK_SCRIPT = HOOK_PREFIX;
 
 /**
  * Command of the SessionStart hook: does nothing outside cloud sessions. It runs the installed
@@ -105,16 +120,16 @@ function writeJson(file: string, value: unknown): void {
  * Finds the hook of ours inside the SessionStart entries.
  *
  * @param entries - The `hooks.SessionStart` array.
- * @returns The hook object whose command contains the marker, or undefined.
+ * @returns Our own hook if present, else any hook whose command contains the marker, or undefined.
  */
 function findHook(entries: unknown[]): Record<string, unknown> | undefined {
+  const found: Record<string, unknown>[] = [];
   for (const entry of entries) {
     const hooks = (entry as { hooks?: unknown } | null)?.hooks;
     if (!Array.isArray(hooks)) continue;
-    const found = hooks.find((h) => isRecord(h) && String(h.command ?? "").includes(HOOK_MARKER));
-    if (found) return found as Record<string, unknown>;
+    for (const h of hooks) if (isRecord(h) && String(h.command ?? "").includes(HOOK_MARKER)) found.push(h);
   }
-  return undefined;
+  return found.find((h) => isOwnHookCommand(h.command)) ?? found[0];
 }
 
 /**
@@ -164,7 +179,9 @@ function registerHook(repo: string, command: string): { entry: InitEntry; ok: bo
   const entries = hooks.SessionStart ?? [];
   if (!Array.isArray(entries)) return addByHand(t().init.sessionStartNotArray, command);
   const current = findHook(entries);
-  if (current?.command === command) return { entry: { kind: "same", text: t().init.hookExists(SETTINGS_FILE) }, ok: true };
+  // Another tool's hook that runs `agent-cloud-kit session` counts as present and is never rewritten.
+  if (current && (current.command === command || !isOwnHookCommand(current.command)))
+    return { entry: { kind: "same", text: t().init.hookExists(SETTINGS_FILE) }, ok: true };
   if (current) {
     current.command = command;
     writeJson(file, settings);
