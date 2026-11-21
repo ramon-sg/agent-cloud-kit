@@ -62,13 +62,13 @@ echo "== install the tarball and run setup"
 "${COMPOSE[@]}" cp "$HERE/fixture" box:/work/fixture >/dev/null 2>&1
 in_box 'git config --global --add safe.directory "*" && cd /work/fixture && git init -q && git config user.email t@example.com && git config user.name t && git add -A && git commit -qm fixture'
 in_box 'npm install -g /tmp/package.tgz >/dev/null 2>&1'
-# NOTE: the fixture pins the packed version, so setup runs this build instead of relaunching
+# NOTE: .agents/runner.json pins the packed version, so setup runs this build instead of relaunching
 # another one from npm.
 in_box "node -e \"
 const fs = require('fs');
-const f = '/work/fixture/.claude/cloud.json';
+const f = '/work/fixture/.agents/runner.json';
 const c = JSON.parse(fs.readFileSync(f, 'utf8'));
-c.version = '$VERSION';
+c.tools['agent-cloud-kit'] = '$VERSION';
 fs.writeFileSync(f, JSON.stringify(c, null, 2));
 \""
 in_box 'AGENT_CLOUD_KIT_HOME=/work agent-cloud-kit setup' || fail "agent-cloud-kit setup exited non-zero"
@@ -86,6 +86,13 @@ const failed = s.steps.filter((x) => !x.ok);
 if (failed.length) { console.log(JSON.stringify(failed)); process.exit(1); }
 console.log('0 failed of');
 \""
+expect_output "runner bun step ok" "true" \
+  "node -e \"
+const s = JSON.parse(require('fs').readFileSync('/opt/agent-cloud-kit/state/fixture.json', 'utf8'));
+console.log(s.steps.some((x) => x.name === 'runner bun' && x.ok));
+\""
+in_box 'command -v bunx >/dev/null' || fail "bunx is not on PATH after setup"
+echo "ok: bunx installed globally"
 expect_output "self install link" "/opt/agent-cloud-kit/pkg/$VERSION/node_modules/.bin/agent-cloud-kit" 'readlink /opt/agent-cloud-kit/bin/agent-cloud-kit'
 expect_output "self install copy" "$VERSION" "node -p \"require('/opt/agent-cloud-kit/pkg/$VERSION/node_modules/agent-cloud-kit/package.json').version\""
 expect_output "installed binary" "$VERSION" '/opt/agent-cloud-kit/bin/agent-cloud-kit --version'
@@ -105,6 +112,7 @@ echo "$doctor"
 grep -qx "agent-cloud-kit: red registry.npmjs.org: ok" <<<"$doctor" || fail "doctor did not reach registry.npmjs.org"
 grep -qx "agent-cloud-kit: red api.github.com: bloqueado" <<<"$doctor" || fail "doctor did not report api.github.com as blocked"
 grep -qx "agent-cloud-kit: herramienta node 24.14.1: ok" <<<"$doctor" || fail "doctor did not find node"
+grep -qx "agent-cloud-kit: ejecutor bun: ok" <<<"$doctor" || fail "doctor did not report the bun runner"
 echo "ok: doctor saw npm reachable and GitHub blocked"
 
 echo "== manual writes the setup script"
