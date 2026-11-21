@@ -3,14 +3,14 @@
   "title": "agent-cloud-kit config",
   "description": "Contents of .claude/cloud.json for agent-cloud-kit.",
   "type": "object",
-  "required": ["version"],
   "additionalProperties": false,
   "properties": {
     "$schema": { "type": "string", "description": "Path or URL of this schema." },
     "version": {
       "type": "string",
       "pattern": "^\\d+\\.\\d+\\.\\d+(-[0-9A-Za-z.-]+)?(\\+[0-9A-Za-z.-]+)?$",
-      "description": "Exact agent-cloud-kit version to run (no ranges)."
+      "deprecated": true,
+      "description": "Deprecated: use .agents/runner.json (tools[\"agent-cloud-kit\"]). Exact agent-cloud-kit version to run (no ranges)."
     },
     "aptRepos": {
       "type": "array",

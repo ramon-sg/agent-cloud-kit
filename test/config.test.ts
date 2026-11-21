@@ -30,6 +30,12 @@ afterEach(() => {
 });
 
 describe("readConfig", () => {
+  it("accepts a file without version", () => {
+    const result = readConfig(makeRepo(JSON.stringify({ apt: ["jq"] })));
+    assert.deepEqual(result.errors, []);
+    assert.equal(result.config?.version, undefined);
+  });
+
   it("returns no config and no errors when the file is missing", () => {
     assert.deepEqual(readConfig(makeRepo()), { errors: [] });
   });
@@ -96,8 +102,8 @@ describe("readConfig", () => {
     assert.match(result.errors[0] ?? "", /^\.claude\/cloud\.json: "version" debe ser/);
   });
 
-  it("requires version", () => {
-    const result = readConfig(makeRepo("{}"));
+  it("rejects a version that is not an exact semver", () => {
+    const result = readConfig(makeRepo(JSON.stringify({ version: "^1.0.0" })));
     assert.equal(result.config, undefined);
     assert.match(result.errors[0] ?? "", /"version" debe ser/);
   });

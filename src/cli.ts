@@ -129,7 +129,7 @@ function message(err: unknown): string {
 async function runOne(repo: string, deps: CliDeps): Promise<void> {
   const { config, errors } = readConfig(repo);
   for (const error of errors) deps.print(`${OUTPUT_PREFIX}${repo}: ${error}`);
-  if (config && config.version !== deps.packageVersion) {
+  if (config?.version && config.version !== deps.packageVersion) {
     deps.print(OUTPUT_PREFIX + t().cli.versionMismatch(deps.packageVersion, CONFIG_FILE, config.version));
   }
   const state = await setupRepo(repo, {

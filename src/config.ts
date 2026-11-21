@@ -53,7 +53,8 @@ const PULL_AUTO = "auto";
 
 /** Parsed and normalized contents of `.claude/cloud.json`. */
 export interface CloudConfig {
-  version: string;
+  /** Deprecated: the version now lives in `.agents/runner.json`; still read as a fallback. */
+  version?: string;
   aptRepos: string[];
   apt: string[];
   docker: { pull: "auto" | false | string[] };
@@ -169,7 +170,7 @@ function parseDomains(value: unknown, errors: string[]): string[] {
  *
  * @param raw - Parsed JSON object.
  * @param errors - Collector that receives any problem found.
- * @returns The config, or undefined when `version` is missing or invalid.
+ * @returns The config, or undefined when `version` is present but invalid.
  */
 function parseConfig(raw: Record<string, unknown>, errors: string[]): CloudConfig | undefined {
   const known: readonly string[] = [...CONFIG_KEYS, SCHEMA_KEY];
@@ -177,13 +178,12 @@ function parseConfig(raw: Record<string, unknown>, errors: string[]): CloudConfi
     if (!known.includes(key)) errors.push(fail(t().config.unknownField(key)));
   }
   const version = raw.version;
-  if (typeof version !== "string" || !EXACT_SEMVER.test(version)) {
+  if (version !== undefined && (typeof version !== "string" || !EXACT_SEMVER.test(version))) {
     errors.push(fail(t().config.badVersion));
     return undefined;
   }
   const lists = Object.fromEntries(LIST_KEYS.map((key) => [key, parseList(raw, key, errors)]));
   const config: CloudConfig = {
-    version,
     aptRepos: lists.aptRepos ?? [],
     apt: lists.apt ?? [],
     docker: parseDocker(raw.docker, errors),
@@ -192,6 +192,7 @@ function parseConfig(raw: Record<string, unknown>, errors: string[]): CloudConfi
     requiredEnv: lists.requiredEnv ?? [],
     domains: parseDomains(raw.domains, errors),
   };
+  if (version !== undefined) config.version = version;
   if (typeof raw.notes === "string") config.notes = raw.notes;
   else if (raw.notes !== undefined) errors.push(fail(t().config.notesNotString));
   return config;

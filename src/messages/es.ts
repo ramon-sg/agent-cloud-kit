@@ -64,6 +64,12 @@ Opciones:
     notObject: "debe contener un objeto JSON",
     missing: (file: string) => `no hay ${file}`,
   },
+  pin: {
+    invalid: (file: string, detail: string) => `${file} no es válido: ${detail}`,
+    legacyOnly: (oldFile: string, newFile: string) =>
+      `la versión viene de ${oldFile}, que quedó obsoleto: pásala a ${newFile}`,
+    legacyBoth: (oldFile: string) => `quita "version" de ${oldFile}: manda .agents/runner.json`,
+  },
   run: {
     timedOut: (cmd: string, ms: number) => `${cmd} superó el límite de ${ms}ms`,
     exitCode: (cmd: string, code: number) => `${cmd} terminó con el código ${code}`,

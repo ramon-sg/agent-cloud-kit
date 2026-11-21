@@ -61,6 +61,11 @@ Options:
     notObject: "must contain a JSON object",
     missing: (file) => `no ${file}`,
   },
+  pin: {
+    invalid: (file, detail) => `${file} is not valid: ${detail}`,
+    legacyOnly: (oldFile, newFile) => `the version comes from ${oldFile}, which is deprecated: move it to ${newFile}`,
+    legacyBoth: (oldFile) => `remove "version" from ${oldFile}: .agents/runner.json takes precedence`,
+  },
   run: {
     timedOut: (cmd, ms) => `${cmd} went over the ${ms}ms limit`,
     exitCode: (cmd, code) => `${cmd} exited with code ${code}`,
