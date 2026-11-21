@@ -30,7 +30,7 @@ afterEach(() => {
 });
 
 test("fingerprint has the sha256- prefix", () => {
-  assert.match(fingerprint(BASE, {}, [], "1.0.0"), /^sha256-[0-9a-f]{64}$/);
+  assert.match(fingerprint(BASE, {}, [], "1.0.0", "bun"), /^sha256-[0-9a-f]{64}$/);
 });
 
 test("fingerprint ignores key order", () => {
@@ -45,27 +45,27 @@ test("fingerprint ignores key order", () => {
     domains: [],
     };
   assert.equal(
-    fingerprint(BASE, { node: "20", bun: "1" }, [], "1.0.0"),
-    fingerprint(reordered, { bun: "1", node: "20" }, [], "1.0.0"),
+    fingerprint(BASE, { node: "20", bun: "1" }, [], "1.0.0", "bun"),
+    fingerprint(reordered, { bun: "1", node: "20" }, [], "1.0.0", "bun"),
   );
 });
 
 test("fingerprint changes with apt, versions, images or package version", () => {
-  const base = fingerprint(BASE, {}, [], "1.0.0");
-  assert.notEqual(base, fingerprint({ ...BASE, apt: ["jq", "git"] }, {}, [], "1.0.0"));
-  assert.notEqual(base, fingerprint(BASE, { node: "20" }, [], "1.0.0"));
-  assert.notEqual(base, fingerprint(BASE, {}, ["img"], "1.0.0"));
-  assert.notEqual(base, fingerprint(BASE, {}, [], "1.0.1"));
+  const base = fingerprint(BASE, {}, [], "1.0.0", "bun");
+  assert.notEqual(base, fingerprint({ ...BASE, apt: ["jq", "git"] }, {}, [], "1.0.0", "bun"));
+  assert.notEqual(base, fingerprint(BASE, { node: "20" }, [], "1.0.0", "bun"));
+  assert.notEqual(base, fingerprint(BASE, {}, ["img"], "1.0.0", "bun"));
+  assert.notEqual(base, fingerprint(BASE, {}, [], "1.0.1", "bun"));
 });
 
 test("domains do not change the fingerprint", () => {
   const other: CloudConfig = { ...BASE, domains: ["api.example.com"] };
-  assert.equal(fingerprint(BASE, {}, [], "1.0.0"), fingerprint(other, {}, [], "1.0.0"));
+  assert.equal(fingerprint(BASE, {}, [], "1.0.0", "bun"), fingerprint(other, {}, [], "1.0.0", "bun"));
 });
 
 test("fingerprint ignores notes, session and requiredEnv", () => {
   const other: CloudConfig = { ...BASE, notes: "hi", session: ["x"], requiredEnv: ["Y"] };
-  assert.equal(fingerprint(BASE, {}, [], "1.0.0"), fingerprint(other, {}, [], "1.0.0"));
+  assert.equal(fingerprint(BASE, {}, [], "1.0.0", "bun"), fingerprint(other, {}, [], "1.0.0", "bun"));
 });
 
 test("statePath uses the repo basename under state/", () => {
@@ -112,4 +112,13 @@ test("readState fills a missing resolved map", () => {
   mkdirSync(join(dir, "state"));
   writeFileSync(statePath(dir, "/x/repo"), JSON.stringify({ fingerprint: "a", packageVersion: "1.0.0", finishedAt: "now", steps: [] }));
   assert.deepEqual(readState(dir, "/x/repo")?.resolved, {});
+});
+
+test("fingerprint changes with the runner", () => {
+  assert.notEqual(fingerprint(BASE, {}, [], "1.0.0", "bun"), fingerprint(BASE, {}, [], "1.0.0", "node"));
+});
+
+test("fingerprint ignores the legacy config version", () => {
+  const other: CloudConfig = { ...BASE, version: "2.0.0" };
+  assert.equal(fingerprint(BASE, {}, [], "1.0.0", "bun"), fingerprint(other, {}, [], "1.0.0", "bun"));
 });

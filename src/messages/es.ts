@@ -131,6 +131,7 @@ Opciones:
     aptRepo: (url: string) => `repo de apt ${url}`,
     aptPackage: (name: string) => `paquete de apt ${name}`,
     selfInstall: (version: string) => `autoinstalación ${version}`,
+    runner: (name: string) => `ejecutor ${name}`,
     writeState: "guardar el estado",
     lane: (index: string) => `grupo ${index}`,
     config: "configuración",

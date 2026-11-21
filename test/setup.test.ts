@@ -103,6 +103,7 @@ const ctx = (up = true) => ({
   packageVersion: "1.0.0",
   env: {},
   docker: docker(up),
+  available: () => true,
   packageRoot: fakePackage(root, "1.0.0"),
 });
 
@@ -150,7 +151,7 @@ test("setup steps run after the tools and the self install, with both on PATH", 
   assert.ok(nodeAt >= 0 && nodeAt < oneAt && oneAt < twoAt);
   assert.ok(linkedBeforeSteps);
   assert.equal(envs[0]?.PATH, `${join(tools, "node-24.14.1", "bin")}:${join(tools, "bin")}:/usr/bin`);
-  assert.deepEqual(state.steps.map((s) => s.name), ["node 24.14.1", "self install 1.0.0", "setup: echo one", "setup: echo two"]);
+  assert.deepEqual(state.steps.map((s) => s.name), ["node 24.14.1", "self install 1.0.0", "runner bun", "setup: echo one", "setup: echo two"]);
   assert.deepEqual(state.resolved, { node: "24.14.1" });
   assert.deepEqual(readState(tools, repo), state);
 });
@@ -341,4 +342,35 @@ test("a timed out setup step is recorded and the next one still runs", async () 
   assert.match(one?.error ?? "", /superó el límite/);
   assert.equal(state.steps.find((s) => s.name === "setup: echo two")?.ok, true);
   assert.ok(log.includes("bash -c echo two"));
+});
+
+/** Writes `.agents/runner.json` with the runner. */
+const writeRunner = (runner: string) => {
+  mkdirSync(join(repo, ".agents"), { recursive: true });
+  writeFileSync(join(repo, ".agents/runner.json"), JSON.stringify({ runner }));
+};
+
+test("runner bun installs bun with npm when it is missing", async () => {
+  writeConfig();
+  writeRunner("bun");
+  const state = await setupRepo(repo, { ...ctx(), available: () => false });
+  assert.ok(log.includes("npm install -g bun"));
+  assert.equal(state.steps.find((s) => s.name === "runner bun")?.ok, false);
+});
+
+test("runner node needs no npm call", async () => {
+  writeConfig();
+  writeRunner("node");
+  const state = await setupRepo(repo, { ...ctx(), available: () => false });
+  assert.equal(state.steps.find((s) => s.name === "runner node")?.ok, true);
+  assert.ok(!log.some((l) => l.startsWith("npm")));
+});
+
+test("a failing runner step does not stop the other steps", async () => {
+  writeConfig({ setup: ["echo one"] });
+  writeRunner("bun");
+  const state = await setupRepo(repo, { ...ctx(), available: () => false });
+  const runnerStep = state.steps.find((s) => s.name === "runner bun");
+  assert.equal(runnerStep?.ok, false);
+  assert.ok(state.steps.some((s) => s.name === "setup: echo one" && s.ok));
 });

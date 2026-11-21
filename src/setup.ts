@@ -4,8 +4,10 @@
  * repo's setup steps and records the result. Values from the repo config are untrusted: they are
  * validated and always passed as argv, never interpolated into a shell string.
  */
+import type { Runner } from "@ramon-sg/runner";
 import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, symlinkSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
+import { ensureRunner } from "./bun.ts";
 import { findProxyCa } from "./ca.ts";
 import { readConfig } from "./config.ts";
 import type { CloudConfig } from "./config.ts";
@@ -17,6 +19,7 @@ import { curlNodeIndex, installTools, resolveVersions } from "./installers.ts";
 import type { Versions } from "./installers.ts";
 import { linkPath, packageBin, packageInstallDir } from "./launcher.ts";
 import { STEP, t } from "./messages/index.ts";
+import { readPin } from "./pin.ts";
 import type { Run } from "./run.ts";
 import { pathDirs, toolsEnv } from "./session.ts";
 import { fingerprint, writeState } from "./state.ts";
@@ -71,6 +74,8 @@ export interface SetupContext {
   docker?: DockerOps;
   /** Root of the package copied by the self install; the running package when omitted. */
   packageRoot?: string;
+  /** Tells whether a runner is already usable; the real check when omitted. */
+  available?: (runner: Runner) => boolean;
 }
 
 /** Resolved dependencies shared by the setup lanes. */
@@ -272,6 +277,7 @@ async function runPhases(repo: string, config: CloudConfig, ctx: SetupContext): 
   const env = ctx.env ?? process.env;
   const versions = readToolVersions(repo);
   const images = configImages(config, repo);
+  const runner = readPin(repo).runner;
   const base: Deps = { repo, toolsDir: ctx.toolsDir, run: ctx.run, env };
   let resolved: Versions = {};
   const toolsLane = async (): Promise<StepResult[]> => {
@@ -284,12 +290,13 @@ async function runPhases(repo: string, config: CloudConfig, ctx: SetupContext): 
     () => aptLane(config, base),
     () => dockerLane(config, images, ctx.docker ?? realDocker, base),
     async () => [await selfInstall(ctx.packageVersion, ctx.toolsDir, ctx.packageRoot ?? RUNNING_PACKAGE_ROOT)],
+    async () => [await step(STEP.runner + runner, () => ensureRunner(runner, ctx.run, env, ctx.available))],
   );
   const dirs = pathDirs(versions, ctx.toolsDir, resolved);
   const toolsDeps: Deps = { ...base, env: toolsEnv(dirs, env, findProxyCa(env, existsSync)) };
   steps.push(...(await setupSteps(config.setup, toolsDeps)));
   const state: MachineState = {
-    fingerprint: fingerprint(config, readToolVersions(repo), configImages(config, repo), ctx.packageVersion),
+    fingerprint: fingerprint(config, readToolVersions(repo), configImages(config, repo), ctx.packageVersion, runner),
     packageVersion: ctx.packageVersion,
     finishedAt: new Date().toISOString(),
     steps,

@@ -65,6 +65,8 @@ export function stepLabel(name: string): string {
   if (aptPackage !== undefined) return m.aptPackage(aptPackage);
   const selfInstall = rest(STEP.selfInstall);
   if (selfInstall !== undefined) return m.selfInstall(selfInstall);
+  const runner = rest(STEP.runner);
+  if (runner !== undefined) return m.runner(runner);
   const lane = rest(STEP.lane);
   if (lane !== undefined && /^\d+$/.test(lane)) return m.lane(lane);
   if (name === STEP.writeState) return m.writeState;
@@ -77,6 +79,7 @@ export const STEP = {
   aptRepo: "apt repo ",
   aptPackage: "apt package ",
   selfInstall: "self install ",
+  runner: "runner ",
   lane: "lane ",
   writeState: "write state",
   config: "config",

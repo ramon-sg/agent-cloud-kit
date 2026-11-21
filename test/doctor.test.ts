@@ -124,7 +124,7 @@ test("checks tools, docker, fingerprint and step durations", async () => {
   writeFileSync(join(repo, ".claude/cloud.json"), JSON.stringify({ version: "1.0.0" }));
   writeFileSync(join(repo, ".tool-versions"), "nodejs 24.14.1\n");
   const config = readConfig(repo).config!;
-  const fp = fingerprint(config, { node: "24.14.1" }, configImages(config, repo), "1.0.0");
+  const fp = fingerprint(config, { node: "24.14.1" }, configImages(config, repo), "1.0.0", "bun");
   writeState(tools, repo, {
     fingerprint: fp,
     packageVersion: "1.0.0",

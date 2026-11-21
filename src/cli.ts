@@ -147,6 +147,7 @@ async function runOne(repo: string, deps: CliDeps): Promise<void> {
     env: deps.env,
     docker: deps.docker,
     packageRoot: deps.packageRoot,
+    available: deps.available,
   });
   const failed = state.steps.filter((s) => !s.ok).map((s) => stepLabel(s.name));
   deps.print(OUTPUT_PREFIX + t().cli.setupSummary(repo, state.steps.length, failed.length, failed));

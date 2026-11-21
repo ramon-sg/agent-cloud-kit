@@ -6,6 +6,7 @@ import { appendFileSync, existsSync } from "node:fs";
 import { basename, join } from "node:path";
 import { findProxyCa, shellQuote } from "./ca.ts";
 import { readConfig } from "./config.ts";
+import { readPin } from "./pin.ts";
 import type { CloudConfig } from "./config.ts";
 import { CONFIG_FILE, GIT_FETCH_TIMEOUT_MS, OUTPUT_PREFIX, packageSpec, SETUP_SLOW_MS } from "./constants.ts";
 import { configImages, defaultBranch, readToolVersions } from "./detect.ts";
@@ -111,7 +112,7 @@ function minutesSeconds(ms: number): string {
  * expectedFingerprint("/home/user/app", config, state) === state.fingerprint;
  */
 export function expectedFingerprint(repo: string, config: CloudConfig, state: MachineState): string {
-  return fingerprint(config, readToolVersions(repo), configImages(config, repo), state.packageVersion);
+  return fingerprint(config, readToolVersions(repo), configImages(config, repo), state.packageVersion, readPin(repo).runner);
 }
 
 /**
@@ -229,6 +230,8 @@ async function sessionBody(repo: string, ctx: SessionContext, out: string[]): Pr
   if (!existsSync(join(repo, CONFIG_FILE))) return;
   const { config, errors } = readConfig(repo);
   out.push(...errors);
+  const pin = readPin(repo);
+  out.push(...pin.errors, ...pin.warnings);
   const versions = readToolVersions(repo);
   const state = readState(ctx.toolsDir, repo);
   const dirs = pathDirs(versions, ctx.toolsDir, state?.resolved ?? {});

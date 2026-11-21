@@ -4,6 +4,7 @@
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
+import type { Runner } from "@ramon-sg/runner";
 import type { CloudConfig } from "./config.ts";
 import { TOOLS } from "./detect.ts";
 import type { Tool } from "./detect.ts";
@@ -60,19 +61,23 @@ function stableJson(value: unknown): string {
  * @param config - Repo config.
  * @param versions - Pinned tool versions.
  * @param images - Docker images to pull.
+ * The legacy `config.version` is left out: the version a repo pins does not shape the machine.
+ *
  * @param packageVersion - Version of this package.
+ * @param runner - Runner the repo asks for (`bun` or `node`).
  * @returns `sha256-<hex>`.
  * @example
- * fingerprint(config, { node: "20.1.0" }, ["postgres:16"], "1.0.0"); // "sha256-ab12..."
+ * fingerprint(config, { node: "20.1.0" }, ["postgres:16"], "1.0.0", "bun"); // "sha256-ab12..."
  */
 export function fingerprint(
   config: CloudConfig,
   versions: Partial<Record<Tool, string>>,
   images: string[],
   packageVersion: string,
+  runner: Runner,
 ): string {
-  const { version, aptRepos, apt, docker, setup } = config;
-  const json = stableJson({ version, aptRepos, apt, docker, setup, versions, images, packageVersion });
+  const { aptRepos, apt, docker, setup } = config;
+  const json = stableJson({ aptRepos, apt, docker, setup, versions, images, packageVersion, runner });
   return FINGERPRINT_PREFIX + createHash(HASH_ALGORITHM).update(json).digest("hex");
 }
 

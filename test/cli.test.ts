@@ -70,7 +70,7 @@ test("setup --repo with another version runs anyway and warns, without relaunchi
   assert.ok(printed.includes("agent-cloud-kit: corriendo la versión 1.0.0, aunque .claude/cloud.json pide la 2.0.0"));
   assert.ok(!calls.some((c) => c.cmd === "npx"));
   assert.ok(calls.some((c) => c.cmd === "bash" && c.args[1] === "echo hi"));
-  assert.ok(printed.includes(`agent-cloud-kit: setup ${repo}: 2 pasos, 0 fallaron`));
+  assert.ok(printed.includes(`agent-cloud-kit: setup ${repo}: 3 pasos, 0 fallaron`));
 });
 
 test("setup without --repo skips, runs and relaunches in series and exits 0", async () => {
@@ -80,7 +80,7 @@ test("setup without --repo skips, runs and relaunches in series and exits 0", as
   const code = await main(["setup"], deps());
   assert.equal(code, 0);
   assert.ok(printed.includes(`agent-cloud-kit: se omite ${none}: no hay .agents/runner.json`));
-  assert.ok(printed.includes(`agent-cloud-kit: setup ${same}: 2 pasos, 1 fallaron (setup: fail)`));
+  assert.ok(printed.includes(`agent-cloud-kit: setup ${same}: 3 pasos, 1 fallaron (setup: fail)`));
   assert.deepEqual(calls.at(-1), {
     cmd: "bunx",
     args: ["--bun", "agent-cloud-kit@1.2.0", "setup", "--repo", other],
@@ -186,7 +186,7 @@ test("setup --repo without a value prints an error and runs nothing", async () =
 test("setup --repo resolves a relative path against the cwd", async () => {
   makeRepo("app", { version: "1.0.0" });
   assert.equal(await main(["setup", "--repo", "home/app"], deps()), 0);
-  assert.ok(printed.includes(`agent-cloud-kit: setup ${join(home, "app")}: 1 pasos, 0 fallaron`));
+  assert.ok(printed.includes(`agent-cloud-kit: setup ${join(home, "app")}: 2 pasos, 0 fallaron`));
 });
 
 test("a repo that throws does not stop the next ones", async () => {

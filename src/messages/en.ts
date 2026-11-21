@@ -122,6 +122,7 @@ Options:
     aptRepo: (url) => `apt repo ${url}`,
     aptPackage: (name) => `apt package ${name}`,
     selfInstall: (version) => `self install ${version}`,
+    runner: (name) => `runner ${name}`,
     writeState: "write state",
     lane: (index) => `lane ${index}`,
     config: "config",

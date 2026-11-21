@@ -55,7 +55,7 @@ const config = (extra: Partial<CloudConfig> = {}): CloudConfig => ({
   version: "1.0.0", aptRepos: [], apt: [], docker: { pull: "auto" }, setup: [], session: [], requiredEnv: [], domains: [], ...extra,
 });
 
-const record = (steps: StepResult[], fp = fingerprint(config(), {}, [], "1.0.0"), resolved = {}) =>
+const record = (steps: StepResult[], fp = fingerprint(config(), {}, [], "1.0.0", "bun"), resolved = {}) =>
   writeState(tools, repo, { fingerprint: fp, packageVersion: "1.0.0", finishedAt: "now", steps, resolved });
 
 test("repo without cloud.json prints only the generic note", async () => {
@@ -239,7 +239,7 @@ test("the PATH line puts agent-cloud-kit's bin dir on PATH even with no pinned t
 test("a partial node version maps to the exact version setup resolved", async () => {
   writeConfig({ session: ["echo hi"] });
   writeFileSync(join(repo, ".nvmrc"), "22\n");
-  record([], fingerprint(config(), { node: "22" }, [], "1.0.0"), { node: "22.12.0" });
+  record([], fingerprint(config(), { node: "22" }, [], "1.0.0", "bun"), { node: "22.12.0" });
   const envFile = join(root, "env");
   const lines = await session(repo, ctx({ CLAUDE_ENV_FILE: envFile }));
   assert.ok(!lines.some((l) => l.includes("another configuration")), lines.join("\n"));
@@ -277,4 +277,13 @@ test("session limits each git fetch", async () => {
   const fetches = calls.filter((c) => c.cmd === "git" && c.args[0] === "fetch");
   assert.equal(fetches.length, 2);
   for (const f of fetches) assert.equal(f.opts?.timeoutMs, GIT_FETCH_TIMEOUT_MS);
+});
+
+test("an invalid runner.json prints its error and the session goes on", async () => {
+  writeConfig();
+  mkdirSync(join(repo, ".agents"), { recursive: true });
+  writeFileSync(join(repo, ".agents/runner.json"), "{ not json");
+  const lines = await session(repo, ctx({ GITHUB_ENV: "" }));
+  assert.ok(lines.some((l) => l.includes("runner.json")));
+  assert.ok(lines.length > 1);
 });
