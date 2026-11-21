@@ -29,6 +29,10 @@ export interface RepoPin {
  *
  * `.agents/runner.json` wins; `.claude/cloud.json` is a deprecated fallback that adds a warning.
  *
+ * Problems in `.claude/cloud.json` itself (including an invalid `version`) are not repeated here: callers
+ * already call `readConfig` and print its errors, so an invalid cloud.json `version` just yields no pin.
+ * The detail of an invalid `runner.json` is the runner library's text with its file prefix removed.
+ *
  * @param repo - Path of the repo root.
  * @param read - Cloud config reader (`readConfig`).
  * @returns The pin, with translated errors and warnings.
@@ -41,7 +45,7 @@ export function readPin(repo: string, read: typeof readConfig = readConfig): Rep
     runnerConfig = readRunnerConfig(repo);
   } catch (error) {
     if (!(error instanceof RunnerFileError)) throw error;
-    return { runner: "bun", errors: [t().pin.invalid(RUNNER_FILE, error.message)], warnings: [] };
+    return { runner: "bun", errors: [t().pin.invalid(RUNNER_FILE, error.message.slice(`${error.file}: `.length))], warnings: [] };
   }
   const runner = effectiveRunner(runnerConfig);
   const fromRunner = runnerConfig?.tools[TOOL_NAME];

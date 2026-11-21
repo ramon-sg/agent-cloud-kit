@@ -60,6 +60,13 @@ describe("readPin", () => {
     assert.match(pin.warnings[0]!, /\.agents\/runner\.json/);
   });
 
+  it("takes the runner from runner.json and the version from cloud.json", () => {
+    const pin = readPin(makeRepo({ runner: JSON.stringify({ runner: "node" }), cloud: JSON.stringify({ version: "1.0.0" }) }));
+    assert.equal(pin.runner, "node");
+    assert.equal(pin.version, "1.0.0");
+    assert.equal(pin.source, "cloud");
+  });
+
   it("prefers runner.json and warns about the old cloud.json version", () => {
     const pin = readPin(
       makeRepo({
@@ -78,6 +85,7 @@ describe("readPin", () => {
     assert.equal(pin.version, undefined);
     assert.equal(pin.errors.length, 1);
     assert.match(pin.errors[0]!, /\.agents\/runner\.json/);
+    assert.equal(pin.errors[0]!.split(".agents/runner.json").length, 2, "path appears once");
   });
 
   it("returns nothing when neither file exists", () => {
