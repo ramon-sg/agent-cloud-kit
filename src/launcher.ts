@@ -9,7 +9,7 @@ import type { Runner } from "@ramon-sg/runner";
 import { readConfig } from "./config.ts";
 import { PACKAGE } from "./constants.ts";
 import { t } from "./messages/index.ts";
-import { readPin } from "./pin.ts";
+import { TOOL_NAME, readPin } from "./pin.ts";
 import type { Run } from "./run.ts";
 
 /** Directory, inside the tools dir, that holds one installed copy of this package per version. */
@@ -17,6 +17,12 @@ const PKG_DIR = "pkg";
 
 /** Name of the CLI executable. */
 const BIN_NAME = "agent-cloud-kit";
+
+/** Exact semver without build metadata; groups: major, minor, patch, prerelease. */
+const SEMVER = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/;
+
+/** A numeric prerelease identifier. */
+const NUMERIC = /^\d+$/;
 
 /** What setup does with one repo. */
 export interface SetupPlanItem {
@@ -82,7 +88,8 @@ export function planSetup(repos: string[], current: string, pin: typeof readPin 
     const { version, runner, errors } = pin(repo);
     if (!version) {
       const reasons = errors.length ? errors : readConfig(repo).errors;
-      return { repo, action: "skip", runner, reason: reasons.length ? reasons.join("; ") : t().config.missing(RUNNER_FILE) };
+      const missing = existsSync(join(repo, RUNNER_FILE)) ? t().pin.noEntry(RUNNER_FILE, TOOL_NAME) : t().config.missing(RUNNER_FILE);
+      return { repo, action: "skip", runner, reason: reasons.length ? reasons.join("; ") : missing };
     }
     if (version === current) return { repo, action: "run", version: current, runner };
     return { repo, action: "relaunch", version, runner };
@@ -169,4 +176,57 @@ export function linkDir(toolsDir: string): string {
  */
 export function linkPath(toolsDir: string): string {
   return join(linkDir(toolsDir), BIN_NAME);
+}
+
+/**
+ * Compares two exact versions by semver precedence, prereleases included (a release is newer
+ * than its prereleases; numeric identifiers compare as numbers and are older than text ones).
+ *
+ * @param a - First version.
+ * @param b - Second version.
+ * @returns A positive number when `a` is newer, negative when older, 0 when equal.
+ * @example
+ * compareVersions("1.0.0", "1.0.0-rc.9") > 0; // true
+ */
+export function compareVersions(a: string, b: string): number {
+  const [left, right] = [SEMVER.exec(a), SEMVER.exec(b)];
+  for (let i = 1; i <= 3; i++) {
+    const diff = Number(left?.[i] ?? 0) - Number(right?.[i] ?? 0);
+    if (diff) return diff;
+  }
+  const [preA, preB] = [left?.[4], right?.[4]];
+  if (preA === preB) return 0;
+  if (preA === undefined) return 1;
+  if (preB === undefined) return -1;
+  const [x, y] = [preA.split("."), preB.split(".")];
+  for (let i = 0; i < Math.min(x.length, y.length); i++) {
+    const [p, q] = [x[i] as string, y[i] as string];
+    if (p === q) continue;
+    const [pNum, qNum] = [NUMERIC.test(p), NUMERIC.test(q)];
+    if (pNum && qNum) return Number(p) - Number(q);
+    if (pNum !== qNum) return pNum ? -1 : 1;
+    return p < q ? -1 : 1;
+  }
+  return x.length - y.length;
+}
+
+/**
+ * Finds the newest version of this package installed under the tools dir, counting only
+ * versions whose binary exists; never throws.
+ *
+ * @param toolsDir - Tools directory.
+ * @returns The newest installed version, or undefined when there is none.
+ * @example
+ * newestInstalled("/opt/agent-cloud-kit"); // "1.0.0"
+ */
+export function newestInstalled(toolsDir: string): string | undefined {
+  let names: string[];
+  try {
+    names = readdirSync(join(toolsDir, PKG_DIR));
+  } catch {
+    return undefined;
+  }
+  return names
+    .filter((name) => SEMVER.test(name) && existsSync(packageBin(toolsDir, name)))
+    .reduce<string | undefined>((best, name) => (!best || compareVersions(name, best) > 0 ? name : best), undefined);
 }

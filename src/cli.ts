@@ -34,7 +34,7 @@ import type { Capture, Run } from "./run.ts";
 import { chooseTerminal } from "./select.ts";
 import type { Choose } from "./select.ts";
 import { session } from "./session.ts";
-import { setupRepo } from "./setup.ts";
+import { linkNewest, setupRepo } from "./setup.ts";
 
 /** Environment variable with the project dir that Claude Code passes to hooks. */
 const PROJECT_DIR_VAR = "CLAUDE_PROJECT_DIR";
@@ -170,6 +170,7 @@ async function runPlanItem(item: SetupPlanItem, deps: CliDeps): Promise<void> {
     await runOne(item.repo, deps);
     return;
   }
+  for (const warning of readPin(item.repo).warnings) deps.print(`${OUTPUT_PREFIX}${item.repo}: ${warning}`);
   deps.print(OUTPUT_PREFIX + t().cli.relaunching(item.version, item.repo));
   try {
     await ensureRunner(item.runner, deps.run, deps.env, deps.available ?? runnerAvailable);
@@ -181,7 +182,8 @@ async function runPlanItem(item: SetupPlanItem, deps: CliDeps): Promise<void> {
 
 /**
  * Runs `setup`: one repo with `--repo`, otherwise every repo of the home dir in series (apt
- * cannot run twice at once). Always exits 0: a failure is reported, never fatal.
+ * cannot run twice at once), and then points the stable link at the newest installed version.
+ * Always exits 0: a failure is reported, never fatal.
  *
  * @param args - Arguments after `setup`.
  * @param deps - CLI dependencies.
@@ -205,6 +207,7 @@ async function setupCommand(args: string[], deps: CliDeps): Promise<number> {
         deps.print(OUTPUT_PREFIX + t().cli.setupErrorFor(item.repo, message(err)));
       }
     }
+    linkNewest(toolsDir(deps.env));
   } catch (err) {
     deps.print(OUTPUT_PREFIX + t().cli.setupError(message(err)));
   }

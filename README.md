@@ -116,10 +116,12 @@ resumed session does not run the setup again.
 ## `.agents/runner.json`
 
 Shared by the tools of the repo: it says which runner launches them and which exact version of each
-one the repo uses. `init` writes the entry of this package (it never lowers a version already there).
+one the repo uses. `init` writes the entry of this package (it never lowers a version already there;
+when it creates the file it keeps the old `version` of `.claude/cloud.json` if that one is higher).
 
 ```json
 {
+  "$schema": "https://cdn.jsdelivr.net/npm/@ramon-sg/runner@1.0.0/runner.schema.json",
   "runner": "bun",
   "tools": { "agent-cloud-kit": "1.0.0" }
 }
@@ -132,7 +134,8 @@ one the repo uses. `init` writes the entry of this package (it never lowers a ve
 - To move a repo to Node, change `"runner"` to `"node"` and commit: the hook, `session` and the
   relaunch of `setup` then use `npx`.
 - `version` in `.claude/cloud.json` is deprecated and optional. If `runner.json` has no entry for this
-  package, the old `version` is used with a warning; if both exist, `runner.json` wins and `doctor`
+  package, the old `version` is used with a warning (`setup` prints it too); if neither says a version,
+  `setup` skips the repo saying which file lacks it; if both exist, `runner.json` wins and `doctor`
   asks you to remove the old one.
 
 ## `.claude/cloud.json`
@@ -205,23 +208,26 @@ delegates to.
 In a terminal, the final messages (the end of `doctor`, `prepare` and `verify`, and the screen
 before Claude opens) come in a block with Kuro, the mascot of issue-flow and agent-kitchen.
 `NO_COLOR` removes the color and keeps Kuro. Outside a terminal (logs, pipes, the `SessionStart`
-hook) the lines keep the plain `agent-cloud-kit: ` prefix.
+hook) the lines keep the plain `agent-cloud-kit: ` prefix (the hook's own fallback line starts with
+`agent-cloud-kit@<version>: `).
 
 ### The `SessionStart` hook
 
-`init` adds this hook, with the version from `.agents/runner.json` in its help text. Outside a cloud session it does nothing, and it calls the copy of the
+`init` adds this hook, with the version from `.agents/runner.json` in its fallback line. Outside a cloud session it does nothing, and it calls the copy of the
 package that `setup` left on the saved machine, so it needs no network and no `node_modules`:
 
 ```json
 {
   "type": "command",
-  "command": "[ \"$CLAUDE_CODE_REMOTE\" = true ] || exit 0; /opt/agent-cloud-kit/bin/agent-cloud-kit session || echo 'el setup del entorno no corrió; revisa con bunx --bun agent-cloud-kit@1.0.0 doctor'",
+  "command": "[ \"$CLAUDE_CODE_REMOTE\" = true ] || exit 0; /opt/agent-cloud-kit/bin/agent-cloud-kit session || echo 'agent-cloud-kit@1.0.0: el setup del entorno no corrió; revisa con bunx --bun agent-cloud-kit@1.0.0 doctor'",
   "timeout": 600
 }
 ```
 
 When the repo pins another version than the one that is running and that version is installed,
-`session` hands over to it.
+`session` hands over to it. After going through every repo, `setup` points
+`/opt/agent-cloud-kit/bin/agent-cloud-kit` at the newest version installed, which understands both
+`.agents/runner.json` and the old `version` of `.claude/cloud.json`.
 
 ### Machine fingerprint
 

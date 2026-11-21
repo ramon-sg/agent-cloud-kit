@@ -62,6 +62,7 @@ Options:
     missing: (file) => `no ${file}`,
   },
   pin: {
+    noEntry: (file, tool) => `${file} has no entry for ${tool}`,
     invalid: (file, detail) => `${file} is not valid: ${detail}`,
     legacyOnly: (oldFile, newFile) => `the version comes from ${oldFile}, which is deprecated: move it to ${newFile}`,
     legacyBoth: (oldFile) => `remove "version" from ${oldFile}: .agents/runner.json takes precedence`,

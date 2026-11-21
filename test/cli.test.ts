@@ -2,9 +2,9 @@
  * @file Tests for the command line wiring of setup, session and docker.
  */
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
 import { main } from "../src/cli.ts";
 import type { CliDeps } from "../src/cli.ts";
@@ -121,6 +121,34 @@ test("setup --repo names runner.json in the version warning when the pin comes f
   writeFileSync(join(repo, ".agents/runner.json"), JSON.stringify({ tools: { "agent-cloud-kit": "2.0.0" } }));
   await main(["setup", "--repo", repo], deps());
   assert.ok(printed.includes("agent-cloud-kit: corriendo la versión 1.0.0, aunque .agents/runner.json pide la 2.0.0"), printed.join("\n"));
+});
+
+test("after setup of every repo the stable link points at the newest installed version", async () => {
+  const migrated = makeRepo("a-migrated", {});
+  mkdirSync(join(migrated, ".agents"));
+  writeFileSync(join(migrated, ".agents/runner.json"), JSON.stringify({ tools: { "agent-cloud-kit": "1.0.0" } }));
+  makeRepo("b-legacy", { version: "1.0.0-rc.9" });
+  // The relaunched rc self-installs and points the stable link at itself, as a real rc does.
+  const rcInstall: Run = async (cmd, args, opts) => {
+    await run(cmd, args, opts);
+    if (cmd !== "bunx" || !args.includes("agent-cloud-kit@1.0.0-rc.9")) return;
+    const bin = join(tools, "pkg", "1.0.0-rc.9", "node_modules", ".bin", "agent-cloud-kit");
+    mkdirSync(dirname(bin), { recursive: true });
+    writeFileSync(bin, "");
+    rmSync(join(tools, "bin", "agent-cloud-kit"), { force: true });
+    symlinkSync(bin, join(tools, "bin", "agent-cloud-kit"));
+  };
+  assert.equal(await main(["setup"], { ...deps(), run: rcInstall }), 0);
+  assert.ok(calls.some((c) => c.cmd === "bunx" && c.args.includes("agent-cloud-kit@1.0.0-rc.9")), JSON.stringify(calls));
+  assert.equal(readlinkSync(join(tools, "bin", "agent-cloud-kit")), join(tools, "pkg", "1.0.0", "node_modules", ".bin", "agent-cloud-kit"));
+});
+
+test("a relaunched repo prints its pin warnings before relaunching", async () => {
+  const repo = makeRepo("app", { version: "1.2.0" });
+  await main(["setup"], deps());
+  const warning = printed.indexOf(`agent-cloud-kit: ${repo}: la versión viene de .claude/cloud.json, que quedó obsoleto: pásala a .agents/runner.json`);
+  const relaunching = printed.indexOf(`agent-cloud-kit: relanzando con la versión 1.2.0 para ${repo}`);
+  assert.ok(warning >= 0 && relaunching > warning, printed.join("\n"));
 });
 
 test("session delegates to the version of runner.json", async () => {

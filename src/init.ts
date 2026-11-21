@@ -6,6 +6,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { RUNNER_FILE, RunnerFileError, chooseRunner, effectiveRunner, readRunnerConfig, setTool, toolCommandText, writeRunnerConfig } from "@ramon-sg/runner";
 import type { Runner, RunnerConfig } from "@ramon-sg/runner";
+import { readConfig } from "./config.ts";
 import { CONFIG_FILE, OUTPUT_PREFIX, PACKAGE } from "./constants.ts";
 import { t } from "./messages/index.ts";
 import { installSkill, linkSkill } from "./skill.ts";
@@ -42,16 +43,17 @@ const HOOK_SCRIPT = HOOK_PREFIX;
 
 /**
  * Command of the SessionStart hook: does nothing outside cloud sessions. It runs the installed
- * link; the pinned version only appears in the help text, which `checkToolPins` verifies.
+ * link; the pinned version only appears in the fallback line, which `checkToolPins` verifies.
+ * That line starts with `agent-cloud-kit@<version>:` so it reads like the tool's other output.
  *
  * @param runner - Runner of the repo.
  * @param version - Version of agent-cloud-kit pinned in `.agents/runner.json`.
  * @returns The command line.
  * @example
- * hookCommand("bun", "1.0.0"); // "... || echo '... bunx --bun agent-cloud-kit@1.0.0 doctor'"
+ * hookCommand("bun", "1.0.0"); // "... || echo 'agent-cloud-kit@1.0.0: ... bunx --bun agent-cloud-kit@1.0.0 doctor'"
  */
 export function hookCommand(runner: Runner, version: string): string {
-  return `${HOOK_SCRIPT} || echo 'el setup del entorno no corrió; revisa con ${toolCommandText(runner, PACKAGE, version, ["doctor"])}'`;
+  return `${HOOK_SCRIPT} || echo '${PACKAGE}@${version}: el setup del entorno no corrió; revisa con ${toolCommandText(runner, PACKAGE, version, ["doctor"])}'`;
 }
 
 /**
@@ -198,8 +200,31 @@ interface RunnerOutcome {
 }
 
 /**
- * Makes sure `.agents/runner.json` pins this package, creating the file when missing. Never lowers
- * a version and keeps what other tools wrote; an invalid file is left untouched.
+ * Seeds a new runner config with the version the legacy `.claude/cloud.json` pins, so a repo
+ * that pins a newer version there does not drop to this one when it gets `.agents/runner.json`.
+ * An invalid or missing legacy version leaves the config as it is.
+ *
+ * @param config - New, empty runner config.
+ * @param repo - Repo root.
+ * @returns The config, with the legacy version as this package's entry when there is one.
+ * @example
+ * withLegacyVersion({ runner: "bun", tools: {}, extra: {} }, "/home/u/app"); // tools: { "agent-cloud-kit": "1.2.0" }
+ */
+function withLegacyVersion(config: RunnerConfig, repo: string): RunnerConfig {
+  const legacy = readConfig(repo).config?.version;
+  if (legacy === undefined) return config;
+  try {
+    return setTool(config, PACKAGE, legacy).config;
+  } catch {
+    // A version cloud.json accepts but runner.json does not (build metadata) is not carried over.
+    return config;
+  }
+}
+
+/**
+ * Makes sure `.agents/runner.json` pins this package, creating the file when missing (seeded with
+ * the legacy cloud.json version, so the higher of that and this one wins). Never lowers a version
+ * and keeps what other tools wrote; an invalid file is left untouched.
  *
  * @param repo - Repo root.
  * @param packageVersion - Version of this package.
@@ -222,7 +247,7 @@ async function ensureRunnerFile(repo: string, packageVersion: string, choose: ty
   else {
     const picked = await choose({});
     if (picked?.warning) entries.push({ kind: "warn", text: t().init.noBun(RUNNER_FILE) });
-    base = { runner: picked?.runner ?? "node", tools: {}, extra: {} };
+    base = withLegacyVersion({ runner: picked?.runner ?? "node", tools: {}, extra: {} }, repo);
   }
   const { config: next, changed } = setTool(base, PACKAGE, packageVersion);
   const version = next.tools[PACKAGE];

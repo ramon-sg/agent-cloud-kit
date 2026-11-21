@@ -15,8 +15,9 @@ All notable changes to this project are documented in this file. The format foll
   install fails, the message tells you to set `"runner": "node"` in `.agents/runner.json`. Setup
   then relaunches itself with `bunx --bun` or `npx --yes`, according to the runner, and records a
   `runner` step in the setup state.
-- The SessionStart hook that `init` writes pins the version, and its help text names the pinned
-  version.
+- The SessionStart hook that `init` writes runs the installed copy, as before; its fallback line
+  (`agent-cloud-kit@<version>: el setup del entorno no corrió; revisa con … doctor`) names the
+  version pinned in `.agents/runner.json` and the command to check it with.
 - `doctor` checks the runner, `.agents/runner.json` and the version pinned in the hook.
 - CI runs the package with Bun.
 
@@ -26,6 +27,14 @@ All notable changes to this project are documented in this file. The format foll
 - `version` in `.claude/cloud.json` is deprecated. It is still read as a fallback, with a warning,
   and `doctor` warns when both it and `.agents/runner.json` exist.
 - The published package bundles its dependencies and has no `dependencies`.
+- When `init` creates `.agents/runner.json` in a repo that still has `version` in
+  `.claude/cloud.json`, the higher of that version and its own is pinned, so the repo never drops
+  to an older one.
+- After going through every repo, `setup` points the stable link
+  (`/opt/agent-cloud-kit/bin/agent-cloud-kit`) at the newest version installed, not at the one that
+  installed itself last.
+- `setup` prints the `.claude/cloud.json` `version` warning also for repos it relaunches, and when
+  it skips a repo whose `.agents/runner.json` has no entry for agent-cloud-kit it says so.
 
 ## 1.0.0-rc.9
 

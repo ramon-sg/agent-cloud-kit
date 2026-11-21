@@ -235,6 +235,36 @@ test("the old hook is replaced by the pinned one, once", async () => {
   assert.ok(result.entries.some((e) => e.kind === "ok" && e.text.includes("actualizó el hook")), result.lines.join("\n"));
 });
 
+test("the hook fallback line carries the agent-cloud-kit label with the pinned version", async () => {
+  await init(repo, "1.2.3", pkg);
+  assert.ok(hookTexts()[0]?.includes("echo 'agent-cloud-kit@1.2.3: el setup del entorno no corrió; revisa con npx --yes agent-cloud-kit@1.2.3 doctor'"), hookTexts()[0]);
+  assert.ok(checkToolPins(repo, "agent-cloud-kit", hookTexts()).every((c) => c.status === "ok"));
+});
+
+test("the 1.0.0 hook without the label is replaced by the labeled one", async () => {
+  mkdirSync(join(repo, ".claude"));
+  const unlabeled =
+    "[ \"$CLAUDE_CODE_REMOTE\" = true ] || exit 0; /opt/agent-cloud-kit/bin/agent-cloud-kit session || echo 'el setup del entorno no corrió; revisa con npx --yes agent-cloud-kit@1.2.3 doctor'";
+  writeFileSync(join(repo, ".claude/settings.json"), JSON.stringify({ hooks: { SessionStart: [{ hooks: [{ type: "command", command: unlabeled, timeout: 600 }] }] } }));
+  await init(repo, "1.2.3", pkg);
+  assert.deepEqual(hookTexts(), [hookCommand("node", "1.2.3")]);
+});
+
+test("a new runner.json keeps a higher version from the legacy cloud.json", async () => {
+  mkdirSync(join(repo, ".claude"));
+  writeFileSync(join(repo, ".claude/cloud.json"), JSON.stringify({ version: "1.5.0" }));
+  await init(repo, "1.2.3", pkg);
+  assert.equal(runnerJson().tools["agent-cloud-kit"], "1.5.0");
+  assert.equal(hookTexts()[0], hookCommand("node", "1.5.0"));
+});
+
+test("a new runner.json takes this version over a lower legacy cloud.json version", async () => {
+  mkdirSync(join(repo, ".claude"));
+  writeFileSync(join(repo, ".claude/cloud.json"), JSON.stringify({ version: "1.0.0-rc.9" }));
+  await init(repo, "1.2.3", pkg);
+  assert.equal(runnerJson().tools["agent-cloud-kit"], "1.2.3");
+});
+
 test("a second init says runner.json and the hook were already there", async () => {
   await init(repo, "1.2.3", pkg);
   const again = await init(repo, "1.2.3", pkg);

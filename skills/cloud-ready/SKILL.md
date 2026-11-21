@@ -122,7 +122,7 @@ Solo con `CLAUDE_CODE_REMOTE=true`; si no, detente y dilo. El prompt trae la ram
 `claude/…`: no la cambies; al final empujas a la rama de `prepare`.
 
 1. **Contexto:** lee `.claude/cloud.json`, el archivo de `notes` y `docs/agent-cloud.md`. Anota
-   las líneas `agent-cloud-kit:` de falla que mostró el inicio de la sesión ("el setup del entorno no corrió",
+   las líneas `agent-cloud-kit:` (o `agent-cloud-kit@<versión>:`) de falla que mostró el inicio de la sesión ("el setup del entorno no corrió",
    "falló el setup: …", "la máquina se preparó con otra configuración", "faltan variables de entorno").
 2. **Corre `agent-cloud-kit doctor`** y guarda la salida. Si `agent-cloud-kit` no está en el
    `PATH`, el setup no corrió: córrelo con el ejecutor y la versión de `.agents/runner.json` (`bunx --bun agent-cloud-kit@<versión> doctor`, o `npx --yes agent-cloud-kit@<versión> doctor` si el ejecutor es `node`) y repórtalo.

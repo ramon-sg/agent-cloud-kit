@@ -6,7 +6,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
-import { findRepos, planSetup, relaunch } from "../src/launcher.ts";
+import { compareVersions, findRepos, newestInstalled, planSetup, relaunch } from "../src/launcher.ts";
 import type { Run } from "../src/run.ts";
 
 let home: string;
@@ -89,4 +89,34 @@ test("relaunch with node runs npx --yes with the pinned package", async () => {
   assert.deepEqual(calls, [
     { cmd: "npx", args: ["--yes", "agent-cloud-kit@1.2.0", "setup", "--repo", "/home/user/app"] },
   ]);
+});
+
+test("planSetup says when runner.json has no entry for agent-cloud-kit", () => {
+  const repo = makeRepo("other-tool");
+  mkdirSync(join(repo, ".agents"));
+  writeFileSync(join(repo, ".agents/runner.json"), JSON.stringify({ tools: { "@ramon-sg/issue-flow": "0.6.0" } }));
+  const [item] = planSetup([repo], "1.0.0");
+  assert.deepEqual(item, { repo, action: "skip", runner: "bun", reason: ".agents/runner.json no tiene la entrada de agent-cloud-kit" });
+});
+
+test("compareVersions orders by semver precedence, prereleases included", () => {
+  assert.ok(compareVersions("1.0.0", "1.0.0-rc.9") > 0);
+  assert.ok(compareVersions("1.0.0-rc.10", "1.0.0-rc.9") > 0);
+  assert.ok(compareVersions("1.0.0-rc.9", "1.0.0-rc.10") < 0);
+  assert.ok(compareVersions("1.10.0", "1.9.9") > 0);
+  assert.ok(compareVersions("1.0.0-alpha", "1.0.0-1") > 0);
+  assert.ok(compareVersions("1.0.0-rc.1.1", "1.0.0-rc.1") > 0);
+  assert.equal(compareVersions("2.0.0", "2.0.0"), 0);
+});
+
+test("newestInstalled picks the highest version that has its binary", () => {
+  const tools = join(home, "tools");
+  for (const version of ["1.0.0-rc.9", "1.0.0", "0.9.0"]) {
+    mkdirSync(join(tools, "pkg", version, "node_modules", ".bin"), { recursive: true });
+    writeFileSync(join(tools, "pkg", version, "node_modules", ".bin", "agent-cloud-kit"), "");
+  }
+  mkdirSync(join(tools, "pkg", "2.0.0"), { recursive: true });
+  mkdirSync(join(tools, "pkg", "1.0.0.123.tmp"), { recursive: true });
+  assert.equal(newestInstalled(tools), "1.0.0");
+  assert.equal(newestInstalled(join(home, "missing")), undefined);
 });

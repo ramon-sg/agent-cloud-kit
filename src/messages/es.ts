@@ -65,6 +65,7 @@ Opciones:
     missing: (file: string) => `no hay ${file}`,
   },
   pin: {
+    noEntry: (file: string, tool: string) => `${file} no tiene la entrada de ${tool}`,
     invalid: (file: string, detail: string) => `${file} no es válido: ${detail}`,
     legacyOnly: (oldFile: string, newFile: string) =>
       `la versión viene de ${oldFile}, que quedó obsoleto: pásala a ${newFile}`,

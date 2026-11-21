@@ -17,7 +17,7 @@ import { realDocker } from "./docker.ts";
 import type { DockerOps } from "./docker.ts";
 import { curlNodeIndex, installTools, resolveVersions } from "./installers.ts";
 import type { Versions } from "./installers.ts";
-import { linkPath, packageBin, packageInstallDir } from "./launcher.ts";
+import { linkPath, newestInstalled, packageBin, packageInstallDir } from "./launcher.ts";
 import { STEP, t } from "./messages/index.ts";
 import { readPin } from "./pin.ts";
 import type { Run } from "./run.ts";
@@ -260,6 +260,24 @@ function selfInstall(version: string, toolsDir: string, source: string): Promise
     replaceLink(bin, relative(dirname(bin), join(target, CLI_ENTRY)));
     replaceLink(linkPath(toolsDir), bin);
   });
+}
+
+/**
+ * Points the stable link at the newest version installed under the tools dir. A newer version
+ * reads both `.agents/runner.json` and the legacy cloud.json and hands `session` over to an
+ * older pin, while an older one may not understand a migrated repo; so the link must not stay on
+ * whichever version installed itself last.
+ *
+ * @param toolsDir - Tools directory.
+ * @returns The version the link points at, or undefined when nothing is installed.
+ * @throws When the link cannot be replaced.
+ * @example
+ * linkNewest("/opt/agent-cloud-kit"); // "1.0.0"
+ */
+export function linkNewest(toolsDir: string): string | undefined {
+  const newest = newestInstalled(toolsDir);
+  if (newest) replaceLink(linkPath(toolsDir), packageBin(toolsDir, newest));
+  return newest;
 }
 
 /**
