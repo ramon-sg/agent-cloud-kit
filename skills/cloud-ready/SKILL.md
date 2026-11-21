@@ -19,7 +19,7 @@ preparada.
 - **El archivo de `notes`:** el que diga `notes` en `.claude/cloud.json`; si no hay, usa
   `.claude/cloud-notes.md` y pon `"notes": ".claude/cloud-notes.md"` en la config. Se muestra al
   empezar cada sesión en la nube y se copia en `docs/agent-cloud.md`: que sea corto.
-- **La CLI:** `agent-cloud-kit <comando>`. Si no está en el `PATH`, usa `npx -y agent-cloud-kit <comando>`.
+- **La CLI:** `agent-cloud-kit <comando>`. Si no está en el `PATH`, córrela con el ejecutor y la versión de `.agents/runner.json`: `bun` → `bunx --bun agent-cloud-kit@<versión> <comando>`; `node` → `npx --yes agent-cloud-kit@<versión> <comando>`.
 
 ## Archivos de la preparación
 
@@ -125,7 +125,7 @@ Solo con `CLAUDE_CODE_REMOTE=true`; si no, detente y dilo. El prompt trae la ram
    las líneas `agent-cloud-kit:` de falla que mostró el inicio de la sesión ("el setup del entorno no corrió",
    "falló el setup: …", "la máquina se preparó con otra configuración", "faltan variables de entorno").
 2. **Corre `agent-cloud-kit doctor`** y guarda la salida. Si `agent-cloud-kit` no está en el
-   `PATH`, el setup no corrió: usa `npx -y agent-cloud-kit doctor` y repórtalo.
+   `PATH`, el setup no corrió: córrelo con el ejecutor y la versión de `.agents/runner.json` (`bunx --bun agent-cloud-kit@<versión> doctor`, o `npx --yes agent-cloud-kit@<versión> doctor` si el ejecutor es `node`) y repórtalo.
 3. **Comprueba la preparación:** dependencias instaladas (p. ej. `node_modules` existe), las
    versiones fijadas (`node -v` y los demás gestores contra `.tool-versions`, `mise.toml`,
    `.nvmrc` o `packageManager`), las variables de `requiredEnv` presentes (solo nombres; nunca

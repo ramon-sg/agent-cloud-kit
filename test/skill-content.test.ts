@@ -105,3 +105,11 @@ test("the skill sends GitHub outside the repo to the connector, never to gh in t
   assert.match(section, /No propongas ni intentes `gh project`/);
   assert.equal(/^\s*gh project /m.test(skill), false);
 });
+
+test("SKILL.md runs the CLI with the runner and version of .agents/runner.json, not a fixed npx", () => {
+  const skill = read("SKILL.md");
+  assert.equal(skill.includes("npx -y agent-cloud-kit"), false);
+  assert.equal(skill.includes("npx agent-cloud-kit doctor"), false);
+  assert.ok(skill.includes(".agents/runner.json"));
+  assert.ok(skill.includes("bunx --bun agent-cloud-kit@"));
+});

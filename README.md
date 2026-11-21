@@ -12,8 +12,8 @@ limits of the cloud sandbox that the platform does not document.
 
 - Written in TypeScript, published compiled, **no runtime dependencies**, Node `>=20` (the cloud
   image ships Node 22, so it runs before any tool of your repo is installed).
-- The **repo decides the version**: `.claude/cloud.json` pins the exact version of this package,
-  so updating it is a commit.
+- The **repo decides the version**: `.agents/runner.json` pins the exact version of this package
+  (and the runner, Bun or Node, that launches it), so updating it is a commit.
 
 ## What it solves
 
@@ -43,7 +43,7 @@ platform does not tell you:
 ## The flow
 
 1. **Install your agent tooling** with agent-kitchen (config, hook and skill arrive in the repo).
-2. **Run `npx agent-cloud-kit prepare`** in a local terminal. It asks where to work, with the
+2. **Run `npx agent-cloud-kit prepare`** (or `bunx --bun agent-cloud-kit prepare`) in a local terminal. It asks where to work, with the
    same menu as agent-kitchen (`--pr` or `--here` skip it):
    - **En un PR nuevo** (default): creates a worktree on a dated branch from `origin`, so your
      branch and uncommitted files are untouched; runs `init`, opens Claude locally with the
@@ -94,7 +94,7 @@ In the environment form at `https://claude.ai/code`:
    managers** checked. Add any extra domains your `apt` repos or setup steps need, one per line.
    Run `agent-cloud-kit doctor` in a session to see which hosts are blocked (it probes with `curl`,
    so it goes through the proxy like the setup does). If the setup never ran, use
-   `npx agent-cloud-kit doctor`.
+   `npx agent-cloud-kit doctor` (or `bunx --bun agent-cloud-kit doctor`).
 2. **Setup script:** the cloud runs it as root from `/home/user`, before Claude starts:
 
    ```bash
@@ -102,15 +102,38 @@ In the environment form at `https://claude.ai/code`:
    npx -y agent-cloud-kit@1 setup
    ```
 
+   This one keeps `npx`: it runs before Bun exists and belongs to the environment, not to a repo.
    The `@1` only pins the launcher. Each repo then relaunches the exact version it asks for, so a
    new launcher major is adopted by editing this field on purpose. To force the saved machine to
    be rebuilt, change anything in this field (a comment with the date works).
 
-3. In each repo run `npx agent-cloud-kit init`, then commit `.claude/cloud.json`,
-   `.claude/settings.json`, `.agents/skills/cloud-ready` and the `.claude/skills/cloud-ready` link.
+3. In each repo run `npx agent-cloud-kit init` (or `bunx --bun agent-cloud-kit init`), then commit `.agents/runner.json`,
+   `.claude/cloud.json`, `.claude/settings.json`, `.agents/skills/cloud-ready` and the `.claude/skills/cloud-ready` link.
 
 Environment changes are read when a session is created: start a new session to test them. A
 resumed session does not run the setup again.
+
+## `.agents/runner.json`
+
+Shared by the tools of the repo: it says which runner launches them and which exact version of each
+one the repo uses. `init` writes the entry of this package (it never lowers a version already there).
+
+```json
+{
+  "runner": "bun",
+  "tools": { "agent-cloud-kit": "1.0.0" }
+}
+```
+
+- `runner` is `"bun"` or `"node"`; when missing it is `"bun"`. With `bun` the repo runs
+  `bunx --bun agent-cloud-kit@1.0.0 <command>`; with `node`, `npx --yes agent-cloud-kit@1.0.0 <command>`.
+- In the cloud, `setup` installs Bun with `npm install -g bun` (limited to 2 minutes; the Bun
+  version is not pinned). If that fails it asks you to set `"runner": "node"` in this file.
+- To move a repo to Node, change `"runner"` to `"node"` and commit: the hook, `session` and the
+  relaunch of `setup` then use `npx`.
+- `version` in `.claude/cloud.json` is deprecated and optional. If `runner.json` has no entry for this
+  package, the old `version` is used with a warning; if both exist, `runner.json` wins and `doctor`
+  asks you to remove the old one.
 
 ## `.claude/cloud.json`
 
@@ -121,7 +144,6 @@ broken file never stops a session.
 ```json
 {
   "$schema": "https://unpkg.com/agent-cloud-kit@1.0.0/schema.json",
-  "version": "1.0.0",
   "aptRepos": ["https://example.com/setup.deb.sh"],
   "apt": ["direnv", "jq"],
   "domains": ["registry.example.com"],
@@ -135,7 +157,7 @@ broken file never stops a session.
 
 | Field         | Required | Meaning                                                                                                                                              |
 | ------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `version`     | yes      | Exact version of this package to run (no ranges). If `setup` runs a different one it relaunches with this one.                                       |
+| `version`     | no       | Deprecated: use `.agents/runner.json`. Exact version of this package, only read when `runner.json` has no entry for it.                              |
 | `aptRepos`    | no       | HTTPS URLs of setup scripts that add APT repositories; each is downloaded and piped to `bash` before installing packages.                            |
 | `apt`         | no       | Debian packages to install. Names are validated and passed as arguments, never to a shell.                                                           |
 | `domains`     | no       | Extra hosts the environment must allow; `doctor` probes them and the manual lists them.                                                              |
@@ -163,7 +185,7 @@ A Node version that is not exact (`22`, `22.1`, `lts/iron`, `lts/*` or `node`) i
 | `agent-cloud-kit session`        | Runs from the `SessionStart` hook, in seconds and without network (except to complete the clone). Warns when setup did not run, failed steps, or the machine was prepared with another configuration; writes the `PATH` line (the pinned tools, then `/opt/agent-cloud-kit/bin`, so `agent-cloud-kit` itself resolves) to `$CLAUDE_ENV_FILE`; starts Docker; fetches the full history and `origin/<default branch>`; runs the `session` steps. It never fails the session start. |
 | `agent-cloud-kit docker`         | Starts `dockerd` detached and waits up to 60 seconds for it to answer. Exits 1 if it does not, at once when `dockerd` is not installed.                                                                                             |
 | `agent-cloud-kit doctor`         | Checks that the proxy lets the needed hosts through, that the pinned tools are installed, that Docker answers, and the recorded state (fingerprint and each step). Exits 1 if any check fails.                                       |
-| `agent-cloud-kit init`           | Creates `.claude/cloud.json` if missing, adds the `SessionStart` hook to `.claude/settings.json` (keeping the hooks already there), copies the `cloud-ready` skill to `.agents/skills/cloud-ready` when its version differs, and links it from `.claude/skills/cloud-ready`. Safe to run again.                                                                           |
+| `agent-cloud-kit init`           | Creates `.agents/runner.json` (the runner and this package's version) and `.claude/cloud.json` if missing, adds the `SessionStart` hook to `.claude/settings.json` (keeping the hooks already there), copies the `cloud-ready` skill to `.agents/skills/cloud-ready` when its version differs, and links it from `.claude/skills/cloud-ready`. Safe to run again.                                                                           |
 | `agent-cloud-kit manual`         | Writes `docs/agent-cloud.md` from `.claude/cloud.json`, deterministically: the exact setup script (`agent-cloud-kit@<major>`, or the exact version for a release candidate), domains, variable names, how to verify the environment. |
 | `agent-cloud-kit prepare [--pr\|--here\|--resume]` | Local only, needs an interactive terminal: sets the repo up for the cloud, in a new PR or in the current branch without committing (asks when no option is given; see "The flow"). `--resume` continues in the existing worktree. |
 | `agent-cloud-kit verify`         | Local only, needs an interactive terminal: launches a cloud session that runs `cloud-ready verify` on the current branch, which must be prepared and pushed. |
@@ -187,13 +209,13 @@ hook) the lines keep the plain `agent-cloud-kit: ` prefix.
 
 ### The `SessionStart` hook
 
-`init` adds this hook. Outside a cloud session it does nothing, and it calls the copy of the
+`init` adds this hook, with the version from `.agents/runner.json` in its help text. Outside a cloud session it does nothing, and it calls the copy of the
 package that `setup` left on the saved machine, so it needs no network and no `node_modules`:
 
 ```json
 {
   "type": "command",
-  "command": "[ \"$CLAUDE_CODE_REMOTE\" = true ] || exit 0; /opt/agent-cloud-kit/bin/agent-cloud-kit session || echo 'agent-cloud-kit: el setup del entorno no corrió; revisa con npx agent-cloud-kit doctor'",
+  "command": "[ \"$CLAUDE_CODE_REMOTE\" = true ] || exit 0; /opt/agent-cloud-kit/bin/agent-cloud-kit session || echo 'el setup del entorno no corrió; revisa con bunx --bun agent-cloud-kit@1.0.0 doctor'",
   "timeout": 600
 }
 ```
