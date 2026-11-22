@@ -94,6 +94,7 @@ Options:
     runner: (runner, present) =>
       present ? `runner ${runner}: ok` : `runner ${runner}: missing${runner === "bun" ? ': install Bun or set "runner": "node" in .agents/runner.json to use npx' : ": install Node.js (npx)"}`,
     hookPin: (tool, version, ok) => (ok ? `SessionStart hook: ok (${tool}@${version})` : `the SessionStart hook does not say ${tool}@${version}`),
+    hookBunx: (command) => `warning: the SessionStart hook uses bunx, which fails with arguments that have spaces; run ${command} to rewrite it`,
     warning: (text) => `warning: ${text}`,
     groupError: (group, error) => `${group}: error: ${error}`,
     groups: { network: "network", tools: "tools", docker: "docker", state: "state", plugins: "plugins", runner: "runner", skill: "skill" },

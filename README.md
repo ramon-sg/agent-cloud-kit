@@ -43,7 +43,7 @@ platform does not tell you:
 ## The flow
 
 1. **Install your agent tooling** with agent-kitchen (config, hook and skill arrive in the repo).
-2. **Run `npx agent-cloud-kit prepare`** (or `bunx --bun agent-cloud-kit prepare`) in a local terminal. It asks where to work, with the
+2. **Run `npx agent-cloud-kit prepare`** (or `bun x --bun agent-cloud-kit prepare`) in a local terminal. It asks where to work, with the
    same menu as agent-kitchen (`--pr` or `--here` skip it):
    - **En un PR nuevo** (default): creates a worktree on a dated branch from `origin`, so your
      branch and uncommitted files are untouched; runs `init`, opens Claude locally with the
@@ -94,7 +94,7 @@ In the environment form at `https://claude.ai/code`:
    managers** checked. Add any extra domains your `apt` repos or setup steps need, one per line.
    Run `agent-cloud-kit doctor` in a session to see which hosts are blocked (it probes with `curl`,
    so it goes through the proxy like the setup does). If the setup never ran, use
-   `npx agent-cloud-kit doctor` (or `bunx --bun agent-cloud-kit doctor`).
+   `npx agent-cloud-kit doctor` (or `bun x --bun agent-cloud-kit doctor`).
 2. **Setup script:** the cloud runs it as root from `/home/user`, before Claude starts:
 
    ```bash
@@ -107,7 +107,7 @@ In the environment form at `https://claude.ai/code`:
    new launcher major is adopted by editing this field on purpose. To force the saved machine to
    be rebuilt, change anything in this field (a comment with the date works).
 
-3. In each repo run `npx agent-cloud-kit init` (or `bunx --bun agent-cloud-kit init`), then commit `.agents/runner.json`,
+3. In each repo run `npx agent-cloud-kit init` (or `bun x --bun agent-cloud-kit init`), then commit `.agents/runner.json`,
    `.claude/cloud.json`, `.claude/settings.json`, `.agents/skills/cloud-ready` and the `.claude/skills/cloud-ready` link.
 
 Environment changes are read when a session is created: start a new session to test them. A
@@ -128,7 +128,7 @@ when it creates the file it keeps the old `version` of `.claude/cloud.json` if t
 ```
 
 - `runner` is `"bun"` or `"node"`; when missing it is `"bun"`. With `bun` the repo runs
-  `bunx --bun agent-cloud-kit@1.0.0 <command>`; with `node`, `npx --yes agent-cloud-kit@1.0.0 <command>`.
+  `bun x --bun agent-cloud-kit@1.0.0 <command>`; with `node`, `npx --yes agent-cloud-kit@1.0.0 <command>`.
 - In the cloud, `setup` installs Bun with `npm install -g bun` (limited to 2 minutes; the Bun
   version is not pinned). If that fails it asks you to set `"runner": "node"` in this file.
 - To move a repo to Node, change `"runner"` to `"node"` and commit: the hook, `session` and the
@@ -219,7 +219,7 @@ package that `setup` left on the saved machine, so it needs no network and no `n
 ```json
 {
   "type": "command",
-  "command": "[ \"$CLAUDE_CODE_REMOTE\" = true ] || exit 0; /opt/agent-cloud-kit/bin/agent-cloud-kit session || echo 'agent-cloud-kit@1.0.0: el setup del entorno no corrió; revisa con bunx --bun agent-cloud-kit@1.0.0 doctor'",
+  "command": "[ \"$CLAUDE_CODE_REMOTE\" = true ] || exit 0; /opt/agent-cloud-kit/bin/agent-cloud-kit session || echo 'agent-cloud-kit@1.0.0: el setup del entorno no corrió; revisa con bun x --bun agent-cloud-kit@1.0.0 doctor'",
   "timeout": 600
 }
 ```

@@ -1,6 +1,6 @@
 {
   "name": "agent-cloud-kit",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Zero-dependency CLI that prepares Claude Code cloud sessions.",
   "type": "module",
   "license": "MIT",
@@ -42,7 +42,7 @@
     "test": "node --test 'test/**/*.test.ts'"
   },
   "devDependencies": {
-    "@ramon-sg/runner": "1.0.0",
+    "@ramon-sg/runner": "1.0.1",
     "@types/node": "20.19.43",
     "esbuild": "0.28.2",
     "typescript": "7.0.2"

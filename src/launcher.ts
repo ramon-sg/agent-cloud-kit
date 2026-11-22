@@ -97,7 +97,7 @@ export function planSetup(repos: string[], current: string, pin: typeof readPin 
 }
 
 /**
- * Runs setup for one repo with the exact version it pins, through the repo runner (bunx or npx).
+ * Runs setup for one repo with the exact version it pins, through the repo runner (`bun x --bun` or `npx --yes`).
  * The version is already validated as exact semver and travels as one argv element.
  *
  * @param repo - Repo root.

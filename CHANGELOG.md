@@ -4,6 +4,17 @@ All notable changes to this project are documented in this file. The format foll
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 1.0.1
+
+### Fixed
+
+- With Bun installed by asdf, `bunx` is a shell script that splits arguments with spaces. The
+  relaunch of the pinned version, the SessionStart hook fallback line, the `doctor` hints, the
+  `cloud-ready` skill and the README now run the package with `bun x --bun`, and the check that
+  Bun is installed looks for `bun` (`@ramon-sg/runner` 1.0.1). See ramon-sg/runner#1.
+- `init` rewrites the hook written by 1.0.0 (with `bunx --bun`) to the new command, without adding
+  a second hook, and `doctor` warns about such a hook and gives the `init` command that fixes it.
+
 ## 1.0.0
 
 ### Added

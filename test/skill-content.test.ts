@@ -111,5 +111,5 @@ test("SKILL.md runs the CLI with the runner and version of .agents/runner.json, 
   assert.equal(skill.includes("npx -y agent-cloud-kit"), false);
   assert.equal(skill.includes("npx agent-cloud-kit doctor"), false);
   assert.ok(skill.includes(".agents/runner.json"));
-  assert.ok(skill.includes("bunx --bun agent-cloud-kit@"));
+  assert.ok(skill.includes("bun x --bun agent-cloud-kit@"));
 });
