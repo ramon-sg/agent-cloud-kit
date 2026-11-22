@@ -20,7 +20,7 @@ const noBun: typeof chooseRunner = async () => {
   return { runner: "node", warning: "x" };
 };
 
-/** `init` with the fake runner picker, so no test spawns bunx or npx. */
+/** `init` with the fake runner picker, so no test spawns bun or npx. */
 const init = (repo: string, version: string, root: string) => initWith(repo, version, root, noBun);
 
 let repo: string;
@@ -203,7 +203,7 @@ test("an existing newer pin is not lowered and choose is not called", async () =
   const result = await init(repo, "1.2.3", pkg);
   assert.equal(chosen, 0);
   assert.equal(runnerJson().tools["agent-cloud-kit"], "9.0.0");
-  assert.ok(hookTexts()[0]?.includes("bunx --bun agent-cloud-kit@9.0.0 doctor"));
+  assert.ok(hookTexts()[0]?.includes("bun x --bun agent-cloud-kit@9.0.0 doctor"));
   assert.ok(result.entries.some((e) => e.kind === "same" && e.text.includes("runner.json")));
 });
 
@@ -214,7 +214,7 @@ test("a runner.json without runner means bun, and no runner key is written", asy
   assert.equal(chosen, 0);
   assert.equal(runnerJson().runner, undefined);
   assert.equal(runnerJson().tools["agent-cloud-kit"], "1.2.3");
-  assert.ok(hookTexts()[0]?.includes("bunx --bun agent-cloud-kit@1.2.3 doctor"));
+  assert.ok(hookTexts()[0]?.includes("bun x --bun agent-cloud-kit@1.2.3 doctor"));
 });
 
 test("another tool's entry in runner.json is kept", async () => {
@@ -281,4 +281,20 @@ test("an invalid runner.json is not overwritten", async () => {
   assert.equal(readFileSync(join(repo, ".agents/runner.json"), "utf8"), "{ nope");
   assert.ok(result.entries.some((e) => e.kind === "warn" && e.text.includes("runner.json")));
   assert.equal(existsSync(join(repo, ".claude/settings.json")), false);
+});
+
+test("the 1.0.0 hook that names bunx is rewritten to bun x --bun, once", async () => {
+  mkdirSync(join(repo, ".agents"));
+  writeFileSync(join(repo, ".agents/runner.json"), JSON.stringify({ runner: "bun", tools: { "agent-cloud-kit": "1.0.0" } }));
+  mkdirSync(join(repo, ".claude"));
+  const legacy =
+    "[ \"$CLAUDE_CODE_REMOTE\" = true ] || exit 0; /opt/agent-cloud-kit/bin/agent-cloud-kit session || echo 'agent-cloud-kit@1.0.0: el setup del entorno no corrió; revisa con bunx --bun agent-cloud-kit@1.0.0 doctor'";
+  writeFileSync(join(repo, ".claude/settings.json"), JSON.stringify({ hooks: { SessionStart: [{ hooks: [{ type: "command", command: legacy, timeout: 600 }] }] } }));
+  const result = await init(repo, "1.0.0", pkg);
+  assert.deepEqual(hookTexts(), [hookCommand("bun", "1.0.0")]);
+  assert.ok(hookTexts()[0]?.includes("revisa con bun x --bun agent-cloud-kit@1.0.0 doctor'"), hookTexts()[0]);
+  assert.ok(!hookTexts()[0]?.includes("bunx"));
+  assert.ok(result.entries.some((e) => e.kind === "ok" && e.text.includes("actualizó el hook")), result.lines.join("\n"));
+  await init(repo, "1.0.0", pkg);
+  assert.deepEqual(hookTexts(), [hookCommand("bun", "1.0.0")]);
 });

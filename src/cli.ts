@@ -74,7 +74,7 @@ export interface CliDeps {
   run: Run;
   /** Docker operations. */
   docker: DockerOps;
-  /** Tells whether a runner (bunx or npx) is installed; `runnerAvailable` when omitted. */
+  /** Tells whether a runner (bun or npx) is installed; `runnerAvailable` when omitted. */
   available?: (runner: Runner) => boolean;
   /** Picks the runner `init` writes in a new `.agents/runner.json`; `chooseRunner` when omitted. */
   chooseRunner?: typeof chooseRunner;

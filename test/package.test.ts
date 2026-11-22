@@ -8,6 +8,6 @@ import { test } from "node:test";
 test("the published package has no runtime dependencies", () => {
   const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
   assert.equal(pkg.dependencies, undefined);
-  assert.equal(pkg.devDependencies["@ramon-sg/runner"], "1.0.0");
+  assert.equal(pkg.devDependencies["@ramon-sg/runner"], "1.0.1");
   assert.match(pkg.devDependencies.esbuild, /^\d+\.\d+\.\d+$/);
 });

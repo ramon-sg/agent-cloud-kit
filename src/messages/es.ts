@@ -101,6 +101,7 @@ Opciones:
       present ? `ejecutor ${runner}: ok` : `ejecutor ${runner}: falta${runner === "bun" ? ': instala Bun o pon "runner": "node" en .agents/runner.json para usar npx' : ": instala Node.js (npx)"}`,
     hookPin: (tool: string, version: string, ok: boolean) =>
       ok ? `hook de SessionStart: ok (${tool}@${version})` : `el hook de SessionStart no dice ${tool}@${version}`,
+    hookBunx: (command: string) => `aviso: el hook de SessionStart usa bunx, que con argumentos con espacios falla; corre ${command} para reescribirlo`,
     warning: (text: string) => `aviso: ${text}`,
     groupError: (group: string, error: string) => `${group}: error: ${error}`,
     groups: { network: "red", tools: "herramientas", docker: "docker", state: "estado", plugins: "plugins", runner: "ejecutor", skill: "skill" },

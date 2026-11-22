@@ -91,8 +91,8 @@ expect_output "runner bun step ok" "true" \
 const s = JSON.parse(require('fs').readFileSync('/opt/agent-cloud-kit/state/fixture.json', 'utf8'));
 console.log(s.steps.some((x) => x.name === 'runner bun' && x.ok));
 \""
-in_box 'command -v bunx >/dev/null' || fail "bunx is not on PATH after setup"
-echo "ok: bunx installed globally"
+in_box 'command -v bun >/dev/null' || fail "bun is not on PATH after setup"
+echo "ok: bun installed globally"
 expect_output "self install link" "/opt/agent-cloud-kit/pkg/$VERSION/node_modules/.bin/agent-cloud-kit" 'readlink /opt/agent-cloud-kit/bin/agent-cloud-kit'
 expect_output "self install copy" "$VERSION" "node -p \"require('/opt/agent-cloud-kit/pkg/$VERSION/node_modules/agent-cloud-kit/package.json').version\""
 expect_output "installed binary" "$VERSION" '/opt/agent-cloud-kit/bin/agent-cloud-kit --version'

@@ -38,6 +38,22 @@ export function isOwnHookCommand(command: unknown): boolean {
   return typeof command === "string" && command.startsWith(HOOK_PREFIX);
 }
 
+/** A `bunx` call, as hooks written before 1.0.1 have it; asdf's `bunx` shim splits arguments with spaces. */
+const LEGACY_BUNX = /(^|[\s;|&('"])bunx\s/;
+
+/**
+ * Tells whether a command still runs `bunx` instead of `bun x`, as hooks written by 1.0.0 do.
+ * `init` rewrites such a hook of ours (it starts with `HOOK_PREFIX`); `doctor` warns about it.
+ *
+ * @param command - Command of a hook.
+ * @returns True when it calls `bunx`.
+ * @example
+ * usesLegacyBunx("... revisa con bunx --bun agent-cloud-kit@1.0.0 doctor'"); // true
+ */
+export function usesLegacyBunx(command: string): boolean {
+  return LEGACY_BUNX.test(command);
+}
+
 /** Script of the hook (the installed link, fast and offline); the help text after it carries the pinned version. */
 const HOOK_SCRIPT = HOOK_PREFIX;
 
@@ -50,7 +66,7 @@ const HOOK_SCRIPT = HOOK_PREFIX;
  * @param version - Version of agent-cloud-kit pinned in `.agents/runner.json`.
  * @returns The command line.
  * @example
- * hookCommand("bun", "1.0.0"); // "... || echo 'agent-cloud-kit@1.0.0: ... bunx --bun agent-cloud-kit@1.0.0 doctor'"
+ * hookCommand("bun", "1.0.0"); // "... || echo 'agent-cloud-kit@1.0.0: ... bun x --bun agent-cloud-kit@1.0.0 doctor'"
  */
 export function hookCommand(runner: Runner, version: string): string {
   return `${HOOK_SCRIPT} || echo '${PACKAGE}@${version}: el setup del entorno no corrió; revisa con ${toolCommandText(runner, PACKAGE, version, ["doctor"])}'`;

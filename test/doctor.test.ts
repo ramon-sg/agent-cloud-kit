@@ -178,7 +178,7 @@ test("a cloud-ready skill of another version is a warning", async () => {
   writeFileSync(join(repo, ".agents/skills/cloud-ready/SKILL.md"), '---\nname: cloud-ready\nmetadata:\n  version: "0.9.0"\n---\n');
   const { lines } = await doctor(repo, ctx());
   assert.deepEqual(warnings(lines), [
-    "agent-cloud-kit: aviso: .agents/skills/cloud-ready está en 0.9.0 y el paquete en 1.0.0; corre bunx --bun agent-cloud-kit@1.0.0 init",
+    "agent-cloud-kit: aviso: .agents/skills/cloud-ready está en 0.9.0 y el paquete en 1.0.0; corre bun x --bun agent-cloud-kit@1.0.0 init",
   ]);
 });
 
@@ -231,6 +231,19 @@ test("a hook with another version than runner.json fails; the same version is ok
   const bad = await doctor(repo, ctx());
   assert.deepEqual(withText(bad.lines, "hook"), ["agent-cloud-kit: el hook de SessionStart no dice agent-cloud-kit@1.0.0"]);
   assert.equal(bad.ok, false);
+  writeHook(hookCommand("bun", "1.0.0"));
+  assert.deepEqual(withText((await doctor(repo, ctx())).lines, "hook"), ["agent-cloud-kit: hook de SessionStart: ok (agent-cloud-kit@1.0.0)"]);
+});
+
+test("a hook written with bunx by 1.0.0 is a warning that asks for init", async () => {
+  writeRunner({ runner: "bun", tools: { "agent-cloud-kit": "1.0.0" } });
+  writeHook(hookCommand("bun", "1.0.0").replace("bun x --bun", "bunx --bun"));
+  // The hint names this package's version: init of the pinned 1.0.0 would write bunx again.
+  const { lines } = await doctor(repo, { ...ctx(), packageVersion: "1.0.1" });
+  assert.deepEqual(withText(lines, "hook"), [
+    "agent-cloud-kit: hook de SessionStart: ok (agent-cloud-kit@1.0.0)",
+    "agent-cloud-kit: aviso: el hook de SessionStart usa bunx, que con argumentos con espacios falla; corre bun x --bun agent-cloud-kit@1.0.1 init para reescribirlo",
+  ]);
   writeHook(hookCommand("bun", "1.0.0"));
   assert.deepEqual(withText((await doctor(repo, ctx())).lines, "hook"), ["agent-cloud-kit: hook de SessionStart: ok (agent-cloud-kit@1.0.0)"]);
 });

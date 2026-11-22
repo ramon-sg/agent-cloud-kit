@@ -10,7 +10,7 @@ import type { Block } from "./block.ts";
 import { readConfig } from "./config.ts";
 import { CONFIG_FILE, OUTPUT_PREFIX, PACKAGE } from "./constants.ts";
 import { TOOLS, readToolVersions } from "./detect.ts";
-import { isOwnHookCommand } from "./init.ts";
+import { isOwnHookCommand, usesLegacyBunx } from "./init.ts";
 import { isValidRequest, toolExecutable } from "./installers.ts";
 import { stepLabel, t } from "./messages/index.ts";
 import { readPin } from "./pin.ts";
@@ -224,16 +224,17 @@ function ownHookCommands(repo: string): string[] {
 
 /**
  * Checks the runner: runner.json errors and warnings, that the runner is installed, and that our
- * SessionStart hook says the version pinned in runner.json. Without a pin, or when the pin comes
+ * SessionStart hook says the version pinned in runner.json (and warns when it still calls `bunx`). Without a pin, or when the pin comes
  * from the legacy cloud.json, or without our own hook, there is no pin line.
  *
  * @param repo - Repo root.
  * @param available - Tells whether a runner is installed.
+ * @param packageVersion - Version of this package, which the `init` hint for a `bunx` hook names (an older init would write `bunx` again).
  * @returns The checks, in order.
  * @example
- * checkRunner("/home/user/app", () => true); // [{ text: "ejecutor bun: ok", level: "ok" }, ...]
+ * checkRunner("/home/user/app", () => true, "1.0.1"); // [{ text: "ejecutor bun: ok", level: "ok" }, ...]
  */
-function checkRunner(repo: string, available: (runner: Runner) => boolean): Check[] {
+function checkRunner(repo: string, available: (runner: Runner) => boolean, packageVersion: string): Check[] {
   const pin = readPin(repo);
   const out: Check[] = pin.errors.map((text) => ({ text, level: "fail" }));
   if (pin.errors.length) return out;
@@ -245,6 +246,8 @@ function checkRunner(repo: string, available: (runner: Runner) => boolean): Chec
   if (!commands.length) return out;
   const failed = checkToolPins(repo, PACKAGE, commands).some((c) => c.status !== "ok");
   out.push({ text: t().doctor.hookPin(PACKAGE, pin.version, !failed), level: verdict(!failed) });
+  if (commands.some(usesLegacyBunx))
+    out.push({ text: t().doctor.hookBunx(toolCommandText(pin.runner, PACKAGE, packageVersion, ["init"])), level: "warn" });
   return out;
 }
 
@@ -284,7 +287,7 @@ export async function doctor(repo: string, ctx: DoctorContext): Promise<DoctorRe
     })),
   );
   checks.push(...(await guarded(groups.state, () => checkState(repo, ctx))));
-  checks.push(...(await guarded(groups.runner, () => checkRunner(repo, ctx.available ?? runnerAvailable))));
+  checks.push(...(await guarded(groups.runner, () => checkRunner(repo, ctx.available ?? runnerAvailable, ctx.packageVersion))));
   checks.push(...(await guarded(groups.plugins, () => checkPlugins(repo))));
   checks.push(...(await guarded(groups.skill, () => checkSkill(repo, ctx.packageVersion))));
   const failed = checks.filter((c) => c.level === "fail").length;

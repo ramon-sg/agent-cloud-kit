@@ -68,7 +68,7 @@ test("planSetup skips a repo whose pin has errors and carries the runner", () =>
   assert.deepEqual(plan[1], { repo: "good", action: "relaunch", version: "1.2.0", runner: "node" });
 });
 
-test("relaunch with bun runs bunx --bun with the pinned package", async () => {
+test("relaunch with bun runs bun x --bun with the pinned package", async () => {
   const calls: Array<{ cmd: string; args: string[]; opts: unknown }> = [];
   const run: Run = async (cmd, args, opts) => {
     calls.push({ cmd, args, opts });
@@ -76,7 +76,7 @@ test("relaunch with bun runs bunx --bun with the pinned package", async () => {
   const env = { X: "1" };
   await relaunch("/home/user/app", "1.2.0", "bun", run, env);
   assert.deepEqual(calls, [
-    { cmd: "bunx", args: ["--bun", "agent-cloud-kit@1.2.0", "setup", "--repo", "/home/user/app"], opts: { env } },
+    { cmd: "bun", args: ["x", "--bun", "agent-cloud-kit@1.2.0", "setup", "--repo", "/home/user/app"], opts: { env } },
   ]);
 });
 

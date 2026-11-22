@@ -34,5 +34,5 @@ export async function ensureRunner(
   } catch (err) {
     throw new Error(t().runner.bunFailed(RUNNER_FILE, err instanceof Error ? err.message : String(err)));
   }
-  if (!available("bun")) throw new Error(t().runner.bunFailed(RUNNER_FILE, "bunx"));
+  if (!available("bun")) throw new Error(t().runner.bunFailed(RUNNER_FILE, "bun"));
 }

@@ -83,8 +83,8 @@ test("setup without --repo skips, runs and relaunches in series and exits 0", as
   assert.ok(printed.includes(`agent-cloud-kit: se omite ${none}: no hay .agents/runner.json`));
   assert.ok(printed.includes(`agent-cloud-kit: setup ${same}: 3 pasos, 1 fallaron (setup: fail)`));
   assert.deepEqual(calls.at(-1), {
-    cmd: "bunx",
-    args: ["--bun", "agent-cloud-kit@1.2.0", "setup", "--repo", other],
+    cmd: "bun",
+    args: ["x", "--bun", "agent-cloud-kit@1.2.0", "setup", "--repo", other],
   });
 });
 
@@ -111,7 +111,7 @@ test("a failed Bun install is reported for that repo and the next one is process
   const code = await main(["setup"], { ...deps(), run: failingNpm, available: () => false });
   assert.equal(code, 0);
   assert.ok(printed.some((l) => l.includes('"runner": "node"') && l.includes(first)), printed.join("\n"));
-  assert.ok(!calls.some((c) => c.cmd === "bunx"));
+  assert.ok(!calls.some((c) => c.cmd === "bun"));
   assert.ok(printed.some((l) => l.includes("b-same") && l.includes("pasos")), printed.join("\n"));
 });
 
@@ -131,7 +131,7 @@ test("after setup of every repo the stable link points at the newest installed v
   // The relaunched rc self-installs and points the stable link at itself, as a real rc does.
   const rcInstall: Run = async (cmd, args, opts) => {
     await run(cmd, args, opts);
-    if (cmd !== "bunx" || !args.includes("agent-cloud-kit@1.0.0-rc.9")) return;
+    if (cmd !== "bun" || !args.includes("agent-cloud-kit@1.0.0-rc.9")) return;
     const bin = join(tools, "pkg", "1.0.0-rc.9", "node_modules", ".bin", "agent-cloud-kit");
     mkdirSync(dirname(bin), { recursive: true });
     writeFileSync(bin, "");
@@ -139,7 +139,7 @@ test("after setup of every repo the stable link points at the newest installed v
     symlinkSync(bin, join(tools, "bin", "agent-cloud-kit"));
   };
   assert.equal(await main(["setup"], { ...deps(), run: rcInstall }), 0);
-  assert.ok(calls.some((c) => c.cmd === "bunx" && c.args.includes("agent-cloud-kit@1.0.0-rc.9")), JSON.stringify(calls));
+  assert.ok(calls.some((c) => c.cmd === "bun" && c.args.includes("agent-cloud-kit@1.0.0-rc.9")), JSON.stringify(calls));
   assert.equal(readlinkSync(join(tools, "bin", "agent-cloud-kit")), join(tools, "pkg", "1.0.0", "node_modules", ".bin", "agent-cloud-kit"));
 });
 
@@ -227,7 +227,7 @@ test("a repo that throws does not stop the next ones", async () => {
   };
   assert.equal(await main(["setup"], { ...deps(), print: throwing }), 0);
   assert.ok(printed.includes(`agent-cloud-kit: error en setup de ${first}: boom`));
-  assert.deepEqual(calls.at(-1), { cmd: "bunx", args: ["--bun", "agent-cloud-kit@1.2.0", "setup", "--repo", second] });
+  assert.deepEqual(calls.at(-1), { cmd: "bun", args: ["x", "--bun", "agent-cloud-kit@1.2.0", "setup", "--repo", second] });
 });
 
 test("init writes the config and hook, doctor exits 1 when a check fails", async () => {
